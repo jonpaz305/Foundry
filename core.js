@@ -633,6 +633,7 @@ function navTo(section, btn) {
   if (section === 'comps'    && typeof renderCompsBlock === 'function') renderCompsBlock();
   if (section === 'operating'&& typeof renderOperatingBlock === 'function') renderOperatingBlock();
   if (section === 'capital'  && typeof renderCapitalBlock === 'function') renderCapitalBlock();
+  if (section === 'market'   && typeof renderMarketPage === 'function') renderMarketPage();
   if (section === 'company'  && typeof renderCompanyPicker === 'function') renderCompanyPicker();
   closeSidebar();
 }

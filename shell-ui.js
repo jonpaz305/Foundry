@@ -124,7 +124,8 @@ function renderBRRRRKpis() {
       <div class="kpi-label">Post-Refi DSCR</div>
       <div class="kpi-val" style="color:${dscrColor}">${dscr != null && isFinite(dscr) ? fX(dscr) : '-'}</div>
       <div class="kpi-sub">${eq != null ? 'Equity in: ' + f$(eq) : 'Pending equity'}</div>
-    </div>`;
+    </div>
+    ${renderMarketKpiTile()}`;
 }
 
 function renderFFKpis() {
@@ -168,6 +169,25 @@ function renderFFKpis() {
       <div class="kpi-label">Net Investor Proceeds</div>
       <div class="kpi-val">${net != null ? f$(net) : '-'}</div>
       <div class="kpi-sub">${eq != null ? 'Equity in: ' + f$(eq) : 'Pending equity'}</div>
+    </div>
+    ${renderMarketKpiTile()}`;
+}
+
+// Shared 5th KPI tile - renders only when market data is fetched.
+// Same look on both BRRRR and F&F dashboards.
+function renderMarketKpiTile() {
+  if (R.market_score == null) return '';
+  const score = R.market_score;
+  const grade = R.market_grade || '-';
+  const color = score >= 75 ? 'var(--ok)'
+              : score >= 55 ? 'var(--gold-lt)'
+              : score >= 35 ? 'var(--gold)'
+              : 'var(--bad)';
+  return `
+    <div class="kpi-card">
+      <div class="kpi-label">Market Strength</div>
+      <div class="kpi-val" style="color:${color}">${grade} <span style="font-size:14px;color:var(--text2);font-weight:400">${score}/100</span></div>
+      <div class="kpi-sub">${R.market_cbsa_name || R.market_zip || 'Census + HUD composite'}</div>
     </div>`;
 }
 

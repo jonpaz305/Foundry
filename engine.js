@@ -923,4 +923,17 @@ function recompute() {
   if (mode === 'brrrr')        R = computeBRRRR();
   else if (mode === 'fix_and_flip') R = computeFF();
   else R = {};
+
+  // Inject market analysis output (if fetched) into R, regardless of mode.
+  // The Market Strength Score, grade, and risks are independent of deal type.
+  if (typeof marketAnalysis === 'object' && marketAnalysis && marketAnalysis.census) {
+    R.market_score     = marketAnalysis.derived ? marketAnalysis.derived.market_strength_score : null;
+    R.market_grade     = marketAnalysis.derived ? marketAnalysis.derived.market_strength_grade : null;
+    R.market_cbsa_name = marketAnalysis.cbsa_name || null;
+    R.market_zip       = marketAnalysis.zip || null;
+    R.market_fetched_at= marketAnalysis.fetched_at || null;
+    if (typeof computeMarketRisks === 'function') {
+      R.market_risks = computeMarketRisks(marketAnalysis.census, marketAnalysis.derived);
+    }
+  }
 }

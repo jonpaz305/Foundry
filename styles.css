@@ -259,3 +259,27 @@ table.data tfoot td{padding:10px 11px;color:var(--text);font-weight:600;border-b
 .cvp-variance-label{color:var(--text2)}
 .cvp-variance-value{font-family:var(--fm);font-weight:600}
 .cvp-note{font-size:11px;color:var(--text3);margin-top:10px;font-style:italic}
+
+/* ─── MARKET ANALYSIS ────────────────────────────────────────── */
+/* Market Strength Score panel */
+.msc-wrap{display:grid;grid-template-columns:160px 1fr;gap:20px;align-items:start}
+@media (max-width:700px){.msc-wrap{grid-template-columns:1fr;gap:14px}}
+.msc-grade-card{background:var(--bg1);border:1px solid var(--gold);border-radius:var(--r-md);padding:16px;text-align:center}
+.msc-grade-label{font-family:var(--fm);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px}
+.msc-grade-value{font-family:var(--fm);font-size:56px;font-weight:700;line-height:1;margin:6px 0}
+.msc-grade-score{font-family:var(--fm);font-size:14px;color:var(--text2)}
+.msc-bars{display:flex;flex-direction:column;gap:8px}
+.msc-bar-row{display:grid;grid-template-columns:200px 1fr 40px;gap:10px;align-items:center;font-size:12px}
+@media (max-width:600px){.msc-bar-row{grid-template-columns:130px 1fr 36px;gap:8px;font-size:11px}}
+.msc-bar-label{color:var(--text2)}
+.msc-bar-track{height:10px;background:var(--bg1);border:1px solid var(--border);border-radius:99px;overflow:hidden}
+.msc-bar-fill{height:100%;transition:width 0.3s ease}
+.msc-bar-val{font-family:var(--fm);color:var(--text1);text-align:right;font-size:12px}
+
+/* Data grid for demographic / housing / economic panels */
+.data-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px}
+@media (max-width:700px){.data-grid-2{grid-template-columns:1fr;gap:6px}}
+.data-row{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;gap:10px;flex-wrap:wrap}
+.data-row-label{color:var(--text2)}
+.data-row-val{font-family:var(--fm);color:var(--text1);font-weight:600;text-align:right}
+.data-row-sub{font-size:10px;color:var(--text3);width:100%;text-align:right;font-style:italic;margin-top:-2px}
