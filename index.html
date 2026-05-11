@@ -1,315 +1,326 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Foundry - BRRRR &amp; Fix-and-Flip Underwriting</title>
-  <link rel="stylesheet" href="styles.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Foundry | Value-Add Underwriting Platform</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCA0OCA0OCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB4PSI2IiB5PSIzOCIgd2lkdGg9IjM2IiBoZWlnaHQ9IjQiIHJ4PSIxIiBmaWxsPSIjQzlBODRDIiBvcGFjaXR5PSIwLjYiLz48bGluZSB4MT0iMjQiIHkxPSIzOCIgeDI9IjI0IiB5Mj0iMTIiIHN0cm9rZT0iI0M5QTg0QyIgc3Ryb2tlLXdpZHRoPSI0IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48cGF0aCBkPSJNIDEyIDE0IEwgMjQgNCBMIDM2IDE0IiBzdHJva2U9IiNDOUE4NEMiIHN0cm9rZS13aWR0aD0iNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBmaWxsPSJub25lIi8+PC9zdmc+"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
 
-  <!-- ─────────────────────────────────────────────────────────────
-       AUTH SCREEN
-       ───────────────────────────────────────────────────────────── -->
-  <div id="auth-screen" class="auth-screen">
-    <div class="auth-card">
-      <img id="auth-logo" alt="Foundry" class="auth-logo" />
-      <div class="auth-tagline">BRRRR &amp; Fix-and-Flip Underwriting</div>
-      <div class="auth-form">
-        <label>Email</label>
-        <input type="email" id="auth-email" autocomplete="email" />
-        <label>Password</label>
-        <input type="password" id="auth-password" autocomplete="current-password" />
-        <div id="auth-error" class="auth-error"></div>
-        <div class="auth-actions">
-          <button class="btn-primary" onclick="signIn()">Sign In</button>
-          <button class="btn-secondary" onclick="signUp()">Sign Up</button>
-        </div>
+<!-- ════════════════════════════════════════════════════════════
+     AUTH SCREEN
+     ════════════════════════════════════════════════════════════ -->
+<div id="auth-screen" class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo" style="flex-direction:column;align-items:center;text-align:center;gap:16px">
+      <img id="auth-logo-img" alt="Foundry" style="max-width:280px;height:auto;object-fit:contain;mix-blend-mode:screen"/>
+      <div>
+        <div class="logo-text">Value-Add Underwriting Platform</div>
+        <div class="logo-sub">BRRRR &amp; Fix and Flip</div>
       </div>
-      <div class="auth-note">
-        Your Cadence or Tranche credentials work here - same Supabase project.
+    </div>
+    <div id="auth-form">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="field"><label>Email</label>
+          <input id="a-email" type="email" placeholder="you@yourfirm.com" autocomplete="email"/></div>
+        <div class="field"><label>Password</label>
+          <input id="a-pass" type="password" placeholder="••••••••" autocomplete="current-password"/></div>
+      </div>
+      <div id="a-err" class="sbar s-bad" style="display:none;margin-top:10px"></div>
+      <div style="display:flex;gap:8px;margin-top:1.25rem">
+        <button id="auth-submit-btn" class="btn btn-gold" style="flex:1;justify-content:center" onclick="authSubmit()">Sign in</button>
+      </div>
+      <div style="text-align:center;margin-top:.75rem">
+        <span id="auth-toggle-lbl" style="font-size:11px;color:var(--text3)">Don't have an account?</span>
+        <button id="auth-toggle-btn" onclick="toggleAuth()" style="background:none;border:none;color:var(--gold-dk);font-size:11px;cursor:pointer;font-weight:600;margin-left:4px">Sign up</button>
+      </div>
+      <div style="text-align:center;margin-top:.75rem;font-size:10px;color:var(--text3);line-height:1.5">
+        Your Cadence or Tranche credentials work here.
       </div>
     </div>
   </div>
+</div>
 
 
-  <!-- ─────────────────────────────────────────────────────────────
-       MAIN APP SHELL
-       ───────────────────────────────────────────────────────────── -->
-  <div id="app-shell" class="app-shell" style="display:none">
+<!-- ════════════════════════════════════════════════════════════
+     MAIN APP
+     ════════════════════════════════════════════════════════════ -->
+<div id="app-screen" class="app" style="display:none">
 
-    <!-- ── SIDEBAR ── -->
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <img id="sidebar-logo" alt="Foundry" />
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <button class="tb-hamburger" onclick="toggleSidebar()" aria-label="Open menu">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="tb-left">
+      <img id="tb-logo-img" alt="Foundry" style="height:32px;width:auto;object-fit:contain;flex-shrink:0;mix-blend-mode:screen"/>
+      <div style="width:1px;height:28px;background:rgba(255,255,255,.15);flex-shrink:0"></div>
+      <div>
+        <div class="tb-title">Foundry</div>
+        <div class="tb-sub" id="tb-deal-name">No deal selected</div>
       </div>
+    </div>
 
-      <div class="sidebar-action">
-        <button class="btn-primary btn-block" onclick="openNewDeal()">+ New Deal</button>
-      </div>
+    <!-- Mobile deal selector -->
+    <select class="tb-mobile-deal-sel" id="tb-mobile-deal-sel" onchange="if(this.value)loadDeal(this.value)">
+      <option value="">- Select deal -</option>
+    </select>
 
-      <div class="sidebar-section-title">Deals</div>
-      <div id="deal-list" class="deal-list"></div>
-
-      <div class="sidebar-footer">
-        <div id="user-email" class="user-email"></div>
-        <button class="btn-link" onclick="signOut()">Sign out</button>
-      </div>
-    </aside>
-
-
-    <!-- ── MAIN ── -->
-    <main class="main">
-
-      <!-- Top bar -->
-      <header class="topbar">
-        <nav class="topnav">
-          <button class="nav-btn active" data-target="dashboard"   onclick="showSection('dashboard')">Dashboard</button>
-          <button class="nav-btn"        data-target="setup"       onclick="showSection('setup')">Setup</button>
-          <button class="nav-btn"        data-target="unit-mix"    onclick="showSection('unit-mix')"   data-mode="brrrr">Unit Mix</button>
-          <button class="nav-btn"        data-target="comps"       onclick="showSection('comps')"      data-mode="fix_and_flip">Comps</button>
-          <button class="nav-btn"        data-target="operating"   onclick="showSection('operating')"  data-mode="brrrr">Operating</button>
-          <button class="nav-btn"        data-target="capital"     onclick="showSection('capital')">Capital</button>
-          <button class="nav-btn"        data-target="market"      onclick="showSection('market')">Market</button>
-          <button class="nav-btn"        data-target="risk"        onclick="showSection('risk')">Risk</button>
-          <button class="nav-btn"        data-target="reports"     onclick="showSection('reports')">Reports</button>
-          <button class="nav-btn"        data-target="settings"    onclick="showSection('settings')">Settings</button>
-        </nav>
-        <div class="topbar-right">
-          <span id="save-status" class="save-status"></span>
-        </div>
-      </header>
-
-
-      <!-- ─────────────────────────────────────────────────────────
-           NO-DEAL STATE
-           ───────────────────────────────────────────────────────── -->
-      <div id="no-deal-state" class="no-deal-state" style="display:none">
-        <div class="no-deal-card">
-          <h2>Welcome to Foundry</h2>
-          <p>
-            Underwrite BRRRR acquisitions and Fix-and-Flip deals with the same model your spreadsheet uses,
-            now with API-driven market data and report-grade output.
-          </p>
-          <button class="btn-primary" onclick="openNewDeal()">+ Create your first deal</button>
+    <div class="tb-right">
+      <select class="mode-sel" id="mode-sel" onchange="onModeSelChange()" title="Deal mode">
+        <option value="brrrr">BRRRR</option>
+        <option value="fix_and_flip">Fix &amp; Flip</option>
+      </select>
+      <span class="scen-badge" id="tb-save-ind"></span>
+      <button class="tb-btn tb-btn-ghost" onclick="manualSave()" title="Save">Save</button>
+      <div style="position:relative;display:inline-block" id="tb-user-menu-wrap">
+        <button class="tb-btn tb-btn-ghost" id="tb-user-btn" onclick="toggleUserMenu()" title="Account">⏻</button>
+        <div id="tb-user-menu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);min-width:180px;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.15)">
+          <div style="padding:10px 14px;font-size:10px;color:var(--text3);border-bottom:1px solid var(--border);font-family:var(--fm)" id="tb-user-email"></div>
+          <button onclick="openChangePassword()" style="width:100%;text-align:left;padding:10px 14px;font-size:12px;background:none;border:none;cursor:pointer;color:var(--text);border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='none'">Change password</button>
+          <button onclick="signOut()" style="width:100%;text-align:left;padding:10px 14px;font-size:12px;background:none;border:none;cursor:pointer;color:#ef4444" onmouseover="this.style.background='var(--bg2)'" onmouseout="this.style.background='none'">Sign out</button>
         </div>
       </div>
+      <button class="tb-btn tb-btn-gold" onclick="openNewDeal()">+ New deal</button>
+    </div>
+  </div>
 
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+  <div class="main">
 
-      <!-- ─────────────────────────────────────────────────────────
-           DASHBOARD
-           ───────────────────────────────────────────────────────── -->
-      <section data-section="dashboard" id="dashboard-content" style="display:none">
-        <div class="dash-header">
-          <div>
-            <h1 id="dash-deal-title">-</h1>
-            <div id="dash-deal-sub" class="dash-deal-sub"></div>
-          </div>
-          <div id="dash-deal-mode" class="dash-mode-tag"></div>
-        </div>
+    <!-- SIDEBAR -->
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Navigation</div>
+        <div class="nav-item active" onclick="navTo('dashboard', this)" data-section="dashboard"><span class="ni-icon">⊞</span> Dashboard</div>
+        <div class="nav-item"        onclick="navTo('setup', this)"     data-section="setup"><span class="ni-icon">◈</span> Deal Setup</div>
+        <div class="nav-item"        onclick="navTo('unitmix', this)"   data-section="unitmix"><span class="ni-icon">🏢</span> Unit Mix</div>
+        <div class="nav-item"        onclick="navTo('comps', this)"     data-section="comps"><span class="ni-icon">📊</span> Comps</div>
+        <div class="nav-item"        onclick="navTo('operating', this)" data-section="operating"><span class="ni-icon">📋</span> Operating</div>
+        <div class="nav-item"        onclick="navTo('capital', this)"   data-section="capital"><span class="ni-icon">💰</span> Capital</div>
+        <div class="nav-item"        onclick="navTo('market', this)"    data-section="market"><span class="ni-icon">🗺</span> Market</div>
+        <div class="nav-item"        onclick="navTo('risk', this)"      data-section="risk"><span class="ni-icon">⚠</span> Risk Register</div>
+        <div class="nav-item"        onclick="navTo('reports', this)"   data-section="reports"><span class="ni-icon">📄</span> Reports</div>
+        <div class="nav-item"        onclick="navTo('company', this)"   data-section="company"><span class="ni-icon">🏛</span> Company Profiles</div>
+      </div>
+      <div class="nav-divider"></div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Deals</div>
+        <div class="deal-list" id="deal-list"></div>
+      </div>
+    </div>
 
-        <div id="dash-kpis" class="kpi-grid"></div>
-        <div id="dash-status" class="dash-status"></div>
-      </section>
+    <!-- CONTENT -->
+    <div class="content" id="content">
+      <div class="content-inner">
 
-
-      <!-- ─────────────────────────────────────────────────────────
-           SETUP
-           ───────────────────────────────────────────────────────── -->
-      <section data-section="setup" style="display:none">
-        <div class="section-header">
-          <h2>Deal Setup</h2>
-          <div class="section-sub">Property, strategy, tax basis. Determines which engine runs.</div>
-        </div>
-        <div id="section-setup-body"></div>
-      </section>
-
-
-      <!-- ─────────────────────────────────────────────────────────
-           UNIT MIX (BRRRR only)
-           ───────────────────────────────────────────────────────── -->
-      <section data-section="unit-mix" data-mode="brrrr" style="display:none">
-        <div class="section-header">
-          <h2>Unit Mix &amp; Rent Roll</h2>
-          <div class="section-sub">By bedroom type. Drives GPR, EGI, NOI, and stabilized valuation.</div>
-        </div>
-        <div id="section-unit-mix-body"></div>
-      </section>
-
-
-      <!-- ─────────────────────────────────────────────────────────
-           COMPS (F&F only)
-           ───────────────────────────────────────────────────────── -->
-      <section data-section="comps" data-mode="fix_and_flip" style="display:none">
-        <div class="section-header">
-          <h2>Comparable Sales</h2>
-          <div class="section-sub">Drives ARV via avg $/SF × subject area, or use override.</div>
-        </div>
-        <div id="section-comps-body"></div>
-      </section>
-
-
-      <!-- ─────────────────────────────────────────────────────────
-           OPERATING (BRRRR only)
-           ───────────────────────────────────────────────────────── -->
-      <section data-section="operating" data-mode="brrrr" style="display:none">
-        <div class="section-header">
-          <h2>Operating Assumptions</h2>
-          <div class="section-sub">Vacancy + opex defaults. Applied to stabilized EGI.</div>
-        </div>
-        <div id="section-operating-body"></div>
-      </section>
-
-
-      <!-- ─────────────────────────────────────────────────────────
-           CAPITAL STRUCTURE
-           ───────────────────────────────────────────────────────── -->
-      <section data-section="capital" style="display:none">
-        <div class="section-header">
-          <h2>Capital Structure</h2>
-          <div class="section-sub">Acquisition, initial debt, and (BRRRR) refinance terms.</div>
-        </div>
-        <div id="section-capital-body"></div>
-      </section>
-
-
-      <!-- ─────────────────────────────────────────────────────────
-           MARKET (M4)
-           ───────────────────────────────────────────────────────── -->
-      <section data-section="market" style="display:none">
-        <div class="section-header">
-          <h2>Market Analysis</h2>
-          <div class="section-sub">Demographics (Census), SAFMR (HUD), vacancy + absorption (Census-derived).</div>
-        </div>
-        <div class="placeholder-block">
-          Market Analysis ships in M4. Will populate from Census ACS and HUD FMR APIs server-side
-          with shared caching, identical pattern to Tranche's AMI cache.
-        </div>
-      </section>
-
-
-      <!-- ─────────────────────────────────────────────────────────
-           RISK (M5)
-           ───────────────────────────────────────────────────────── -->
-      <section data-section="risk" style="display:none">
-        <div class="section-header">
-          <h2>Risk Register</h2>
-          <div class="section-sub">Auto-flagged risks based on engine outputs and market data.</div>
-        </div>
-        <div class="placeholder-block">
-          Risk Register ships in M5. Mode-aware templates: BRRRR will flag low DSCR, high LTV at refi,
-          insufficient cash-out, breakeven occupancy above market. F&amp;F will flag comp scatter, high DOM,
-          thin value creation %, contingency below 5% of project cost.
-        </div>
-      </section>
-
-
-      <!-- ─────────────────────────────────────────────────────────
-           REPORTS (M6)
-           ───────────────────────────────────────────────────────── -->
-      <section data-section="reports" style="display:none">
-        <div class="section-header">
-          <h2>Reports</h2>
-          <div class="section-sub">Institutional-grade output for lenders, equity partners, and IC.</div>
-        </div>
-        <div class="placeholder-block">
-          Reports ship in M6. Six report types planned: Deal Snapshot, BRRRR Underwriting Package,
-          Fix &amp; Flip Underwriting Package, Internal Deal Memo (mode-aware), IC Memo, and Lender Package.
-          PDF export reuses Tranche's print pipeline.
-        </div>
-      </section>
-
-
-      <!-- ─────────────────────────────────────────────────────────
-           SETTINGS
-           ───────────────────────────────────────────────────────── -->
-      <section data-section="settings" style="display:none">
-        <div class="section-header">
-          <h2>Settings</h2>
-          <div class="section-sub">Company branding profiles for reports, regression seed data.</div>
-        </div>
-        <div class="form-grid">
-          <div class="form-group">
-            <div class="form-group-title">Company Profiles</div>
-            <div id="cp-picker" style="margin-bottom:12px"></div>
-            <button class="btn-secondary" onclick="createCompanyProfile()">+ New company profile</button>
-          </div>
-          <div class="form-group">
-            <div class="form-group-title">Regression Seed Data</div>
-            <div class="form-hint" style="margin-bottom:12px">
-              Creates the two canonical regression test deals (2048 E 79th Street BRRRR and 2455 W 7 ST Fix &amp; Flip)
-              with the exact input values from the original spreadsheets. Used to validate the engine in M2/M3.
-              Safe to re-run - skips creation if a deal with the same name already exists.
+        <!-- ── DASHBOARD ─────────────────────────────────────── -->
+        <div id="section-dashboard">
+          <div id="no-deal-state" class="panel" style="margin-top:1rem">
+            <div class="empty">
+              <div class="empty-icon">↑</div>
+              <div class="empty-title">Welcome to Foundry</div>
+              <div style="margin:0 auto 1.5rem;color:var(--text2);font-size:12px;max-width:420px;line-height:1.7">
+                Underwrite BRRRR acquisitions and Fix &amp; Flip deals. Same model your spreadsheet uses, with API-driven market data and report-grade output.
+              </div>
+              <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-bottom:1.5rem">
+                <button class="btn btn-gold" onclick="openNewDeal()">+ Start a new deal</button>
+                <button class="btn btn-ghost" onclick="seedRegressionDeals()">▶ Seed regression deals</button>
+              </div>
+              <div style="font-size:10px;color:var(--text3);font-family:var(--fm)">Seed loads 2048 E 79th (BRRRR) and 2455 W 7 ST (Fix &amp; Flip) - the audit regression deals</div>
             </div>
-            <button class="btn-secondary" onclick="seedRegressionDeals()">Seed regression deals</button>
+          </div>
+
+          <div id="dashboard-content" style="display:none">
+            <div class="dash-header">
+              <div>
+                <div class="dash-eyebrow">Active Deal</div>
+                <div class="dash-title" id="dash-deal-title">-</div>
+                <div class="dash-sub" id="dash-deal-sub">-</div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:flex-start">
+                <button class="btn btn-sm btn-ghost" onclick="navTo('setup',document.querySelector('[data-section=setup]'))">Edit Setup</button>
+              </div>
+            </div>
+            <div class="kpi-grid" id="dash-kpis"></div>
+            <div id="dash-status"></div>
           </div>
         </div>
-      </section>
 
+        <!-- ── DEAL SETUP ─────────────────────────────────────── -->
+        <div id="section-setup" style="display:none"><div id="section-setup-body"></div></div>
 
-    </main>
-  </div>
+        <!-- ── UNIT MIX ───────────────────────────────────────── -->
+        <div id="section-unitmix" style="display:none"><div id="section-unitmix-body"></div></div>
 
+        <!-- ── COMPS ──────────────────────────────────────────── -->
+        <div id="section-comps" style="display:none"><div id="section-comps-body"></div></div>
 
-  <!-- ─────────────────────────────────────────────────────────────
-       NEW-DEAL MODAL
-       ───────────────────────────────────────────────────────────── -->
-  <div id="new-deal-modal" class="modal-overlay" style="display:none">
-    <div class="modal-card">
-      <div class="modal-title">Create New Deal</div>
-      <div class="form-row">
-        <label>Deal name</label>
-        <input type="text" id="nd-name" placeholder="e.g. 2048 E 79th Street, Cleveland" />
-      </div>
-      <div class="form-row">
-        <label>Deal mode</label>
-        <select id="nd-mode">
-          <option value="brrrr" selected>BRRRR (acquire, renovate, rent, refi, repeat)</option>
-          <option value="fix_and_flip">Fix &amp; Flip (renovate &amp; sell)</option>
-        </select>
-        <div class="form-hint">You can switch modes later without losing data.</div>
-      </div>
-      <div class="modal-actions">
-        <button class="btn-secondary" onclick="closeNewDeal()">Cancel</button>
-        <button class="btn-primary" onclick="createDeal()">Create</button>
+        <!-- ── OPERATING ──────────────────────────────────────── -->
+        <div id="section-operating" style="display:none"><div id="section-operating-body"></div></div>
+
+        <!-- ── CAPITAL ────────────────────────────────────────── -->
+        <div id="section-capital" style="display:none"><div id="section-capital-body"></div></div>
+
+        <!-- ── MARKET (M4 placeholder) ────────────────────────── -->
+        <div id="section-market" style="display:none">
+          <div class="panel">
+            <div class="panel-title">Market Analysis</div>
+            <div class="empty">
+              <div class="empty-icon">🗺</div>
+              <div class="empty-title">Ships in M4</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:6px;max-width:520px;margin-left:auto;margin-right:auto;line-height:1.7">
+                Demographics from Census ACS, SAFMR from HUD, vacancy and absorption derived from ACS. Server-side proxy with shared caching, identical pattern to Tranche's AMI cache.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── RISK (M5 placeholder) ──────────────────────────── -->
+        <div id="section-risk" style="display:none">
+          <div class="panel">
+            <div class="panel-title">Risk Register</div>
+            <div class="empty">
+              <div class="empty-icon">⚠</div>
+              <div class="empty-title">Ships in M5</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:6px;max-width:520px;margin-left:auto;margin-right:auto;line-height:1.7">
+                Mode-aware auto-flagged risks. BRRRR: low DSCR, high refi LTV, breakeven occupancy above market. Fix &amp; Flip: comp scatter, high DOM, thin value creation, contingency below 5%.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── REPORTS (M6 placeholder) ───────────────────────── -->
+        <div id="section-reports" style="display:none">
+          <div class="panel">
+            <div class="panel-title">Reports</div>
+            <div class="empty">
+              <div class="empty-icon">📄</div>
+              <div class="empty-title">Ships in M6</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:6px;max-width:520px;margin-left:auto;margin-right:auto;line-height:1.7">
+                Deal Snapshot, BRRRR Package, Fix &amp; Flip Package, Internal Memo, IC Memo, Lender Package. PDF export reuses Tranche's print pipeline.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── COMPANY PROFILES ───────────────────────────────── -->
+        <div id="section-company" style="display:none">
+          <div class="panel">
+            <div class="panel-title">Company Profiles
+              <button class="btn btn-sm btn-gold" onclick="createCompanyProfile()">+ New profile</button>
+            </div>
+            <div id="cp-picker" style="margin-top:.5rem"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Regression Seed Data</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:1rem;line-height:1.7">
+              Seed the two canonical regression deals (2048 E 79th BRRRR and 2455 W 7 ST Fix &amp; Flip) with the exact inputs from the original spreadsheets. Used to validate the engine in M2/M3. Safe to re-run.
+            </div>
+            <button class="btn btn-ghost" onclick="seedRegressionDeals()">Seed regression deals</button>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
+</div>
 
 
-  <!-- ─────────────────────────────────────────────────────────────
-       SCRIPTS
-       ───────────────────────────────────────────────────────────── -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="logos.js"></script>
-  <script src="core.js"></script>
-  <script src="shell-ui.js"></script>
-  <script src="data-entry.js"></script>
-  <script src="seed-regression.js"></script>
+<!-- ════════════════════════════════════════════════════════════
+     NEW-DEAL MODAL
+     ════════════════════════════════════════════════════════════ -->
+<div id="new-deal-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card">
+    <div class="modal-title">Create New Deal</div>
+    <div class="field" style="margin-bottom:12px">
+      <label>Deal name</label>
+      <input id="nd-name" placeholder="e.g. 2048 E 79th Street, Cleveland"/>
+    </div>
+    <div class="field" style="margin-bottom:12px">
+      <label>Deal mode</label>
+      <select id="nd-mode">
+        <option value="brrrr" selected>BRRRR (renovate, stabilize, refinance, hold)</option>
+        <option value="fix_and_flip">Fix &amp; Flip (renovate &amp; sell)</option>
+      </select>
+      <div class="hint">You can switch modes later. Data is preserved.</div>
+    </div>
+    <div class="g2" style="margin-bottom:12px">
+      <div class="field"><label>Street address (optional)</label><input id="nd-addr" placeholder="2048 E 79th Street"/></div>
+      <div class="field"><label>City (optional)</label><input id="nd-city" placeholder="Cleveland"/></div>
+    </div>
+    <div class="g2" style="margin-bottom:12px">
+      <div class="field"><label>State (optional)</label><input id="nd-state" maxlength="2" placeholder="OH"/></div>
+      <div class="field"><label>Zip (optional)</label><input id="nd-zip" maxlength="5" placeholder="44103"/></div>
+    </div>
+    <div id="nd-err" class="sbar s-bad" style="display:none;margin-bottom:12px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('new-deal-modal')">Cancel</button>
+      <button class="btn btn-gold" onclick="createDeal()">Create deal</button>
+    </div>
+  </div>
+</div>
 
-  <script>
-    // Wire logos into the DOM once the shell is rendered.
-    document.addEventListener('DOMContentLoaded', () => {
-      const al = document.getElementById('auth-logo');
-      const sl = document.getElementById('sidebar-logo');
-      if (al) al.src = FOUNDRY_LOGO_DARK;
-      if (sl) sl.src = FOUNDRY_LOGO_DARK;
-      // Default-active section
-      showSection('dashboard');
-    });
 
-    // When dashboard becomes visible and a deal is loaded, also (re)render
-    // the setup form so the Setup tab is hot the moment the user clicks it.
-    document.addEventListener('click', (e) => {
-      if (e.target.matches('.nav-btn')) {
-        const target = e.target.getAttribute('data-target');
-        if (target === 'setup' && currentDeal) renderDealSetupForm();
-      }
-    }, true);
-  </script>
+<!-- ════════════════════════════════════════════════════════════
+     DELETE-DEAL MODAL
+     ════════════════════════════════════════════════════════════ -->
+<div id="delete-deal-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card">
+    <div class="modal-title" style="color:var(--bad)">Delete deal?</div>
+    <div class="modal-body">
+      You are about to delete <strong id="delete-deal-name">this deal</strong>. This cannot be undone.
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="deleteDeal(false)">Cancel</button>
+      <button class="btn btn-bad" onclick="deleteDeal(true)">Delete permanently</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     CHANGE-PASSWORD MODAL
+     ════════════════════════════════════════════════════════════ -->
+<div id="change-pw-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card">
+    <div class="modal-title">Change Password</div>
+    <div class="field" style="margin-bottom:12px"><label>New password</label>
+      <input type="password" id="cp-pw1" autocomplete="new-password" placeholder="At least 8 characters"/></div>
+    <div class="field" style="margin-bottom:12px"><label>Confirm new password</label>
+      <input type="password" id="cp-pw2" autocomplete="new-password"/></div>
+    <div id="cp-pw-err" class="sbar s-bad" style="display:none;margin-bottom:12px"></div>
+    <div id="cp-pw-ok"  class="sbar s-ok"  style="display:none;margin-bottom:12px">Password updated.</div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('change-pw-modal')">Cancel</button>
+      <button class="btn btn-gold" onclick="changePassword()">Update password</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     SCRIPTS
+     ════════════════════════════════════════════════════════════ -->
+<script src="logos.js"></script>
+<script src="core.js"></script>
+<script src="shell-ui.js"></script>
+<script src="data-entry.js"></script>
+<script src="seed-regression.js"></script>
+<script>
+  // Wire logos into the DOM after all scripts load
+  document.addEventListener('DOMContentLoaded', () => {
+    if (typeof FOUNDRY_LOGO_DARK !== 'undefined') {
+      const a = document.getElementById('auth-logo-img');
+      const t = document.getElementById('tb-logo-img');
+      if (a) a.src = FOUNDRY_LOGO_DARK;
+      if (t) t.src = FOUNDRY_LOGO_DARK;
+    }
+  });
+</script>
 
 </body>
 </html>

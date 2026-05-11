@@ -1,22 +1,14 @@
 // ════════════════════════════════════════════════════════════════
-// FOUNDRY - Core (auth, Supabase, deal CRUD, autosave, state)
+// FOUNDRY - Core (auth, Supabase, deal CRUD, autosave, navigation)
 // ════════════════════════════════════════════════════════════════
-//
-// Pattern inherited from Cadence/Tranche. The R object is the
-// canonical engine-output store - read-only from UI code, written
-// only by engine.js (which doesn't exist yet in M1 - placeholders
-// only). Deal CRUD persists to Supabase with per-section autosave.
-//
-// Mode toggle: every deal has a deal_mode of 'brrrr' or 'fix_and_flip'.
-// Mode drives which sections render and which engine runs. State
-// shape is unified - only the engine dispatch and the UI gating
-// differ.
+// Pattern inherited directly from Cadence/Tranche. State model is
+// dual-mode (BRRRR + Fix and Flip) but auth, CRUD, autosave, and
+// navigation are identical to the other apps.
 // ════════════════════════════════════════════════════════════════
 
 
-// ── SUPABASE CONFIG ─────────────────────────────────────────────
+// ── SUPABASE CONFIG ────────────────────────────────────────────
 // Shared Supabase project across Cadence / Tranche / Foundry.
-// Foundry uses the foundry_* namespaced tables; auth is shared.
 const SUPABASE_URL  = 'https://nkczxoggmbllcmbksmrn.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_V2ixyLYaYBlqRfkTAu9tOA_3LwBwB7z';
 
@@ -26,89 +18,89 @@ let currentDeal = null;
 let deals = [];
 
 
-// ── CANONICAL DEAL STATE ────────────────────────────────────────
-// Read by all UI / engine code. Reset on deal switch.
-// All field names use snake_case to match jsonb column conventions.
+// ── CANONICAL DEAL STATE ───────────────────────────────────────
+let inputs = makeDefaultInputs();
+let unitMix = [];
+let comps = [];
+let marketAnalysis = {};
+let overrides = {};
+let riskRegister = [];
 
-let inputs = {
-  // Property
-  property_address:        '',
-  city:                    '',
-  state:                   '',
-  zip:                     '',
-  asset_type:              'multifamily_2_4', // 'single_family' | 'multifamily_2_4' | 'commercial_multifamily' | 'commercial'
-
-  // BRRRR-only
-  subject_area_sf:         null,              // also used in F&F
-  target_refi_months:      null,
-  target_hold_years:       10,
-  target_refi_ltv:         0.75,
-  vacancy_pct:             0.05,
-  pm_pct:                  0.07,
-  maint_pct_of_egi:        0.055,
-  insurance_pct_of_egi:    0.08,
-  utilities_pct_of_egi:    0.02,
-  reserves_per_unit_year:  1000,
-  rent_growth_pct:         0.03,
-  appreciation_pct:        0.05,
-  exit_cap:                0.0895,
-  sale_cost_pct:           0.07,
-
-  // F&F-only
-  target_hold_months:      null,
-  arv_override:            null,              // optional manual ARV (otherwise comp-derived)
-
-  // Acquisition / debt - both modes
-  purchase_price:          0,
-  reno_budget:             0,
-  mobilization_contingency: 0,
-  treat_mob_as_equity:     false,             // BRRRR: whether mob/conting counts toward initial equity
-  consulting_fees_override: null,             // null = use formula default (max($10k, 3% of acq+reno))
-  closing_cost_baseline:   2444,              // the Cuyahoga title/escrow stack
-  closing_cost_loan_pct:   0.05,              // 2% origination + 3% points = 5% of loan
-  initial_loan_ltv:        0.93,              // hard-money LTV on purchase
-  initial_loan_ltc_reno:   1.00,              // hard-money LTC on reno (100% funded)
-  initial_rate:            0.127,
-  initial_interest_type:   'IO',              // 'IO' | 'PI'
-
-  // Refi - BRRRR only
-  refi_rate:               0.075,
-  refi_interest_type:      'PI',
-  refi_closing_cost_pct:   0.04,
-  investor_ownership:      0.5,               // LP/GP split - investor share of post-refi cash flow
-  lp_gp_split_ff:          0.5,               // F&F LP share of gross proceeds (replaces hardcoded 50/50)
-
-  // Tax behavior (Foundry-new - spreadsheet uses purchase price; we offer the toggle)
-  tax_basis_mode:          'stabilized_arv',  // 'purchase_price' | 'stabilized_arv'
-  tax_district:            '',                // Cuyahoga municipality pick
-
-  // Equity multiple definition (Foundry-new - fixes the spreadsheet bug)
-  // Kept here for engine reference; always uses 'institutional' definition.
-  equity_multiple_method:  'institutional'
-};
-
-let unitMix = [];          // BRRRR mode: [{ bed_type, count, rent }, ...]
-let comps = [];            // F&F mode: [{ address, sales_price, area_sf, dom }, ...]
-let marketAnalysis = {};   // populated by market.js (M4)
-let overrides = {};        // per-field engine-output overrides
-let riskRegister = [];     // populated by risk.js (M5)
-
-// Engine outputs - R is written by engine.js (M2/M3). M1 stub:
+// Engine outputs - written by engine.js (M2/M3). M1 stub: empty.
 let R = {};
 
-
-// ── COMPANY PROFILES (branded reports) ──────────────────────────
+// Company profiles
 let CP = { list: [], active: null };
 
-
-// ── AUTOSAVE TIMERS ─────────────────────────────────────────────
-// One debounce timer per logical section. 700ms after the last
-// keystroke, that section commits to Supabase. Matches the
-// Cadence/Tranche pattern exactly.
+// Autosave timers (per-section debouncing, same pattern as Cadence/Tranche)
 let autosaveTimers = {};
 
+// Internal flag to suppress autosave during loadDeal hydration
+let _loadingDeal = false;
 
-// ── HELPERS ─────────────────────────────────────────────────────
+
+function makeDefaultInputs() {
+  return {
+    // Property
+    property_address:        '',
+    city:                    '',
+    state:                   '',
+    zip:                     '',
+    asset_type:              'multifamily_2_4',
+    subject_area_sf:         null,
+
+    // BRRRR strategy
+    target_refi_months:      null,
+    target_hold_years:       10,
+    target_refi_ltv:         0.75,
+    vacancy_pct:             0.05,
+    pm_pct:                  0.07,
+    maint_pct_of_egi:        0.055,
+    insurance_pct_of_egi:    0.08,
+    utilities_pct_of_egi:    0.02,
+    reserves_per_unit_year:  1000,
+    rent_growth_pct:         0.03,
+    appreciation_pct:        0.05,
+    exit_cap:                0.0895,
+    sale_cost_pct:           0.07,
+
+    // F&F strategy
+    target_hold_months:      null,
+    arv_override:            null,
+
+    // Acquisition / debt (both modes)
+    purchase_price:          0,
+    reno_budget:             0,
+    mobilization_contingency: 0,
+    treat_mob_as_equity:     false,
+    consulting_fees_override: null,
+    closing_cost_baseline:   2444,
+    closing_cost_loan_pct:   0.05,
+    initial_loan_ltv:        0.93,
+    initial_loan_ltc_reno:   1.00,
+    initial_rate:            0.127,
+    initial_interest_type:   'IO',
+
+    // Refi (BRRRR only)
+    refi_rate:               0.075,
+    refi_interest_type:      'PI',
+    refi_closing_cost_pct:   0.04,
+    investor_ownership:      0.5,
+
+    // F&F LP/GP
+    lp_gp_split_ff:          0.5,
+
+    // Tax behavior
+    tax_basis_mode:          'stabilized_arv',
+    tax_district:            '',
+
+    // Equity multiple definition (institutional only - see audit doc)
+    equity_multiple_method:  'institutional'
+  };
+}
+
+
+// ── HELPERS ────────────────────────────────────────────────────
 const $ = (id) => document.getElementById(id);
 
 function escapeHtml(s) {
@@ -121,11 +113,9 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
-// Number formatters - shared across UI
 const f$ = (n) => {
   if (n == null || !isFinite(n)) return '-';
-  const v = Math.round(n);
-  return '$' + v.toLocaleString();
+  return '$' + Math.round(n).toLocaleString();
 };
 const fP = (n) => {
   if (n == null || !isFinite(n)) return '-';
@@ -141,120 +131,152 @@ const fN = (n) => {
 };
 
 
-// ── AUTH ────────────────────────────────────────────────────────
+// ── AUTH ───────────────────────────────────────────────────────
 async function initSupabase() {
   if (!window.supabase) {
     console.error('[Foundry] Supabase JS library not loaded');
     return;
   }
   sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+  await checkSession();
+}
 
-  // Check session
-  const { data: sessionData } = await sb.auth.getSession();
-  if (sessionData && sessionData.session) {
-    currentUser = sessionData.session.user;
-    onAuthReady();
+async function checkSession() {
+  const { data } = await sb.auth.getSession();
+  if (data && data.session) {
+    currentUser = data.session.user;
+    await initApp();
   } else {
-    showAuthScreen();
+    $('auth-screen').style.display = 'flex';
+    $('app-screen').style.display = 'none';
+  }
+}
+
+let _authMode = 'signin';  // 'signin' | 'signup'
+function toggleAuth() {
+  _authMode = _authMode === 'signin' ? 'signup' : 'signin';
+  const btn = $('auth-submit-btn');
+  const lbl = $('auth-toggle-lbl');
+  const tbtn = $('auth-toggle-btn');
+  if (btn) btn.textContent = _authMode === 'signin' ? 'Sign in' : 'Sign up';
+  if (lbl) lbl.textContent = _authMode === 'signin' ? "Don't have an account?" : 'Already have an account?';
+  if (tbtn) tbtn.textContent = _authMode === 'signin' ? 'Sign up' : 'Sign in';
+}
+
+async function authSubmit() {
+  const email = ($('a-email') || {}).value;
+  const pass  = ($('a-pass')  || {}).value;
+  const err   = $('a-err');
+  if (err) err.style.display = 'none';
+
+  if (!email || !pass) {
+    if (err) { err.textContent = 'Email and password required.'; err.style.display = 'flex'; }
+    return;
   }
 
-  // Subscribe to auth changes
-  sb.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_IN' && session) {
-      currentUser = session.user;
-      onAuthReady();
-    } else if (event === 'SIGNED_OUT') {
-      currentUser = null;
-      showAuthScreen();
+  try {
+    if (_authMode === 'signin') {
+      const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password: pass });
+      if (error) throw error;
+    } else {
+      const { error } = await sb.auth.signUp({ email: email.trim(), password: pass });
+      if (error) throw error;
+      if (err) { err.textContent = 'Check your email to confirm, then sign in.'; err.className = 'sbar s-ok'; err.style.display = 'flex'; }
+      _authMode = 'signin';
+      return;
     }
-  });
-}
-
-function showAuthScreen() {
-  const auth = $('auth-screen');
-  const app  = $('app-shell');
-  if (auth) auth.style.display = 'flex';
-  if (app)  app.style.display  = 'none';
-}
-
-function showAppShell() {
-  const auth = $('auth-screen');
-  const app  = $('app-shell');
-  if (auth) auth.style.display = 'none';
-  if (app)  app.style.display  = 'flex';
-}
-
-async function signIn() {
-  const email = ($('auth-email') || {}).value;
-  const pass  = ($('auth-password') || {}).value;
-  const errEl = $('auth-error');
-  if (errEl) errEl.textContent = '';
-  if (!email || !pass) {
-    if (errEl) errEl.textContent = 'Email and password required.';
-    return;
-  }
-  try {
-    const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password: pass });
-    if (error) throw error;
   } catch (e) {
-    if (errEl) errEl.textContent = e.message || 'Sign-in failed.';
-  }
-}
-
-async function signUp() {
-  const email = ($('auth-email') || {}).value;
-  const pass  = ($('auth-password') || {}).value;
-  const errEl = $('auth-error');
-  if (errEl) errEl.textContent = '';
-  if (!email || !pass) {
-    if (errEl) errEl.textContent = 'Email and password required.';
-    return;
-  }
-  try {
-    const { error } = await sb.auth.signUp({ email: email.trim(), password: pass });
-    if (error) throw error;
-    if (errEl) errEl.textContent = 'Check email to confirm. Then sign in.';
-  } catch (e) {
-    if (errEl) errEl.textContent = e.message || 'Sign-up failed.';
+    if (err) { err.textContent = e.message || 'Auth failed.'; err.className = 'sbar s-bad'; err.style.display = 'flex'; }
   }
 }
 
 async function signOut() {
   await sb.auth.signOut();
+  _clearAllAutosaveTimers();
+  _loadingDeal = true;
+  try { resetDealState(); } finally { _loadingDeal = false; }
+  currentUser = null; currentDeal = null;
+  $('auth-screen').style.display = 'flex';
+  $('app-screen').style.display = 'none';
+}
+
+function toggleUserMenu() {
+  const menu = $('tb-user-menu');
+  if (!menu) return;
+  const open = menu.style.display !== 'none';
+  menu.style.display = open ? 'none' : 'block';
+  if (!open) {
+    setTimeout(() => {
+      document.addEventListener('click', function closeMenu(e) {
+        if (!$('tb-user-menu-wrap') || !$('tb-user-menu-wrap').contains(e.target)) {
+          if (menu) menu.style.display = 'none';
+          document.removeEventListener('click', closeMenu);
+        }
+      });
+    }, 0);
+  }
+}
+
+function openChangePassword() {
+  const menu = $('tb-user-menu');
+  if (menu) menu.style.display = 'none';
+  const err = $('cp-pw-err'); const ok = $('cp-pw-ok');
+  const p1 = $('cp-pw1'); const p2 = $('cp-pw2');
+  if (err) err.style.display = 'none';
+  if (ok)  ok.style.display = 'none';
+  if (p1)  p1.value = '';
+  if (p2)  p2.value = '';
+  $('change-pw-modal').style.display = 'flex';
+}
+
+async function changePassword() {
+  const p1 = ($('cp-pw1') || {}).value || '';
+  const p2 = ($('cp-pw2') || {}).value || '';
+  const err = $('cp-pw-err'); const ok = $('cp-pw-ok');
+  if (err) err.style.display = 'none';
+  if (ok)  ok.style.display = 'none';
+  if (p1.length < 8) {
+    if (err) { err.textContent = 'Password must be at least 8 characters.'; err.style.display = 'flex'; }
+    return;
+  }
+  if (p1 !== p2) {
+    if (err) { err.textContent = 'Passwords do not match.'; err.style.display = 'flex'; }
+    return;
+  }
+  const { error } = await sb.auth.updateUser({ password: p1 });
+  if (error) {
+    if (err) { err.textContent = error.message || 'Error updating password.'; err.style.display = 'flex'; }
+    return;
+  }
+  if (ok) ok.style.display = 'flex';
+  setTimeout(() => closeModal('change-pw-modal'), 1800);
 }
 
 
-// ── BOOT SEQUENCE ───────────────────────────────────────────────
-async function onAuthReady() {
-  showAppShell();
+// ── APP INIT ──────────────────────────────────────────────────
+async function initApp() {
+  $('auth-screen').style.display = 'none';
+  $('app-screen').style.display  = 'block';
   await loadCompanies();
   await loadDeals();
-  // Surface the user email in the top bar
-  const ue = $('user-email');
-  if (ue) ue.textContent = currentUser.email || '';
+  if ($('tb-user-email')) $('tb-user-email').textContent = currentUser.email || '';
   renderDealList();
   renderCompanyPicker();
-  renderDashboard();
+  updateDashboard();
 }
 
 
-// ── COMPANIES ──────────────────────────────────────────────────
+// ── COMPANIES ─────────────────────────────────────────────────
 async function loadCompanies() {
   const { data, error } = await sb
     .from('foundry_companies')
     .select('*')
     .order('created_at', { ascending: true });
-  if (error) {
-    console.error('[Foundry] load companies failed:', error);
-    return;
-  }
+  if (error) { console.error('[Foundry] load companies:', error); return; }
   CP.list = data || [];
-  // Restore last-active company from localStorage
   const lastId = localStorage.getItem('foundry_active_company');
-  if (lastId) {
-    CP.active = CP.list.find(c => c.id === lastId) || null;
-  }
-  if (!CP.active && CP.list.length > 0) {
+  if (lastId) CP.active = CP.list.find(c => c.id === lastId) || null;
+  if (!CP.active && CP.list.length) {
     CP.active = CP.list[0];
     localStorage.setItem('foundry_active_company', CP.active.id);
   }
@@ -268,77 +290,79 @@ function setActiveCompany(id) {
   renderCompanyPicker();
 }
 
+async function createCompanyProfile() {
+  const name = prompt('Company name (e.g. "ASJP Group", "KPI Capital Partners"):');
+  if (!name) return;
+  try {
+    const { data, error } = await sb
+      .from('foundry_companies')
+      .insert({
+        user_id: currentUser.id,
+        name: name.trim(), subtitle: '',
+        logo_base64: null, primary_color: '#C9A84C',
+        contact_info: {}
+      })
+      .select().single();
+    if (error) throw error;
+    CP.list.push(data);
+    CP.active = data;
+    localStorage.setItem('foundry_active_company', data.id);
+    renderCompanyPicker();
+  } catch (e) {
+    alert('Could not create company: ' + e.message);
+  }
+}
 
-// ── DEALS ───────────────────────────────────────────────────────
+
+// ── DEALS ─────────────────────────────────────────────────────
 async function loadDeals() {
   const { data, error } = await sb
     .from('foundry_deals')
     .select('*')
     .order('updated_at', { ascending: false });
-  if (error) {
-    console.error('[Foundry] load deals failed:', error);
-    deals = [];
-    return;
-  }
+  if (error) { console.error('[Foundry] load deals:', error); deals = []; return; }
   deals = data || [];
+
+  // Mobile selector mirror
+  const sel = $('tb-mobile-deal-sel');
+  if (sel) {
+    sel.innerHTML = '<option value="">- Select deal -</option>' +
+      deals.map(d => `<option value="${d.id}"${currentDeal && currentDeal.id === d.id ? ' selected' : ''}>${escapeHtml(d.name)}</option>`).join('');
+  }
 }
 
 async function loadDeal(id) {
   const d = deals.find(x => x.id === id);
   if (!d) return;
-  currentDeal = d;
 
-  // Reset state and hydrate from row
-  resetState();
-  hydrateFromDeal(d);
+  _loadingDeal = true;
+  try {
+    currentDeal = d;
+    resetDealState();
+    hydrateFromDeal(d);
+  } finally {
+    _loadingDeal = false;
+  }
 
-  // Render mode-aware UI
-  applyModeToUI();
+  // Surface deal name in topbar subtitle
+  if ($('tb-deal-name')) $('tb-deal-name').textContent = d.name;
+
+  // Surface mode selector
+  if ($('mode-sel')) $('mode-sel').value = d.deal_mode || 'brrrr';
+
   renderDealList();
-  renderDashboard();
   if (typeof renderDealSetupForm === 'function') renderDealSetupForm();
+  if (typeof renderUnitMixBlock === 'function') renderUnitMixBlock();
+  if (typeof renderCompsBlock === 'function') renderCompsBlock();
+  if (typeof renderCapitalBlock === 'function') renderCapitalBlock();
+  if (typeof renderOperatingBlock === 'function') renderOperatingBlock();
+  if (typeof recompute === 'function') recompute();
+  updateDashboard();
+  closeSidebar();
 }
 
-function resetState() {
-  inputs = {
-    property_address: '', city: '', state: '', zip: '',
-    asset_type: 'multifamily_2_4',
-    subject_area_sf: null,
-    target_refi_months: null,
-    target_hold_years: 10,
-    target_refi_ltv: 0.75,
-    vacancy_pct: 0.05,
-    pm_pct: 0.07,
-    maint_pct_of_egi: 0.055,
-    insurance_pct_of_egi: 0.08,
-    utilities_pct_of_egi: 0.02,
-    reserves_per_unit_year: 1000,
-    rent_growth_pct: 0.03,
-    appreciation_pct: 0.05,
-    exit_cap: 0.0895,
-    sale_cost_pct: 0.07,
-    target_hold_months: null,
-    arv_override: null,
-    purchase_price: 0,
-    reno_budget: 0,
-    mobilization_contingency: 0,
-    treat_mob_as_equity: false,
-    consulting_fees_override: null,
-    closing_cost_baseline: 2444,
-    closing_cost_loan_pct: 0.05,
-    initial_loan_ltv: 0.93,
-    initial_loan_ltc_reno: 1.00,
-    initial_rate: 0.127,
-    initial_interest_type: 'IO',
-    refi_rate: 0.075,
-    refi_interest_type: 'PI',
-    refi_closing_cost_pct: 0.04,
-    investor_ownership: 0.5,
-    lp_gp_split_ff: 0.5,
-    tax_basis_mode: 'stabilized_arv',
-    tax_district: '',
-    equity_multiple_method: 'institutional'
-  };
+function resetDealState() {
+  inputs = makeDefaultInputs();
   unitMix = [];
   comps = [];
   marketAnalysis = {};
@@ -348,54 +372,32 @@ function resetState() {
 }
 
 function hydrateFromDeal(d) {
-  // Merge stored inputs onto defaults (so fields added after row was
-  // created still get a sensible default)
   if (d.inputs && typeof d.inputs === 'object') {
     Object.assign(inputs, d.inputs);
   }
-  // Pull denormalized header fields back into inputs for the form
-  if (d.address) inputs.property_address = d.address;
-  if (d.city)    inputs.city = d.city;
-  if (d.state)   inputs.state = d.state;
-  if (d.zip)     inputs.zip = d.zip;
+  // Pull denormalized header fields into inputs (so the Setup form reflects them)
+  if (d.address)    inputs.property_address = d.address;
+  if (d.city)       inputs.city = d.city;
+  if (d.state)      inputs.state = d.state;
+  if (d.zip)        inputs.zip = d.zip;
   if (d.asset_type) inputs.asset_type = d.asset_type;
 
-  unitMix         = Array.isArray(d.unit_mix) ? d.unit_mix : [];
-  comps           = Array.isArray(d.comps) ? d.comps : [];
-  marketAnalysis  = d.market_analysis || {};
-  overrides       = d.overrides || {};
-  riskRegister    = Array.isArray(d.risks) ? d.risks : [];
+  unitMix        = Array.isArray(d.unit_mix) ? d.unit_mix : [];
+  comps          = Array.isArray(d.comps) ? d.comps : [];
+  marketAnalysis = d.market_analysis || {};
+  overrides      = d.overrides || {};
+  riskRegister   = Array.isArray(d.risks) ? d.risks : [];
 }
 
 
-// ── MODE TOGGLE ─────────────────────────────────────────────────
-// Drives which sections show. Used by data-entry.js and shell-ui.js.
 function getDealMode() {
   return currentDeal && currentDeal.deal_mode ? currentDeal.deal_mode : 'brrrr';
-}
-
-function applyModeToUI() {
-  const mode = getDealMode();
-  // Sections tagged with data-mode get hidden when their mode doesn't match
-  document.querySelectorAll('[data-mode]').forEach(el => {
-    const elModes = (el.getAttribute('data-mode') || '').split(',').map(s => s.trim());
-    el.style.display = elModes.includes(mode) ? '' : 'none';
-  });
-  // Also tag the body so CSS can branch on mode
-  document.body.setAttribute('data-deal-mode', mode);
 }
 
 async function switchDealMode(newMode) {
   if (!currentDeal) return;
   if (newMode !== 'brrrr' && newMode !== 'fix_and_flip') return;
   if (currentDeal.deal_mode === newMode) return;
-
-  const ok = confirm(
-    `Switch this deal to ${newMode === 'brrrr' ? 'BRRRR' : 'Fix and Flip'} mode?\n\n` +
-    'Mode-specific fields not shared between modes will be hidden but preserved. ' +
-    'You can switch back without losing data.'
-  );
-  if (!ok) return;
 
   currentDeal.deal_mode = newMode;
   try {
@@ -404,114 +406,140 @@ async function switchDealMode(newMode) {
       .update({ deal_mode: newMode, updated_at: new Date().toISOString() })
       .eq('id', currentDeal.id);
     if (error) throw error;
-    applyModeToUI();
-    renderDashboard();
+
+    // Mirror locally
+    const localIdx = deals.findIndex(x => x.id === currentDeal.id);
+    if (localIdx >= 0) deals[localIdx].deal_mode = newMode;
+
+    // Re-render any open page
     if (typeof renderDealSetupForm === 'function') renderDealSetupForm();
+    if (typeof renderCapitalBlock === 'function') renderCapitalBlock();
+    renderDealList();
+    updateDashboard();
   } catch (e) {
     alert('Could not switch mode: ' + e.message);
   }
 }
 
 
-// ── NEW DEAL ────────────────────────────────────────────────────
+// ── NEW / DELETE DEAL ─────────────────────────────────────────
 function openNewDeal() {
-  const m = $('new-deal-modal');
-  if (m) m.style.display = 'flex';
+  ['nd-name','nd-addr','nd-city','nd-state','nd-zip'].forEach(id => {
+    if ($(id)) $(id).value = '';
+  });
+  const errBox = $('nd-err');
+  if (errBox) errBox.style.display = 'none';
+  $('new-deal-modal').style.display = 'flex';
+  setTimeout(() => { if ($('nd-name')) $('nd-name').focus(); }, 50);
 }
 
-function closeNewDeal() {
-  const m = $('new-deal-modal');
-  if (m) m.style.display = 'none';
+function closeModal(id) {
+  if ($(id)) $(id).style.display = 'none';
 }
 
 async function createDeal() {
   const name = ($('nd-name') || {}).value;
-  const mode = ($('nd-mode') || {}).value || 'brrrr';
   if (!name || !name.trim()) {
-    alert('Deal name required.');
+    const err = $('nd-err');
+    if (err) { err.textContent = 'Deal name required.'; err.style.display = 'flex'; }
     return;
   }
+  const mode = ($('nd-mode') || {}).value || 'brrrr';
+  const addr = ($('nd-addr')  || {}).value || '';
+  const city = ($('nd-city')  || {}).value || '';
+  const state= ($('nd-state') || {}).value || '';
+  const zip  = ($('nd-zip')   || {}).value || '';
+
   try {
-    const row = {
-      user_id: currentUser.id,
-      company_id: CP.active ? CP.active.id : null,
-      name: name.trim(),
-      deal_mode: mode,
-      inputs: {},
-      unit_mix: [],
-      comps: [],
-      market_analysis: {},
-      overrides: {},
-      risks: []
-    };
     const { data, error } = await sb
       .from('foundry_deals')
-      .insert(row)
-      .select()
-      .single();
+      .insert({
+        user_id: currentUser.id,
+        company_id: CP.active ? CP.active.id : null,
+        name: name.trim(),
+        address: addr.trim() || null,
+        city: city.trim() || null,
+        state: state.trim().toUpperCase() || null,
+        zip: zip.trim() || null,
+        deal_mode: mode,
+        inputs: {}, unit_mix: [], comps: [],
+        market_analysis: {}, overrides: {}, risks: []
+      })
+      .select().single();
     if (error) throw error;
     deals.unshift(data);
-    closeNewDeal();
+    closeModal('new-deal-modal');
     await loadDeal(data.id);
   } catch (e) {
-    alert('Could not create deal: ' + e.message);
+    const err = $('nd-err');
+    if (err) { err.textContent = e.message || 'Could not create deal.'; err.style.display = 'flex'; }
   }
 }
 
-async function deleteDeal(id) {
-  const d = deals.find(x => x.id === id);
-  if (!d) return;
-  if (!confirm(`Delete "${d.name}"? This cannot be undone.`)) return;
-  try {
-    const { error } = await sb.from('foundry_deals').delete().eq('id', id);
-    if (error) throw error;
-    deals = deals.filter(x => x.id !== id);
-    if (currentDeal && currentDeal.id === id) {
-      currentDeal = null;
-      resetState();
-    }
-    renderDealList();
-    renderDashboard();
-  } catch (e) {
-    alert('Could not delete: ' + e.message);
+function confirmDeleteDeal(id, name) {
+  const modal = $('delete-deal-modal');
+  const label = $('delete-deal-name');
+  if (!modal) return;
+  if (label) label.textContent = name;
+  modal.setAttribute('data-pending-id', id);
+  modal.style.display = 'flex';
+}
+
+async function deleteDeal(confirmed) {
+  const modal = $('delete-deal-modal');
+  if (!modal) return;
+  modal.style.display = 'none';
+  if (!confirmed) return;
+  const id = modal.getAttribute('data-pending-id');
+  if (!id) return;
+
+  const { error } = await sb.from('foundry_deals').delete().eq('id', id).eq('user_id', currentUser.id);
+  if (error) { console.error('[Foundry] delete deal:', error); return; }
+
+  if (currentDeal && currentDeal.id === id) {
+    currentDeal = null;
+    resetDealState();
+    if ($('tb-deal-name')) $('tb-deal-name').textContent = 'No deal selected';
+    navTo('dashboard', document.querySelector('[data-section=dashboard]'));
   }
+  deals = deals.filter(d => d.id !== id);
+  renderDealList();
+  updateDashboard();
 }
 
 
-// ── AUTOSAVE ────────────────────────────────────────────────────
-// Per-section commit. Section keys: 'inputs', 'unit_mix', 'comps',
-// 'market_analysis', 'overrides', 'risks', 'header'. Each section
-// has its own debounce timer so they don't compete.
+// ── AUTOSAVE ──────────────────────────────────────────────────
 function autosave(section) {
+  if (_loadingDeal) return;
   if (!currentDeal) return;
   if (autosaveTimers[section]) clearTimeout(autosaveTimers[section]);
   autosaveTimers[section] = setTimeout(() => commitSection(section), 700);
 }
 
+function _clearAllAutosaveTimers() {
+  Object.keys(autosaveTimers).forEach(k => clearTimeout(autosaveTimers[k]));
+  autosaveTimers = {};
+}
+
 async function commitSection(section) {
   if (!currentDeal) return;
-
   const patch = { updated_at: new Date().toISOString() };
 
   if (section === 'inputs') {
-    patch.inputs = Object.assign({}, inputs);
-    // Mirror denormalized header fields
+    patch.inputs     = Object.assign({}, inputs);
     patch.address    = inputs.property_address || null;
-    patch.city       = inputs.city || null;
+    patch.city       = inputs.city  || null;
     patch.state      = inputs.state || null;
-    patch.zip        = inputs.zip || null;
+    patch.zip        = inputs.zip   || null;
     patch.asset_type = inputs.asset_type || null;
-  } else if (section === 'unit_mix')        { patch.unit_mix = unitMix; }
-  else if (section === 'comps')             { patch.comps = comps; }
-  else if (section === 'market_analysis')   { patch.market_analysis = marketAnalysis; }
-  else if (section === 'overrides')         { patch.overrides = overrides; }
-  else if (section === 'risks')             { patch.risks = riskRegister; }
-  else if (section === 'header')            {
-    patch.name = currentDeal.name;
-  } else {
-    console.warn('[Foundry] unknown autosave section:', section);
-    return;
   }
+  else if (section === 'unit_mix')       { patch.unit_mix = unitMix; }
+  else if (section === 'comps')          { patch.comps    = comps; }
+  else if (section === 'market_analysis'){ patch.market_analysis = marketAnalysis; }
+  else if (section === 'overrides')      { patch.overrides = overrides; }
+  else if (section === 'risks')          { patch.risks = riskRegister; }
+  else if (section === 'header')         { patch.name = currentDeal.name; }
+  else { console.warn('[Foundry] unknown autosave section:', section); return; }
 
   try {
     const { error } = await sb
@@ -520,36 +548,47 @@ async function commitSection(section) {
       .eq('id', currentDeal.id);
     if (error) throw error;
 
-    // Local mirror - keep `deals` array fresh so sidebar reflects edits
     Object.assign(currentDeal, patch);
     const localIdx = deals.findIndex(x => x.id === currentDeal.id);
     if (localIdx >= 0) {
       Object.assign(deals[localIdx], patch);
-      // Re-sort by updated_at desc to bring this deal to the top
       deals.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
       renderDealList();
     }
 
-    const ind = $('save-status');
-    if (ind) {
-      ind.textContent = '● Saved';
-      ind.style.color = 'var(--ok)';
-      setTimeout(() => { if (ind) ind.textContent = ''; }, 1500);
-    }
+    flashSaveStatus('Saved', 'var(--ok)');
   } catch (e) {
     console.error('[Foundry] save FAILED:', section, e);
-    const ind = $('save-status');
-    if (ind) {
-      ind.textContent = '● Save failed';
-      ind.style.color = 'var(--bad)';
-    }
+    flashSaveStatus('Save failed', 'var(--bad)');
   }
 }
 
+function flashSaveStatus(msg, color) {
+  const ind = $('tb-save-ind');
+  if (!ind) return;
+  ind.textContent = '· ' + msg;
+  ind.style.color = color || '';
+  setTimeout(() => {
+    if (ind.textContent === '· ' + msg) ind.textContent = '';
+  }, 1500);
+}
 
-// ── INPUT HANDLERS (called from data-entry.js form bindings) ────
+async function manualSave() {
+  if (!currentDeal) {
+    flashSaveStatus('No deal loaded', 'var(--text3)');
+    return;
+  }
+  // Commit every section right now (skip the debounce)
+  _clearAllAutosaveTimers();
+  await commitSection('inputs');
+  await commitSection('unit_mix');
+  await commitSection('comps');
+  await commitSection('overrides');
+}
+
+
+// ── INPUT CHANGE HANDLER ──────────────────────────────────────
 function onInputChange(field, value) {
-  // Coerce numeric fields
   const numericFields = new Set([
     'subject_area_sf','target_refi_months','target_hold_years','target_refi_ltv',
     'vacancy_pct','pm_pct','maint_pct_of_egi','insurance_pct_of_egi',
@@ -561,9 +600,8 @@ function onInputChange(field, value) {
     'refi_closing_cost_pct','investor_ownership','lp_gp_split_ff'
   ]);
   if (numericFields.has(field)) {
-    if (value === '' || value === null || value === undefined) {
-      inputs[field] = null;
-    } else {
+    if (value === '' || value == null) inputs[field] = null;
+    else {
       const n = Number(value);
       inputs[field] = isFinite(n) ? n : null;
     }
@@ -572,30 +610,53 @@ function onInputChange(field, value) {
   } else {
     inputs[field] = value;
   }
-
   autosave('inputs');
-  // Engine recomputes (M2/M3 will wire this); dashboard re-renders
   if (typeof recompute === 'function') recompute();
-  renderDashboard();
+  updateDashboard();
 }
 
 
-// ── STUB recompute() - replaced by engine.js in M2/M3 ───────────
-// M1 has no engine. This stub exists so dashboard/UI calls don't
-// throw. M2 (BRRRR engine) and M3 (F&F engine) will replace this
-// with the real dispatch:
-//
-//   function recompute() {
-//     const mode = getDealMode();
-//     if (mode === 'brrrr')         computeBRRRR();
-//     else if (mode === 'fix_and_flip') computeFixAndFlip();
-//   }
-function recompute() {
-  R = {}; // empty until M2/M3
+// ── NAVIGATION ────────────────────────────────────────────────
+function navTo(section, btn) {
+  ['dashboard','setup','unitmix','comps','operating','capital','market','risk','reports','company'].forEach(s => {
+    const el = $('section-' + s);
+    if (el) el.style.display = 'none';
+  });
+  const el = $('section-' + section);
+  if (el) el.style.display = 'block';
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  // Re-render the section that just became visible (so freshly loaded
+  // deals see their data without an extra click)
+  if (section === 'setup'    && typeof renderDealSetupForm === 'function') renderDealSetupForm();
+  if (section === 'unitmix'  && typeof renderUnitMixBlock === 'function') renderUnitMixBlock();
+  if (section === 'comps'    && typeof renderCompsBlock === 'function') renderCompsBlock();
+  if (section === 'operating'&& typeof renderOperatingBlock === 'function') renderOperatingBlock();
+  if (section === 'capital'  && typeof renderCapitalBlock === 'function') renderCapitalBlock();
+  if (section === 'company'  && typeof renderCompanyPicker === 'function') renderCompanyPicker();
+  closeSidebar();
+}
+
+function toggleSidebar() {
+  const sbEl = $('sidebar'), ov = $('sidebar-overlay');
+  if (!sbEl) return;
+  const isOpen = sbEl.classList.contains('open');
+  if (isOpen) { sbEl.classList.remove('open'); if (ov) ov.classList.remove('open'); }
+  else { sbEl.classList.add('open'); if (ov) ov.classList.add('open'); }
+}
+
+function closeSidebar() {
+  const sbEl = $('sidebar'), ov = $('sidebar-overlay');
+  if (sbEl) sbEl.classList.remove('open');
+  if (ov)   ov.classList.remove('open');
 }
 
 
-// ── BOOT ────────────────────────────────────────────────────────
+// ── STUB recompute() - replaced by engine.js in M2/M3 ─────────
+function recompute() { R = {}; }
+
+
+// ── BOOT ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   initSupabase();
 });
