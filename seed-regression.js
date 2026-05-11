@@ -56,8 +56,8 @@ const SEED_BRRRR_2048_E_79TH = {
     consulting_fees_override: 30000,  // overrides max($10k, 3%) default
     closing_cost_baseline: 2444,
     closing_cost_loan_pct: 0.05,
-    initial_loan_ltv: 0.93,
-    initial_loan_ltc_reno: 1.00,
+    initial_loan_ltv: 0.70,           // overrides 0.93 default - this deal is 70/91
+    initial_loan_ltc_reno: 0.91,
     initial_rate: 0.11,               // overrides 0.127 default
     initial_interest_type: 'IO',
     refi_rate: 0.07,                  // overrides 0.075 default

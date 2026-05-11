@@ -75,6 +75,10 @@ function updateDashboard() {
   // Status banner area
   const st = $('dash-status');
   if (st) st.innerHTML = renderStatusBanners(mode);
+
+  // Comp validation panel (BRRRR only, renders below KPIs)
+  const cv = $('dash-comp-validation');
+  if (cv) cv.innerHTML = mode === 'brrrr' ? renderCompValidationPanel() : '';
 }
 
 function renderBRRRRKpis() {
@@ -190,6 +194,85 @@ function formatAssetType(t) {
     'commercial':             'Commercial'
   };
   return map[t] || '';
+}
+
+
+// ── COMP VALIDATION PANEL (BRRRR dashboard) ───────────────────
+// Compares Income-approach ARV (NOI / exit cap) against Sales-approach
+// ARV (avg $/SF × subject area). Variance bands: ≤10% green, ≤20% gold,
+// >20% red. Renders only when sales comps and subject area are present.
+function renderCompValidationPanel() {
+  const incomeArv = R.stabilized_arv;
+  const salesArv  = R.comp_derived_arv;
+  const variance  = R.comp_variance_pct;
+  const flag      = R.comp_validation_flag;
+  const count     = R.comp_count_sales || 0;
+  const renoCount = R.comp_count_sales_renovated || 0;
+  const minMet    = R.comp_min_required_met;
+  const avgPsf    = R.comp_avg_psf;
+  const subjSf    = inputs.subject_area_sf;
+
+  // Determine light state
+  let lightHtml;
+  let varianceLine = '';
+  if (count === 0) {
+    lightHtml = `<span class="cvp-light cvp-na">No sales comps</span>`;
+  } else if (!minMet) {
+    lightHtml = `<span class="cvp-light cvp-red">Below minimum (${count}/3 comps)</span>`;
+  } else if (!subjSf) {
+    lightHtml = `<span class="cvp-light cvp-na">Subject SF required</span>`;
+  } else if (flag === 'green') {
+    lightHtml = `<span class="cvp-light cvp-green">Validated</span>`;
+  } else if (flag === 'gold') {
+    lightHtml = `<span class="cvp-light cvp-gold">Caution</span>`;
+  } else if (flag === 'red') {
+    lightHtml = `<span class="cvp-light cvp-red">Divergent</span>`;
+  } else {
+    lightHtml = `<span class="cvp-light cvp-na">Pending</span>`;
+  }
+
+  if (variance != null && isFinite(variance)) {
+    const varColor = flag === 'green' ? '#3fb950' : flag === 'gold' ? 'var(--gold)' : '#f85e5e';
+    varianceLine = `
+      <div class="cvp-variance-row">
+        <span class="cvp-variance-label">Variance (sales vs income)</span>
+        <span class="cvp-variance-value" style="color:${varColor}">${fP(variance)}</span>
+      </div>`;
+  }
+
+  const subjSfDetail = subjSf ? fN(subjSf) + ' SF' : 'Subject SF not entered';
+  const compsDetail = count > 0
+    ? `${count} sales comp${count === 1 ? '' : 's'}${renoCount > 0 ? ' · ' + renoCount + ' renovated' : ''}`
+    : 'No sales comps entered';
+
+  return `
+    <div class="comp-validation-panel">
+      <div class="comp-validation-header">
+        <div>
+          <div class="comp-validation-title">Refi ARV Validation</div>
+          <div class="comp-validation-subtitle">Two-method valuation cross-check</div>
+        </div>
+        ${lightHtml}
+      </div>
+      <div class="cvp-cols">
+        <div class="cvp-col">
+          <div class="cvp-col-label">Income Approach</div>
+          <div class="cvp-col-value">${incomeArv != null && isFinite(incomeArv) ? f$(incomeArv) : '-'}</div>
+          <div class="cvp-col-detail">NOI ÷ exit cap${inputs.exit_cap ? ' · cap ' + fP(inputs.exit_cap) : ''}</div>
+        </div>
+        <div class="cvp-vs">vs</div>
+        <div class="cvp-col">
+          <div class="cvp-col-label">Sales Approach</div>
+          <div class="cvp-col-value">${salesArv != null && isFinite(salesArv) && salesArv > 0 ? f$(salesArv) : '-'}</div>
+          <div class="cvp-col-detail">${avgPsf ? '$' + avgPsf.toFixed(2) + '/SF × ' + subjSfDetail : compsDetail}</div>
+        </div>
+      </div>
+      ${varianceLine}
+      ${count > 0 && count < 3 ? `<div class="cvp-note">Add ${3 - count} more sales comp${3 - count === 1 ? '' : 's'} to meet minimum.</div>` : ''}
+      ${flag === 'red' ? `<div class="cvp-note">Variance exceeds 20%. Review cap rate assumption or comp set.</div>` : ''}
+      ${flag === 'gold' ? `<div class="cvp-note">Variance is acceptable but flagged for review.</div>` : ''}
+    </div>
+  `;
 }
 
 

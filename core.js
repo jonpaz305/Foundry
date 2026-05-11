@@ -652,8 +652,7 @@ function closeSidebar() {
 }
 
 
-// ── STUB recompute() - replaced by engine.js in M2/M3 ─────────
-function recompute() { R = {}; }
+// ── recompute() is defined in engine.js ───────────────────────
 
 
 // ── BOOT ──────────────────────────────────────────────────────
