@@ -273,6 +273,17 @@ function renderCompsBlock() {
     </label>
   `;
 
+  const psfMethodToggle = mode === 'fix_and_flip' ? `
+    <div class="field" style="margin-bottom:1rem;max-width:480px">
+      <label>Avg $/SF calculation method</label>
+      <select onchange="onInputChange('comp_avg_method', this.value)">
+        <option value="institutional" ${(inputs.comp_avg_method || 'institutional') === 'institutional' ? 'selected' : ''}>Institutional: average of (price ÷ SF) per comp</option>
+        <option value="spreadsheet"   ${inputs.comp_avg_method === 'spreadsheet' ? 'selected' : ''}>Spreadsheet parity: (Σ price) ÷ (Σ SF)</option>
+      </select>
+      <div class="hint">The spreadsheet's method understates $/SF when comp prices and sizes are uncorrelated. Default to institutional.</div>
+    </div>
+  ` : '';
+
   wrap.innerHTML = `
     <div class="panel">
       <div class="panel-title">Comparable Sales
@@ -280,6 +291,7 @@ function renderCompsBlock() {
       </div>
       ${countWarning}
       ${renovatedToggle}
+      ${psfMethodToggle}
 
       <div class="comp-table-wrap">
         <table class="data comp-table-desktop">
@@ -607,11 +619,17 @@ function renderCapitalBlock() {
       <div class="ssub">Initial Debt (Acquisition + Rehab Phase)</div>
       <div class="g3" style="margin-bottom:1rem">
         <div class="field"><label>LTV on purchase</label>
-          <input type="number" step="0.01" class="num" value="${i.initial_loan_ltv ?? 0.93}" oninput="onInputChange('initial_loan_ltv', this.value)"/>
-          <div class="hint">Default 0.93 (93%).</div></div>
+          <input type="number" step="0.01" class="num" value="${i.initial_loan_ltv ?? (mode === 'brrrr' ? 0.93 : 0.90)}" oninput="onInputChange('initial_loan_ltv', this.value)"/>
+          <div class="hint">Default ${mode === 'brrrr' ? '0.93 (93%) for BRRRR HML' : '0.90 (90%) for F&F HML'}.</div></div>
+        ${mode === 'brrrr' ? `
         <div class="field"><label>LTC on reno</label>
           <input type="number" step="0.01" class="num" value="${i.initial_loan_ltc_reno ?? 1.00}" oninput="onInputChange('initial_loan_ltc_reno', this.value)"/>
-          <div class="hint">Default 1.00 (100%).</div></div>
+          <div class="hint">Default 1.00 (100% reno funded via draws).</div></div>
+        ` : `
+        <div class="field"><label>Reno funding</label>
+          <div style="padding:8px 11px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);border-radius:var(--r-sm);font-size:12px">100% via lender draws</div>
+          <div class="hint">F&F template assumes full reno funding by HML.</div></div>
+        `}
         <div class="field"><label>Interest rate</label>
           <input type="number" step="0.001" class="num" value="${i.initial_rate ?? 0.127}" oninput="onInputChange('initial_rate', this.value)"/></div>
       </div>
@@ -623,11 +641,19 @@ function renderCapitalBlock() {
           </select></div>
         <div class="field"><label>Closing cost baseline ($)</label>
           <input type="number" class="num" value="${i.closing_cost_baseline ?? 2444}" oninput="onInputChange('closing_cost_baseline', this.value)"/>
-          <div class="hint">Cuyahoga title/escrow default $2,444 + $2,400 transfer fees.</div></div>
+          <div class="hint">Cuyahoga title/escrow default $2,444.</div></div>
         <div class="field"><label>Closing cost % of loan</label>
-          <input type="number" step="0.001" class="num" value="${i.closing_cost_loan_pct ?? 0.05}" oninput="onInputChange('closing_cost_loan_pct', this.value)"/>
+          <input type="number" step="0.001" class="num" value="${i.closing_cost_loan_pct ?? 0.045}" oninput="onInputChange('closing_cost_loan_pct', this.value)"/>
           <div class="hint">Origination 2.5% + points 2%. Default 4.5%.</div></div>
       </div>
+      ${mode === 'brrrr' ? `
+      <div class="g2" style="margin-bottom:1rem">
+        <div class="field"><label>Transfer tax add-on ($)</label>
+          <input type="number" class="num" value="${i.closing_cost_transfer_addon ?? 2400}" oninput="onInputChange('closing_cost_transfer_addon', this.value)"/>
+          <div class="hint">Cuyahoga multifamily transfer fees. Default $2,400.</div></div>
+        <div></div>
+      </div>
+      ` : ''}
 
       ${mode === 'brrrr' ? `
       <div class="ssub">Refinance (Takeout)</div>
@@ -661,13 +687,26 @@ function renderCapitalBlock() {
       </div>
       ` : `
       <div class="ssub">Disposition</div>
-      <div class="g2">
+      <div class="g3" style="margin-bottom:1rem">
+        <div class="field"><label>Total units</label>
+          <input type="number" class="num" value="${i.total_units_ff ?? 1}" oninput="onInputChange('total_units_ff', this.value)"/>
+          <div class="hint">Most F&F deals are single-unit (1).</div></div>
         <div class="field"><label>Sale cost %</label>
           <input type="number" step="0.001" class="num" value="${i.sale_cost_pct ?? 0.07}" oninput="onInputChange('sale_cost_pct', this.value)"/>
           <div class="hint">Commission + closing. Default 7%.</div></div>
         <div class="field"><label>LP share of gross proceeds</label>
           <input type="number" step="0.01" class="num" value="${i.lp_gp_split_ff ?? 0.5}" oninput="onInputChange('lp_gp_split_ff', this.value)"/>
           <div class="hint">Spreadsheet hardcoded 50/50. Editable here.</div></div>
+      </div>
+      <div class="g2">
+        <div class="field"><label>Investor equity method</label>
+          <select onchange="onInputChange('equity_method_ff', this.value)">
+            <option value="spreadsheet"     ${(i.equity_method_ff || 'spreadsheet') === 'spreadsheet' ? 'selected' : ''}>Spreadsheet parity (purchase × 7% + closing + consulting + DS)</option>
+            <option value="institutional"   ${i.equity_method_ff === 'institutional' ? 'selected' : ''}>Institutional (TPC − initial loan)</option>
+          </select>
+          <div class="hint">Spreadsheet method hardcodes 7% down regardless of LTV. Institutional method counts actual cash outlay.</div>
+        </div>
+        <div></div>
       </div>
       `}
     </div>

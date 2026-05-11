@@ -55,7 +55,8 @@ const SEED_BRRRR_2048_E_79TH = {
     treat_mob_as_equity: false,
     consulting_fees_override: 30000,  // overrides max($10k, 3%) default
     closing_cost_baseline: 2444,
-    closing_cost_loan_pct: 0.05,
+    closing_cost_loan_pct: 0.045,
+    closing_cost_transfer_addon: 2400,
     initial_loan_ltv: 0.70,           // overrides 0.93 default - this deal is 70/91
     initial_loan_ltc_reno: 0.91,
     initial_rate: 0.11,               // overrides 0.127 default
@@ -74,11 +75,7 @@ const SEED_BRRRR_2048_E_79TH = {
   ],
   comps: [],
   market_analysis: {},
-  overrides: {
-    // The filled spreadsheet shows closing_costs = $37,629.20 even though the
-    // formula gives a different value. Seed the override so regression matches.
-    closing_costs: 37629.20
-  },
+  overrides: {},
   risks: []
 };
 
@@ -97,35 +94,41 @@ const SEED_FF_2455_W_7TH = {
     zip: '44113',
     asset_type: 'single_family',
     subject_area_sf: 2404,
+    total_units_ff: 1,
     target_hold_months: 7,
-    arv_override: 550000,              // override the comp-derived ~$544k
+    arv_override: 550000,              // spreadsheet uses manual ARV override
     purchase_price: 240000,
     reno_budget: 90000,
     mobilization_contingency: 30000,
-    treat_mob_as_equity: false,
     consulting_fees_override: 10000,
     closing_cost_baseline: 2444,
-    closing_cost_loan_pct: 0.05,
-    initial_loan_ltv: 0.90,            // overrides 0.93 default - this deal is 90/100
-    initial_loan_ltc_reno: 1.00,
+    closing_cost_loan_pct: 0.045,
+    initial_loan_ltv: 0.90,            // this deal is 90 LTV
     initial_rate: 0.127,
     initial_interest_type: 'IO',
     sale_cost_pct: 0.07,
     lp_gp_split_ff: 0.5,
+    equity_method_ff: 'spreadsheet',   // parity mode for regression
+    comp_avg_method: 'institutional',  // correct $/SF method
     tax_district: 'Cleveland'
   },
   unit_mix: [],
   comps: [
-    { address: '2295 Thurman Ave, Cleveland, OH 44113', sales_price: 473500, area_sf: 2650, dom: 62 },
-    { address: '2164 W 6th St, Cleveland, OH 44113',    sales_price: 640000, area_sf: 2800, dom: 54 },
-    { address: '2475 Tremont St, Cleveland, OH 44113',  sales_price: 673000, area_sf: 2440, dom: null }
+    { comp_type: 'sales', address: '2295 Thurman Ave, Cleveland, OH 44113',
+      sale_date: '', sales_price: 473500, area_sf: 2650, bedrooms: null,
+      bathrooms: null, dom: 62, distance_mi: null, renovated: false,
+      source: 'MLS', notes: '' },
+    { comp_type: 'sales', address: '2164 W 6th St, Cleveland, OH 44113',
+      sale_date: '', sales_price: 640000, area_sf: 2800, bedrooms: null,
+      bathrooms: null, dom: 54, distance_mi: null, renovated: false,
+      source: 'MLS', notes: '' },
+    { comp_type: 'sales', address: '2475 Tremont St, Cleveland, OH 44113',
+      sale_date: '', sales_price: 673000, area_sf: 2440, bedrooms: null,
+      bathrooms: null, dom: null, distance_mi: null, renovated: false,
+      source: 'MLS', notes: '' }
   ],
   market_analysis: {},
-  overrides: {
-    // The filled spreadsheet shows closing_costs = $16,214 even though the
-    // formula gives a different value. Seed the override so regression matches.
-    closing_costs: 16214
-  },
+  overrides: {},
   risks: []
 };
 

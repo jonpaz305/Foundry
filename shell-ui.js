@@ -76,9 +76,13 @@ function updateDashboard() {
   const st = $('dash-status');
   if (st) st.innerHTML = renderStatusBanners(mode);
 
-  // Comp validation panel (BRRRR only, renders below KPIs)
+  // Comp validation panel (mode-specific)
   const cv = $('dash-comp-validation');
-  if (cv) cv.innerHTML = mode === 'brrrr' ? renderCompValidationPanel() : '';
+  if (cv) {
+    if (mode === 'brrrr') cv.innerHTML = renderCompValidationPanel();
+    else if (mode === 'fix_and_flip') cv.innerHTML = renderCompValidationPanelFF();
+    else cv.innerHTML = '';
+  }
 }
 
 function renderBRRRRKpis() {
@@ -131,12 +135,18 @@ function renderFFKpis() {
   const eq  = R.investor_equity;
   const net = R.net_investor_proceeds;
   const roi = R.investor_roi;
-  const ann = R.annualized_return;
+  const ann = R.annualized_irr;
+  const months = inputs.target_hold_months;
+  const arvSrc = R.arv_source;
 
   const roiColor = roi == null || !isFinite(roi) ? 'var(--text3)'
     : roi >= 0.40 ? 'var(--ok)'
     : roi >= 0.20 ? 'var(--gold-lt)'
     : 'var(--bad)';
+
+  const arvLabel = arvSrc === 'override' ? 'manual override'
+    : arvSrc === 'comps' ? 'from comps'
+    : 'not set';
 
   return `
     <div class="kpi-card kpi-gold">
@@ -145,14 +155,14 @@ function renderFFKpis() {
       <div class="kpi-sub">${vcP != null ? fP(vcP) + ' of total cost' : 'Pending ARV'}</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">ARV</div>
-      <div class="kpi-val">${arv != null ? f$(arv) : '-'}</div>
+      <div class="kpi-label">ARV (${arvLabel})</div>
+      <div class="kpi-val">${arv != null && arv > 0 ? f$(arv) : '-'}</div>
       <div class="kpi-sub">${tpc != null ? 'Total cost: ' + f$(tpc) : 'Pending project cost'}</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">Investor ROI</div>
+      <div class="kpi-label">Investor ROI${months ? ' (' + months + 'mo)' : ''}</div>
       <div class="kpi-val" style="color:${roiColor}">${roi != null && isFinite(roi) ? fP(roi) : '-'}</div>
-      <div class="kpi-sub">${ann != null ? 'Annualized: ' + fP(ann) : 'Pending hold period'}</div>
+      <div class="kpi-sub">${ann != null && isFinite(ann) ? 'Annualized IRR: ' + fP(ann) : 'Pending exit modeling'}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Net Investor Proceeds</div>
@@ -271,6 +281,114 @@ function renderCompValidationPanel() {
       ${count > 0 && count < 3 ? `<div class="cvp-note">Add ${3 - count} more sales comp${3 - count === 1 ? '' : 's'} to meet minimum.</div>` : ''}
       ${flag === 'red' ? `<div class="cvp-note">Variance exceeds 20%. Review cap rate assumption or comp set.</div>` : ''}
       ${flag === 'gold' ? `<div class="cvp-note">Variance is acceptable but flagged for review.</div>` : ''}
+    </div>
+  `;
+}
+
+
+// ── F&F COMP VALIDATION PANEL (DASHBOARD) ─────────────────────
+// Different shape from BRRRR: there's no Income Approach for F&F since
+// the deal doesn't model stabilized operations. The panel compares the
+// manual ARV override against the comp-derived ARV (institutional method)
+// and shows the spreadsheet-method comp ARV as a parity reference.
+function renderCompValidationPanelFF() {
+  const arv         = R.arv;
+  const arvSrc      = R.arv_source;
+  const compArv     = R.comp_derived_arv;
+  const overrideArv = _num(inputs.arv_override);
+  const count       = R.comp_count_sales || 0;
+  const minMet      = R.comp_min_required_met;
+  const avgPsf      = R.comp_avg_psf;
+  const avgPsfSS    = R.comp_avg_psf_spreadsheet;
+  const subjSf      = inputs.subject_area_sf;
+
+  // Variance: only meaningful when both override and comp-derived exist
+  let variance = null, flag = null;
+  if (overrideArv > 0 && compArv > 0) {
+    variance = Math.abs(overrideArv - compArv) / overrideArv;
+    if (variance <= 0.10)      flag = 'green';
+    else if (variance <= 0.20) flag = 'gold';
+    else                       flag = 'red';
+  }
+
+  // Light state
+  let lightHtml;
+  if (count === 0) {
+    lightHtml = `<span class="cvp-light cvp-na">No sales comps</span>`;
+  } else if (!minMet) {
+    lightHtml = `<span class="cvp-light cvp-red">Below minimum (${count}/3 comps)</span>`;
+  } else if (!subjSf) {
+    lightHtml = `<span class="cvp-light cvp-na">Subject SF required</span>`;
+  } else if (arvSrc === 'override' && !flag) {
+    lightHtml = `<span class="cvp-light cvp-na">Override in use</span>`;
+  } else if (flag === 'green') {
+    lightHtml = `<span class="cvp-light cvp-green">Validated</span>`;
+  } else if (flag === 'gold') {
+    lightHtml = `<span class="cvp-light cvp-gold">Caution</span>`;
+  } else if (flag === 'red') {
+    lightHtml = `<span class="cvp-light cvp-red">Divergent</span>`;
+  } else if (arvSrc === 'comps') {
+    lightHtml = `<span class="cvp-light cvp-green">Comp-derived</span>`;
+  } else {
+    lightHtml = `<span class="cvp-light cvp-na">Pending</span>`;
+  }
+
+  let varianceLine = '';
+  if (variance != null && isFinite(variance)) {
+    const varColor = flag === 'green' ? '#3fb950' : flag === 'gold' ? 'var(--gold)' : '#f85e5e';
+    varianceLine = `
+      <div class="cvp-variance-row">
+        <span class="cvp-variance-label">Variance (override vs comps)</span>
+        <span class="cvp-variance-value" style="color:${varColor}">${fP(variance)}</span>
+      </div>`;
+  }
+
+  const subjSfDetail = subjSf ? fN(subjSf) + ' SF' : 'Subject SF not entered';
+  const psfDetail = avgPsf
+    ? '$' + avgPsf.toFixed(2) + '/SF × ' + subjSfDetail
+    : (count > 0 ? `${count} sales comp${count === 1 ? '' : 's'}` : 'No sales comps entered');
+
+  // Left column: ARV in use. Right column: comp-derived (or override if comps in use)
+  const leftLabel  = arvSrc === 'override' ? 'Manual ARV Override' : 'Comp-Derived ARV';
+  const rightLabel = arvSrc === 'override' ? 'Comp-Derived ARV' : 'Manual ARV';
+  const leftValue  = arv;
+  const rightValue = arvSrc === 'override' ? compArv : overrideArv;
+  const leftDetail = arvSrc === 'override' ? 'User-entered' : psfDetail;
+  const rightDetail= arvSrc === 'override'
+    ? (compArv > 0 ? psfDetail : 'No comps available')
+    : (overrideArv > 0 ? 'User-entered' : 'No override entered');
+
+  // Spreadsheet-method footnote (institutional improvement)
+  const psfFootnote = (avgPsf != null && avgPsfSS != null && Math.abs(avgPsf - avgPsfSS) > 0.01)
+    ? `<div class="cvp-note">Foundry $/SF: ${avgPsf.toFixed(2)} (avg of per-comp $/SF) vs spreadsheet method ${avgPsfSS.toFixed(2)} (sum-price ÷ sum-SF). Institutional method shown.</div>`
+    : '';
+
+  return `
+    <div class="comp-validation-panel">
+      <div class="comp-validation-header">
+        <div>
+          <div class="comp-validation-title">ARV Validation</div>
+          <div class="comp-validation-subtitle">Override vs comp-derived cross-check</div>
+        </div>
+        ${lightHtml}
+      </div>
+      <div class="cvp-cols">
+        <div class="cvp-col">
+          <div class="cvp-col-label">${leftLabel}</div>
+          <div class="cvp-col-value">${leftValue != null && isFinite(leftValue) && leftValue > 0 ? f$(leftValue) : '-'}</div>
+          <div class="cvp-col-detail">${leftDetail}</div>
+        </div>
+        <div class="cvp-vs">vs</div>
+        <div class="cvp-col">
+          <div class="cvp-col-label">${rightLabel}</div>
+          <div class="cvp-col-value">${rightValue != null && isFinite(rightValue) && rightValue > 0 ? f$(rightValue) : '-'}</div>
+          <div class="cvp-col-detail">${rightDetail}</div>
+        </div>
+      </div>
+      ${varianceLine}
+      ${count > 0 && count < 3 ? `<div class="cvp-note">Add ${3 - count} more sales comp${3 - count === 1 ? '' : 's'} to meet minimum.</div>` : ''}
+      ${flag === 'red' ? `<div class="cvp-note">Override exceeds comp-derived by more than 20%. Justify in the risk register.</div>` : ''}
+      ${psfFootnote}
     </div>
   `;
 }

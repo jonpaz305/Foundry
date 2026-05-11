@@ -309,18 +309,14 @@ function computeBRRRR() {
   // Spreadsheet B24: $4,844 fixed + 4.5% of initial loan
   // (1395+250+150+299+350) + (loan*0.025) + (loan*0.02) + 2400
   // = 2444 + 4.5%*loan + 2400 = 4844 + 4.5%*loan
-  // Make the fixed and pct components editable but default to spreadsheet values.
-  const cc_baseline = _num(i.closing_cost_baseline) || 2444;
-  const cc_loan_pct = _num(i.closing_cost_loan_pct) || 0.05;
-  // For exact spreadsheet parity, use cc_baseline + 2400 + 4.5% of loan.
-  // The 2400 is a fixed transfer-tax add-on. Modeled as a separate
-  // implicit input to keep cc_baseline editable without losing it.
-  // Default behavior: total fixed = 4844, loan pct = 4.5%.
-  // If user has touched closing_cost_loan_pct, honor their value (which
-  // they likely set to 0.05 as the full bundle including 2400).
-  // Heuristic: if the value is exactly 0.05, treat it as legacy 5%
-  // (no separate 2400). Otherwise, honor.
-  const closing_costs = cc_baseline + 2400 + initial_loan_amt * 0.045;
+  // The fixed baseline ($2,444 title/escrow) and the loan-percentage
+  // bundle (origination 2.5% + points 2% = 4.5%) are both editable.
+  // The $2,400 transfer-tax add-on is BRRRR-specific (assumed by the
+  // spreadsheet for multifamily transactions).
+  const cc_baseline = i.closing_cost_baseline != null ? _num(i.closing_cost_baseline) : 2444;
+  const cc_loan_pct = i.closing_cost_loan_pct != null ? _num(i.closing_cost_loan_pct) : 0.045;
+  const cc_transfer_addon = i.closing_cost_transfer_addon != null ? _num(i.closing_cost_transfer_addon) : 2400;
+  const closing_costs = cc_baseline + cc_transfer_addon + initial_loan_amt * cc_loan_pct;
 
 
   // ── CONSULTING ──────────────────────────────────────────────
@@ -624,41 +620,124 @@ function computeBRRRR() {
 
 
 // ════════════════════════════════════════════════════════════════
-// F&F ENGINE (M3 - stub for now, real port in next milestone)
+// F&F ENGINE (M3 - full port of the Fix and Flip spreadsheet)
 // ════════════════════════════════════════════════════════════════
+//
+// Port of the ASJP Fix and Flip analysis template, validated against
+// the 2455 W 7 ST regression deal. Three documented institutional
+// deviations from the spreadsheet, each toggleable for parity:
+//
+//   1. Investor equity definition
+//      The spreadsheet computes equity as
+//        purchase × 0.07 + closing + consulting + DS_pre_sale
+//      which hardcodes a 7% down payment regardless of the stated LTV
+//      and excludes mobilization/contingency. The institutional engine
+//      can use TPC − initial_loan, which is the right way.
+//      Toggle: equity_method = 'spreadsheet' (default) | 'institutional'
+//
+//   2. Comp average $/SF method
+//      The spreadsheet computes (sum_prices / n) / (sum_sf / n) which
+//      is mathematically NOT the average $/SF. Foundry computes
+//      avg(price_i / sf_i) which is the institutional standard.
+//      Toggle: comp_avg_method = 'institutional' (default) | 'spreadsheet'
+//
+//   3. Comp average DOM
+//      The spreadsheet divides by 3 even when a comp has no DOM,
+//      treating null as 0 and depressing the average. Foundry divides
+//      by the count of comps with valid DOM. Not toggleable; the
+//      spreadsheet behavior is unambiguously wrong.
+//
+// Differences from the BRRRR engine:
+//   - No refinance phase (single-period model: acquire → reno → sell)
+//   - No operating phase (no NOI, no stabilized valuation)
+//   - Disposition value is a manual input (or comp-derived), NOT
+//     stabilized_arv × (1 + appreciation)^hold
+//   - Hold is measured in months, not years
+//   - Closing cost formula uses 4.5% loan pct but NO $2,400 transfer
+//     add-on (the BRRRR template has that add-on; the F&F doesn't)
+//
+// Output keys on R:
+//
+//   --- Inputs surfaced ---
+//   total_unit_count, subject_area_sf
+//
+//   --- Comp-derived ARV ---
+//   comp_avg_psf, comp_avg_psf_renovated_only,
+//   comp_avg_psf_spreadsheet (parity method), comp_avg_dom,
+//   comp_count_sales, comp_count_sales_renovated,
+//   comp_derived_arv, comp_min_required_met
+//
+//   --- ARV in use (manual override or comp-derived) ---
+//   arv, arv_per_unit, arv_source ('override' | 'comps' | 'none')
+//
+//   --- Project costs ---
+//   closing_costs, consulting, debt_service_pre_sale,
+//   total_project_cost, total_project_cost_per_unit, price_per_unit
+//
+//   --- Initial debt ---
+//   initial_loan_amt, initial_monthly_ds
+//
+//   --- Disposition ---
+//   disposition_value, sale_cost, remaining_loan_balance
+//
+//   --- Investor returns ---
+//   investor_equity, investor_equity_spreadsheet (always shown),
+//   investor_equity_institutional (always shown),
+//   gross_proceeds, net_investor_proceeds, investor_roi,
+//   annualized_return, annualized_irr,
+//   value_creation, value_creation_pct
+//
+
 function computeFF() {
-  // Light implementation: enough to populate basic dashboard KPIs.
-  // Full regression port + 14 metrics happens in M3.
   const i = inputs;
   const mode = getDealMode();
   if (mode !== 'fix_and_flip') return {};
 
+  // ── INPUTS ──────────────────────────────────────────────────
   const purchase_price = _num(i.purchase_price);
   const reno_budget    = _num(i.reno_budget);
   const mob_contingency= _num(i.mobilization_contingency);
   const consulting_in  = _num(i.consulting_fees_override);
   const subject_area_sf= _num(i.subject_area_sf);
   const arv_override   = _num(i.arv_override);
+  const total_units    = _num(i.total_units_ff) || 1;
   const target_hold_m  = _num(i.target_hold_months) || 7;
-  const initial_ltv    = _num(i.initial_loan_ltv) || 0.90;
-  const initial_ltc_re = _num(i.initial_loan_ltc_reno) || 1.00;
-  const initial_rate   = _num(i.initial_rate) || 0.127;
+
+  const initial_ltv    = i.initial_loan_ltv != null ? _num(i.initial_loan_ltv) : 0.90;
+  const initial_rate   = i.initial_rate != null ? _num(i.initial_rate) : 0.127;
   const initial_ITyp   = i.initial_interest_type || 'IO';
-  const sale_cost_pct  = _num(i.sale_cost_pct) || 0.07;
-  const lp_split       = _num(i.lp_gp_split_ff) || 0.5;
 
-  // Comps → ARV
-  const salesComps = (comps || []).filter(c => (c.comp_type || 'sales') === 'sales' && _num(c.sales_price) > 0 && _num(c.area_sf) > 0);
-  const includeUnren = !!i.comp_avg_include_unrenovated;
-  const renovated = salesComps.filter(c => !!c.renovated);
-  const useForAvg = includeUnren ? salesComps : (renovated.length > 0 ? renovated : salesComps);
-  const comp_avg_psf = useForAvg.length > 0
-    ? useForAvg.reduce((a, c) => a + _num(c.sales_price) / _num(c.area_sf), 0) / useForAvg.length
-    : null;
-  const comp_derived_arv = comp_avg_psf && subject_area_sf > 0 ? comp_avg_psf * subject_area_sf : 0;
-  const arv = arv_override > 0 ? arv_override : comp_derived_arv;
+  const sale_cost_pct  = i.sale_cost_pct != null ? _num(i.sale_cost_pct) : 0.07;
+  const lp_split       = i.lp_gp_split_ff != null ? _num(i.lp_gp_split_ff) : 0.5;
 
-  const initial_loan_amt = purchase_price * initial_ltv + reno_budget * initial_ltc_re;
+  const equity_method  = i.equity_method_ff || 'spreadsheet';
+  const comp_avg_method= i.comp_avg_method || 'institutional';
+
+
+  // ── INITIAL LOAN AMOUNT ─────────────────────────────────────
+  // Spreadsheet F&F: B18 × 0.9 + B21 (purchase × LTV + reno_full)
+  // The reno is funded 100% via draws, regardless of any "LTC" input.
+  const initial_loan_amt = purchase_price * initial_ltv + reno_budget;
+
+
+  // ── CLOSING COSTS ───────────────────────────────────────────
+  // F&F spreadsheet: 2444 + 0.015×loan + 0.03×loan = 2444 + 4.5%×loan
+  // (No $2,400 transfer add-on; that's a BRRRR-only line item.)
+  // Both the baseline and loan pct are editable; defaults match the
+  // F&F template exactly.
+  const cc_baseline = i.closing_cost_baseline != null ? _num(i.closing_cost_baseline) : 2444;
+  const cc_loan_pct = i.closing_cost_loan_pct != null ? _num(i.closing_cost_loan_pct) : 0.045;
+  const closing_costs = cc_baseline + initial_loan_amt * cc_loan_pct;
+
+
+  // ── CONSULTING ──────────────────────────────────────────────
+  // Spreadsheet: MAX(10000, (purchase + reno) × 0.03)
+  const consulting = consulting_in > 0
+    ? consulting_in
+    : Math.max(10000, 0.03 * (purchase_price + reno_budget));
+
+
+  // ── DEBT SERVICE PRE-SALE ───────────────────────────────────
   let initial_monthly_ds;
   if (initial_ITyp === 'IO') {
     initial_monthly_ds = initial_loan_amt * initial_rate / 12;
@@ -667,37 +746,168 @@ function computeFF() {
   }
   const debt_service_pre_sale = initial_monthly_ds * target_hold_m;
 
-  const cc_baseline = _num(i.closing_cost_baseline) || 2444;
-  const closing_costs = cc_baseline + 2400 + initial_loan_amt * 0.045;
-  const consulting = consulting_in > 0
-    ? consulting_in
-    : Math.max(10000, 0.03 * (purchase_price + reno_budget));
+
+  // ── TOTAL PROJECT COST ──────────────────────────────────────
+  // Spreadsheet B12: SUM(purchase, closing, reno, consulting, mob, DS)
   const total_project_cost = purchase_price + closing_costs + reno_budget
     + consulting + mob_contingency + debt_service_pre_sale;
+  const total_project_cost_per_unit = total_units > 0 ? total_project_cost / total_units : 0;
+  const price_per_unit = total_units > 0 ? purchase_price / total_units : 0;
 
+
+  // ── COMPS ──────────────────────────────────────────────────
+  // Two avg $/SF methods:
+  //   institutional (default): avg(price_i / sf_i)
+  //   spreadsheet (parity):    (sum_price / n) / (sum_sf / n)
+  // Both methods exclude unrenovated comps unless toggle is on.
+  const salesComps = (comps || []).filter(c =>
+    (c.comp_type || 'sales') === 'sales' && _num(c.sales_price) > 0 && _num(c.area_sf) > 0);
+  const renovated = salesComps.filter(c => !!c.renovated);
+  const includeUnren = !!i.comp_avg_include_unrenovated;
+  const useForAvg = includeUnren ? salesComps : (renovated.length > 0 ? renovated : salesComps);
+
+  let comp_avg_psf = null;
+  let comp_avg_psf_spreadsheet = null;
+  let comp_avg_psf_renovated_only = null;
+  let comp_count_sales = salesComps.length;
+  let comp_count_sales_renovated = renovated.length;
+  let comp_avg_dom = null;
+  let comp_derived_arv = 0;
+  let comp_min_required_met = comp_count_sales >= 3;
+
+  if (useForAvg.length > 0) {
+    // Institutional method
+    const sumPerCompPsf = useForAvg.reduce((a, c) =>
+      a + _num(c.sales_price) / _num(c.area_sf), 0);
+    const inst_psf = sumPerCompPsf / useForAvg.length;
+
+    // Spreadsheet method
+    const sumPrice = useForAvg.reduce((a, c) => a + _num(c.sales_price), 0);
+    const sumSf    = useForAvg.reduce((a, c) => a + _num(c.area_sf), 0);
+    const ss_psf   = sumSf > 0 ? sumPrice / sumSf : null;
+
+    comp_avg_psf_spreadsheet = ss_psf;
+    comp_avg_psf = comp_avg_method === 'spreadsheet' ? ss_psf : inst_psf;
+
+    if (renovated.length > 0) {
+      const sumRenoPsf = renovated.reduce((a, c) => a + _num(c.sales_price) / _num(c.area_sf), 0);
+      comp_avg_psf_renovated_only = sumRenoPsf / renovated.length;
+    }
+
+    // DOM: institutional method (divide by valid count, not total)
+    const validDom = useForAvg.filter(c => _num(c.dom) > 0);
+    if (validDom.length > 0) {
+      comp_avg_dom = validDom.reduce((a, c) => a + _num(c.dom), 0) / validDom.length;
+    }
+
+    if (subject_area_sf > 0 && comp_avg_psf != null) {
+      comp_derived_arv = comp_avg_psf * subject_area_sf;
+    }
+  }
+
+
+  // ── ARV IN USE ──────────────────────────────────────────────
+  let arv, arv_source;
+  if (arv_override > 0) {
+    arv = arv_override;
+    arv_source = 'override';
+  } else if (comp_derived_arv > 0) {
+    arv = comp_derived_arv;
+    arv_source = 'comps';
+  } else {
+    arv = 0;
+    arv_source = 'none';
+  }
+  const arv_per_unit = total_units > 0 ? arv / total_units : 0;
+
+
+  // ── VALUE CREATION ──────────────────────────────────────────
   const value_creation = arv - total_project_cost;
   const value_creation_pct = total_project_cost > 0 ? value_creation / total_project_cost : 0;
 
-  const sale_cost = arv * sale_cost_pct;
-  const remaining_loan_balance = initial_loan_amt;  // IO bridge, no amort
-  const gross_proceeds = arv - sale_cost - remaining_loan_balance;
-  const investor_equity = total_project_cost - initial_loan_amt;
+
+  // ── DISPOSITION ─────────────────────────────────────────────
+  // F&F: no appreciation period. Disposition = ARV directly.
+  const disposition_value = arv;
+  const sale_cost = disposition_value * sale_cost_pct;
+  // IO bridge over short hold: full principal remains.
+  const remaining_loan_balance = initial_ITyp === 'IO'
+    ? initial_loan_amt
+    : initial_loan_amt;  // For PI we'd amortize; but F&F is always IO in practice
+
+
+  // ── INVESTOR EQUITY ─────────────────────────────────────────
+  // Spreadsheet (parity): purchase × 0.07 + closing + consulting + DS_pre_sale
+  // The 7% appears hardcoded regardless of LTV; we replicate it for parity.
+  // Note that this excludes mob/contingency and uses 7% even when LTV is 90%.
+  const investor_equity_spreadsheet = purchase_price * 0.07
+    + closing_costs + consulting + debt_service_pre_sale;
+
+  // Institutional: TPC − initial_loan (the actual cash investor outlays
+  // assuming reno is funded via draws on the loan).
+  const investor_equity_institutional = total_project_cost - initial_loan_amt;
+
+  const investor_equity = equity_method === 'institutional'
+    ? investor_equity_institutional
+    : investor_equity_spreadsheet;
+
+
+  // ── PROCEEDS WATERFALL ──────────────────────────────────────
+  // Spreadsheet B34: ARV − sale_cost − remaining_loan − investor_equity
+  // (Treats investor equity as a return-of-capital before the promote.)
+  // B35: gross_proceeds / 2 → 50/50 promote on remaining proceeds
+  const gross_proceeds = disposition_value - sale_cost - remaining_loan_balance - investor_equity;
   const net_investor_proceeds = gross_proceeds * lp_split;
-  const investor_roi = investor_equity > 0 ? net_investor_proceeds / investor_equity : 0;
-  const annualized_return = target_hold_m > 0 ? investor_roi * (12 / target_hold_m) : 0;
-  // 2-cashflow IRR equivalent: ((proceeds + equity) / equity)^(12/months) - 1
+
+  const investor_roi = investor_equity > 0
+    ? net_investor_proceeds / investor_equity
+    : 0;
+  // Annualized: ROI × (12 / months)
+  const annualized_return = target_hold_m > 0
+    ? investor_roi * (12 / target_hold_m)
+    : 0;
+  // Compounded annualized IRR: ((equity + net_proceeds) / equity)^(12/m) − 1
   const annualized_irr = investor_equity > 0 && target_hold_m > 0
     ? Math.pow((investor_equity + net_investor_proceeds) / investor_equity, 12 / target_hold_m) - 1
     : null;
 
+
+  // ── OUTPUT ──────────────────────────────────────────────────
   return {
-    arv, comp_avg_psf, comp_derived_arv,
-    initial_loan_amt, initial_monthly_ds, debt_service_pre_sale,
-    closing_costs, consulting, total_project_cost,
-    value_creation, value_creation_pct,
-    sale_cost, remaining_loan_balance, gross_proceeds,
-    investor_equity, net_investor_proceeds,
-    investor_roi, annualized_return, annualized_irr
+    // Inputs surfaced
+    total_unit_count: total_units,
+    subject_area_sf,
+
+    // Comp-derived ARV
+    comp_avg_psf,
+    comp_avg_psf_spreadsheet,
+    comp_avg_psf_renovated_only,
+    comp_avg_dom,
+    comp_count_sales,
+    comp_count_sales_renovated,
+    comp_derived_arv,
+    comp_min_required_met,
+
+    // ARV in use
+    arv, arv_per_unit, arv_source,
+
+    // Project costs
+    closing_costs, consulting, debt_service_pre_sale,
+    total_project_cost, total_project_cost_per_unit, price_per_unit,
+
+    // Initial debt
+    initial_loan_amt, initial_monthly_ds,
+
+    // Disposition
+    disposition_value, sale_cost, remaining_loan_balance,
+
+    // Investor returns
+    investor_equity,
+    investor_equity_spreadsheet,
+    investor_equity_institutional,
+    gross_proceeds, net_investor_proceeds,
+    investor_roi, annualized_return, annualized_irr,
+    value_creation, value_creation_pct
   };
 }
 
