@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Foundry — BRRRR &amp; Fix-and-Flip Underwriting</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- ─────────────────────────────────────────────────────────────
+       AUTH SCREEN
+       ───────────────────────────────────────────────────────────── -->
+  <div id="auth-screen" class="auth-screen">
+    <div class="auth-card">
+      <img id="auth-logo" alt="Foundry" class="auth-logo" />
+      <div class="auth-tagline">BRRRR &amp; Fix-and-Flip Underwriting</div>
+      <div class="auth-form">
+        <label>Email</label>
+        <input type="email" id="auth-email" autocomplete="email" />
+        <label>Password</label>
+        <input type="password" id="auth-password" autocomplete="current-password" />
+        <div id="auth-error" class="auth-error"></div>
+        <div class="auth-actions">
+          <button class="btn-primary" onclick="signIn()">Sign In</button>
+          <button class="btn-secondary" onclick="signUp()">Sign Up</button>
+        </div>
+      </div>
+      <div class="auth-note">
+        Your Cadence or Tranche credentials work here — same Supabase project.
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ─────────────────────────────────────────────────────────────
+       MAIN APP SHELL
+       ───────────────────────────────────────────────────────────── -->
+  <div id="app-shell" class="app-shell" style="display:none">
+
+    <!-- ── SIDEBAR ── -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <img id="sidebar-logo" alt="Foundry" />
+      </div>
+
+      <div class="sidebar-action">
+        <button class="btn-primary btn-block" onclick="openNewDeal()">+ New Deal</button>
+      </div>
+
+      <div class="sidebar-section-title">Deals</div>
+      <div id="deal-list" class="deal-list"></div>
+
+      <div class="sidebar-footer">
+        <div id="user-email" class="user-email"></div>
+        <button class="btn-link" onclick="signOut()">Sign out</button>
+      </div>
+    </aside>
+
+
+    <!-- ── MAIN ── -->
+    <main class="main">
+
+      <!-- Top bar -->
+      <header class="topbar">
+        <nav class="topnav">
+          <button class="nav-btn active" data-target="dashboard"   onclick="showSection('dashboard')">Dashboard</button>
+          <button class="nav-btn"        data-target="setup"       onclick="showSection('setup')">Setup</button>
+          <button class="nav-btn"        data-target="unit-mix"    onclick="showSection('unit-mix')"   data-mode="brrrr">Unit Mix</button>
+          <button class="nav-btn"        data-target="comps"       onclick="showSection('comps')"      data-mode="fix_and_flip">Comps</button>
+          <button class="nav-btn"        data-target="operating"   onclick="showSection('operating')"  data-mode="brrrr">Operating</button>
+          <button class="nav-btn"        data-target="capital"     onclick="showSection('capital')">Capital</button>
+          <button class="nav-btn"        data-target="market"      onclick="showSection('market')">Market</button>
+          <button class="nav-btn"        data-target="risk"        onclick="showSection('risk')">Risk</button>
+          <button class="nav-btn"        data-target="reports"     onclick="showSection('reports')">Reports</button>
+          <button class="nav-btn"        data-target="settings"    onclick="showSection('settings')">Settings</button>
+        </nav>
+        <div class="topbar-right">
+          <span id="save-status" class="save-status"></span>
+        </div>
+      </header>
+
+
+      <!-- ─────────────────────────────────────────────────────────
+           NO-DEAL STATE
+           ───────────────────────────────────────────────────────── -->
+      <div id="no-deal-state" class="no-deal-state" style="display:none">
+        <div class="no-deal-card">
+          <h2>Welcome to Foundry</h2>
+          <p>
+            Underwrite BRRRR acquisitions and Fix-and-Flip deals with the same model your spreadsheet uses,
+            now with API-driven market data and report-grade output.
+          </p>
+          <button class="btn-primary" onclick="openNewDeal()">+ Create your first deal</button>
+        </div>
+      </div>
+
+
+      <!-- ─────────────────────────────────────────────────────────
+           DASHBOARD
+           ───────────────────────────────────────────────────────── -->
+      <section data-section="dashboard" id="dashboard-content" style="display:none">
+        <div class="dash-header">
+          <div>
+            <h1 id="dash-deal-title">—</h1>
+            <div id="dash-deal-sub" class="dash-deal-sub"></div>
+          </div>
+          <div id="dash-deal-mode" class="dash-mode-tag"></div>
+        </div>
+
+        <div id="dash-kpis" class="kpi-grid"></div>
+        <div id="dash-status" class="dash-status"></div>
+      </section>
+
+
+      <!-- ─────────────────────────────────────────────────────────
+           SETUP
+           ───────────────────────────────────────────────────────── -->
+      <section data-section="setup" style="display:none">
+        <div class="section-header">
+          <h2>Deal Setup</h2>
+          <div class="section-sub">Property, strategy, tax basis. Determines which engine runs.</div>
+        </div>
+        <div id="section-setup-body"></div>
+      </section>
+
+
+      <!-- ─────────────────────────────────────────────────────────
+           UNIT MIX (BRRRR only)
+           ───────────────────────────────────────────────────────── -->
+      <section data-section="unit-mix" data-mode="brrrr" style="display:none">
+        <div class="section-header">
+          <h2>Unit Mix &amp; Rent Roll</h2>
+          <div class="section-sub">By bedroom type. Drives GPR, EGI, NOI, and stabilized valuation.</div>
+        </div>
+        <div id="section-unit-mix-body"></div>
+      </section>
+
+
+      <!-- ─────────────────────────────────────────────────────────
+           COMPS (F&F only)
+           ───────────────────────────────────────────────────────── -->
+      <section data-section="comps" data-mode="fix_and_flip" style="display:none">
+        <div class="section-header">
+          <h2>Comparable Sales</h2>
+          <div class="section-sub">Drives ARV via avg $/SF × subject area, or use override.</div>
+        </div>
+        <div id="section-comps-body"></div>
+      </section>
+
+
+      <!-- ─────────────────────────────────────────────────────────
+           OPERATING (BRRRR only)
+           ───────────────────────────────────────────────────────── -->
+      <section data-section="operating" data-mode="brrrr" style="display:none">
+        <div class="section-header">
+          <h2>Operating Assumptions</h2>
+          <div class="section-sub">Vacancy + opex defaults. Applied to stabilized EGI.</div>
+        </div>
+        <div id="section-operating-body"></div>
+      </section>
+
+
+      <!-- ─────────────────────────────────────────────────────────
+           CAPITAL STRUCTURE
+           ───────────────────────────────────────────────────────── -->
+      <section data-section="capital" style="display:none">
+        <div class="section-header">
+          <h2>Capital Structure</h2>
+          <div class="section-sub">Acquisition, initial debt, and (BRRRR) refinance terms.</div>
+        </div>
+        <div id="section-capital-body"></div>
+      </section>
+
+
+      <!-- ─────────────────────────────────────────────────────────
+           MARKET (M4)
+           ───────────────────────────────────────────────────────── -->
+      <section data-section="market" style="display:none">
+        <div class="section-header">
+          <h2>Market Analysis</h2>
+          <div class="section-sub">Demographics (Census), SAFMR (HUD), vacancy + absorption (Census-derived).</div>
+        </div>
+        <div class="placeholder-block">
+          Market Analysis ships in M4. Will populate from Census ACS and HUD FMR APIs server-side
+          with shared caching, identical pattern to Tranche's AMI cache.
+        </div>
+      </section>
+
+
+      <!-- ─────────────────────────────────────────────────────────
+           RISK (M5)
+           ───────────────────────────────────────────────────────── -->
+      <section data-section="risk" style="display:none">
+        <div class="section-header">
+          <h2>Risk Register</h2>
+          <div class="section-sub">Auto-flagged risks based on engine outputs and market data.</div>
+        </div>
+        <div class="placeholder-block">
+          Risk Register ships in M5. Mode-aware templates: BRRRR will flag low DSCR, high LTV at refi,
+          insufficient cash-out, breakeven occupancy above market. F&amp;F will flag comp scatter, high DOM,
+          thin value creation %, contingency below 5% of project cost.
+        </div>
+      </section>
+
+
+      <!-- ─────────────────────────────────────────────────────────
+           REPORTS (M6)
+           ───────────────────────────────────────────────────────── -->
+      <section data-section="reports" style="display:none">
+        <div class="section-header">
+          <h2>Reports</h2>
+          <div class="section-sub">Institutional-grade output for lenders, equity partners, and IC.</div>
+        </div>
+        <div class="placeholder-block">
+          Reports ship in M6. Six report types planned: Deal Snapshot, BRRRR Underwriting Package,
+          Fix &amp; Flip Underwriting Package, Internal Deal Memo (mode-aware), IC Memo, and Lender Package.
+          PDF export reuses Tranche's print pipeline.
+        </div>
+      </section>
+
+
+      <!-- ─────────────────────────────────────────────────────────
+           SETTINGS
+           ───────────────────────────────────────────────────────── -->
+      <section data-section="settings" style="display:none">
+        <div class="section-header">
+          <h2>Settings</h2>
+          <div class="section-sub">Company branding profiles for reports, regression seed data.</div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <div class="form-group-title">Company Profiles</div>
+            <div id="cp-picker" style="margin-bottom:12px"></div>
+            <button class="btn-secondary" onclick="createCompanyProfile()">+ New company profile</button>
+          </div>
+          <div class="form-group">
+            <div class="form-group-title">Regression Seed Data</div>
+            <div class="form-hint" style="margin-bottom:12px">
+              Creates the two canonical regression test deals (2048 E 79th Street BRRRR and 2455 W 7 ST Fix &amp; Flip)
+              with the exact input values from the original spreadsheets. Used to validate the engine in M2/M3.
+              Safe to re-run — skips creation if a deal with the same name already exists.
+            </div>
+            <button class="btn-secondary" onclick="seedRegressionDeals()">Seed regression deals</button>
+          </div>
+        </div>
+      </section>
+
+
+    </main>
+  </div>
+
+
+  <!-- ─────────────────────────────────────────────────────────────
+       NEW-DEAL MODAL
+       ───────────────────────────────────────────────────────────── -->
+  <div id="new-deal-modal" class="modal-overlay" style="display:none">
+    <div class="modal-card">
+      <div class="modal-title">Create New Deal</div>
+      <div class="form-row">
+        <label>Deal name</label>
+        <input type="text" id="nd-name" placeholder="e.g. 2048 E 79th Street, Cleveland" />
+      </div>
+      <div class="form-row">
+        <label>Deal mode</label>
+        <select id="nd-mode">
+          <option value="brrrr" selected>BRRRR (acquire, renovate, rent, refi, repeat)</option>
+          <option value="fix_and_flip">Fix &amp; Flip (renovate &amp; sell)</option>
+        </select>
+        <div class="form-hint">You can switch modes later without losing data.</div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeNewDeal()">Cancel</button>
+        <button class="btn-primary" onclick="createDeal()">Create</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ─────────────────────────────────────────────────────────────
+       SCRIPTS
+       ───────────────────────────────────────────────────────────── -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="logos.js"></script>
+  <script src="core.js"></script>
+  <script src="shell-ui.js"></script>
+  <script src="data-entry.js"></script>
+  <script src="seed-regression.js"></script>
+
+  <script>
+    // Wire logos into the DOM once the shell is rendered.
+    document.addEventListener('DOMContentLoaded', () => {
+      const al = document.getElementById('auth-logo');
+      const sl = document.getElementById('sidebar-logo');
+      if (al) al.src = FOUNDRY_LOGO_DARK;
+      if (sl) sl.src = FOUNDRY_LOGO_DARK;
+      // Default-active section
+      showSection('dashboard');
+    });
+
+    // When dashboard becomes visible and a deal is loaded, also (re)render
+    // the setup form so the Setup tab is hot the moment the user clicks it.
+    document.addEventListener('click', (e) => {
+      if (e.target.matches('.nav-btn')) {
+        const target = e.target.getAttribute('data-target');
+        if (target === 'setup' && currentDeal) renderDealSetupForm();
+      }
+    }, true);
+  </script>
+
+</body>
+</html>
