@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════
-// FOUNDRY — Regression Seed Deals
+// FOUNDRY - Regression Seed Deals
 // ════════════════════════════════════════════════════════════════
 //
 // One-time seed script. Creates the two canonical regression deals
@@ -106,7 +106,7 @@ const SEED_FF_2455_W_7TH = {
     consulting_fees_override: 10000,
     closing_cost_baseline: 2444,
     closing_cost_loan_pct: 0.05,
-    initial_loan_ltv: 0.90,            // overrides 0.93 default — this deal is 90/100
+    initial_loan_ltv: 0.90,            // overrides 0.93 default - this deal is 90/100
     initial_loan_ltc_reno: 1.00,
     initial_rate: 0.127,
     initial_interest_type: 'IO',

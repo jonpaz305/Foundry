@@ -1,11 +1,11 @@
 // ════════════════════════════════════════════════════════════════
-// FOUNDRY — Shell UI (sidebar deal list, dashboard, company picker)
+// FOUNDRY - Shell UI (sidebar deal list, dashboard, company picker)
 // ════════════════════════════════════════════════════════════════
 //
 // Mirrors Tranche's shell-ui.js pattern. Mode-aware: BRRRR deals
 // show post-refi DSCR, IRR, equity multiple, etc.; F&F deals show
 // ROI, gross proceeds, value creation. The engine isn't wired in
-// M1 so KPI tiles render as "—" placeholders.
+// M1 so KPI tiles render as "-" placeholders.
 
 
 // ── DEAL LIST IN SIDEBAR ─────────────────────────────────────────
@@ -98,7 +98,7 @@ function renderDashboard() {
   }
 }
 
-// BRRRR KPI block — empty placeholders until M2 wires the engine.
+// BRRRR KPI block - empty placeholders until M2 wires the engine.
 function renderBRRRRKpis() {
   const tpc          = R.total_project_cost;
   const arv          = R.stabilized_arv;
@@ -122,27 +122,27 @@ function renderBRRRRKpis() {
   return `
     <div class="kpi-card kpi-card-gold">
       <div class="kpi-label">Value Creation</div>
-      <div class="kpi-val">${vc != null ? f$(vc) : '—'}</div>
+      <div class="kpi-val">${vc != null ? f$(vc) : '-'}</div>
       <div class="kpi-sub">${vcPct != null ? fP(vcPct) + ' of total cost' : 'Pending stabilized ARV'}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Stabilized ARV</div>
-      <div class="kpi-val">${arv != null ? f$(arv) : '—'}</div>
-      <div class="kpi-sub">${tpc != null ? 'Total cost: ' + f$(tpc) : '—'}</div>
+      <div class="kpi-val">${arv != null ? f$(arv) : '-'}</div>
+      <div class="kpi-sub">${tpc != null ? 'Total cost: ' + f$(tpc) : '-'}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Investor IRR (Yr ${inputs.target_hold_years || 10})</div>
-      <div class="kpi-val" style="color:${irrColor}">${irr != null && isFinite(irr) ? fP(irr) : '—'}</div>
+      <div class="kpi-val" style="color:${irrColor}">${irr != null && isFinite(irr) ? fP(irr) : '-'}</div>
       <div class="kpi-sub">${em != null ? 'EM: ' + fX(em) : 'Pending exit modeling'}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Post-Refi DSCR</div>
-      <div class="kpi-val" style="color:${dscrColor}">${dscr != null && isFinite(dscr) ? fX(dscr) : '—'}</div>
-      <div class="kpi-sub">${equityIn != null ? 'Equity in: ' + f$(equityIn) : '—'}</div>
+      <div class="kpi-val" style="color:${dscrColor}">${dscr != null && isFinite(dscr) ? fX(dscr) : '-'}</div>
+      <div class="kpi-sub">${equityIn != null ? 'Equity in: ' + f$(equityIn) : '-'}</div>
     </div>`;
 }
 
-// Fix and Flip KPI block — empty placeholders until M3 wires the engine.
+// Fix and Flip KPI block - empty placeholders until M3 wires the engine.
 function renderFFKpis() {
   const tpc         = R.total_project_cost;
   const arv         = R.arv;
@@ -161,23 +161,23 @@ function renderFFKpis() {
   return `
     <div class="kpi-card kpi-card-gold">
       <div class="kpi-label">Value Creation</div>
-      <div class="kpi-val">${vc != null ? f$(vc) : '—'}</div>
+      <div class="kpi-val">${vc != null ? f$(vc) : '-'}</div>
       <div class="kpi-sub">${vcPct != null ? fP(vcPct) + ' of total cost' : 'Pending ARV'}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">ARV</div>
-      <div class="kpi-val">${arv != null ? f$(arv) : '—'}</div>
-      <div class="kpi-sub">${tpc != null ? 'Total cost: ' + f$(tpc) : '—'}</div>
+      <div class="kpi-val">${arv != null ? f$(arv) : '-'}</div>
+      <div class="kpi-sub">${tpc != null ? 'Total cost: ' + f$(tpc) : '-'}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Investor ROI</div>
-      <div class="kpi-val" style="color:${roiColor}">${roi != null && isFinite(roi) ? fP(roi) : '—'}</div>
+      <div class="kpi-val" style="color:${roiColor}">${roi != null && isFinite(roi) ? fP(roi) : '-'}</div>
       <div class="kpi-sub">${annualized != null ? 'Annualized: ' + fP(annualized) : 'Pending hold period'}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Net Investor Proceeds</div>
-      <div class="kpi-val">${netProceeds != null ? f$(netProceeds) : '—'}</div>
-      <div class="kpi-sub">${equityIn != null ? 'Equity in: ' + f$(equityIn) : '—'}</div>
+      <div class="kpi-val">${netProceeds != null ? f$(netProceeds) : '-'}</div>
+      <div class="kpi-sub">${equityIn != null ? 'Equity in: ' + f$(equityIn) : '-'}</div>
     </div>`;
 }
 

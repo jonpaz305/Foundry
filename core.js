@@ -1,15 +1,15 @@
 // ════════════════════════════════════════════════════════════════
-// FOUNDRY — Core (auth, Supabase, deal CRUD, autosave, state)
+// FOUNDRY - Core (auth, Supabase, deal CRUD, autosave, state)
 // ════════════════════════════════════════════════════════════════
 //
 // Pattern inherited from Cadence/Tranche. The R object is the
-// canonical engine-output store — read-only from UI code, written
-// only by engine.js (which doesn't exist yet in M1 — placeholders
+// canonical engine-output store - read-only from UI code, written
+// only by engine.js (which doesn't exist yet in M1 - placeholders
 // only). Deal CRUD persists to Supabase with per-section autosave.
 //
 // Mode toggle: every deal has a deal_mode of 'brrrr' or 'fix_and_flip'.
 // Mode drives which sections render and which engine runs. State
-// shape is unified — only the engine dispatch and the UI gating
+// shape is unified - only the engine dispatch and the UI gating
 // differ.
 // ════════════════════════════════════════════════════════════════
 
@@ -58,7 +58,7 @@ let inputs = {
   target_hold_months:      null,
   arv_override:            null,              // optional manual ARV (otherwise comp-derived)
 
-  // Acquisition / debt — both modes
+  // Acquisition / debt - both modes
   purchase_price:          0,
   reno_budget:             0,
   mobilization_contingency: 0,
@@ -71,18 +71,18 @@ let inputs = {
   initial_rate:            0.127,
   initial_interest_type:   'IO',              // 'IO' | 'PI'
 
-  // Refi — BRRRR only
+  // Refi - BRRRR only
   refi_rate:               0.075,
   refi_interest_type:      'PI',
   refi_closing_cost_pct:   0.04,
-  investor_ownership:      0.5,               // LP/GP split — investor share of post-refi cash flow
+  investor_ownership:      0.5,               // LP/GP split - investor share of post-refi cash flow
   lp_gp_split_ff:          0.5,               // F&F LP share of gross proceeds (replaces hardcoded 50/50)
 
-  // Tax behavior (Foundry-new — spreadsheet uses purchase price; we offer the toggle)
+  // Tax behavior (Foundry-new - spreadsheet uses purchase price; we offer the toggle)
   tax_basis_mode:          'stabilized_arv',  // 'purchase_price' | 'stabilized_arv'
   tax_district:            '',                // Cuyahoga municipality pick
 
-  // Equity multiple definition (Foundry-new — fixes the spreadsheet bug)
+  // Equity multiple definition (Foundry-new - fixes the spreadsheet bug)
   // Kept here for engine reference; always uses 'institutional' definition.
   equity_multiple_method:  'institutional'
 };
@@ -93,7 +93,7 @@ let marketAnalysis = {};   // populated by market.js (M4)
 let overrides = {};        // per-field engine-output overrides
 let riskRegister = [];     // populated by risk.js (M5)
 
-// Engine outputs — R is written by engine.js (M2/M3). M1 stub:
+// Engine outputs - R is written by engine.js (M2/M3). M1 stub:
 let R = {};
 
 
@@ -121,22 +121,22 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
-// Number formatters — shared across UI
+// Number formatters - shared across UI
 const f$ = (n) => {
-  if (n == null || !isFinite(n)) return '—';
+  if (n == null || !isFinite(n)) return '-';
   const v = Math.round(n);
   return '$' + v.toLocaleString();
 };
 const fP = (n) => {
-  if (n == null || !isFinite(n)) return '—';
+  if (n == null || !isFinite(n)) return '-';
   return (n * 100).toFixed(2) + '%';
 };
 const fX = (n) => {
-  if (n == null || !isFinite(n)) return '—';
+  if (n == null || !isFinite(n)) return '-';
   return n.toFixed(2) + 'x';
 };
 const fN = (n) => {
-  if (n == null || !isFinite(n)) return '—';
+  if (n == null || !isFinite(n)) return '-';
   return Math.round(n).toLocaleString();
 };
 
@@ -520,7 +520,7 @@ async function commitSection(section) {
       .eq('id', currentDeal.id);
     if (error) throw error;
 
-    // Local mirror — keep `deals` array fresh so sidebar reflects edits
+    // Local mirror - keep `deals` array fresh so sidebar reflects edits
     Object.assign(currentDeal, patch);
     const localIdx = deals.findIndex(x => x.id === currentDeal.id);
     if (localIdx >= 0) {
@@ -580,7 +580,7 @@ function onInputChange(field, value) {
 }
 
 
-// ── STUB recompute() — replaced by engine.js in M2/M3 ───────────
+// ── STUB recompute() - replaced by engine.js in M2/M3 ───────────
 // M1 has no engine. This stub exists so dashboard/UI calls don't
 // throw. M2 (BRRRR engine) and M3 (F&F engine) will replace this
 // with the real dispatch:

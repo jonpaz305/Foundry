@@ -1,10 +1,10 @@
 // ════════════════════════════════════════════════════════════════
-// FOUNDRY — Brand Marks
+// FOUNDRY - Brand Marks
 // ════════════════════════════════════════════════════════════════
 // Brand concept: transformation rectangles. A smaller, narrower
 // rectangle at the bottom represents the raw acquisition; a larger,
 // gold-accented rectangle at the top represents the stabilized or
-// disposed asset. The visual reads as value-add transformation —
+// disposed asset. The visual reads as value-add transformation -
 // taking something raw and refining it into something larger and
 // more valuable. The gold accent on the upper form mirrors Tranche's
 // gold-accented tax-credit-equity layer so the suite reads as a
@@ -12,20 +12,20 @@
 // transformation rectangles).
 //
 // Three marks:
-//   FOUNDRY_LOGO_DARK  — wordmark + icon for dark backgrounds
-//   FOUNDRY_LOGO_LIGHT — same mark for light backgrounds (reports)
-//   FOUNDRY_ICON       — square favicon-style mark
+//   FOUNDRY_LOGO_DARK  - wordmark + icon for dark backgrounds
+//   FOUNDRY_LOGO_LIGHT - same mark for light backgrounds (reports)
+//   FOUNDRY_ICON       - square favicon-style mark
 // ════════════════════════════════════════════════════════════════
 
 // Wordmark for dark backgrounds (top bar, sidebar, auth screen)
 // Transformation icon (raw -> refined) + "FOUNDRY" wordmark + tagline
 const FOUNDRY_LOGO_DARK = 'data:image/svg+xml;base64,' + btoa(`<svg width="320" height="48" viewBox="0 0 320 48" xmlns="http://www.w3.org/2000/svg">
   <!-- Transformation icon: small raw rect at bottom, larger refined rect at top with gold accent -->
-  <!-- Bottom rect: narrower, dimmer — the raw acquisition -->
+  <!-- Bottom rect: narrower, dimmer - the raw acquisition -->
   <rect x="12" y="30" width="18" height="6" rx="1" fill="#E8E8F0" opacity="0.5"/>
   <!-- Diagonal stroke implying work / transformation -->
   <line x1="14" y1="28" x2="36" y2="14" stroke="#C9A84C" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
-  <!-- Top rect: wider, brighter, gold-accented — the refined/stabilized asset -->
+  <!-- Top rect: wider, brighter, gold-accented - the refined/stabilized asset -->
   <rect x="8" y="10" width="32" height="6" rx="1" fill="#E8E8F0" opacity="0.92"/>
   <rect x="8" y="10" width="32" height="2" rx="1" fill="#C9A84C"/>
   <!-- Vertical separator -->
@@ -46,7 +46,7 @@ const FOUNDRY_LOGO_LIGHT = 'data:image/svg+xml;base64,' + btoa(`<svg width="320"
   <text x="59" y="41" font-family="Manrope,Helvetica,sans-serif" font-size="8.5" font-weight="400" letter-spacing="2.2" fill="#a07828" opacity="0.75">BRRRR &amp; FLIP UNDERWRITING</text>
 </svg>`);
 
-// Square icon mark — favicon, top-bar compact view
+// Square icon mark - favicon, top-bar compact view
 const FOUNDRY_ICON = 'data:image/svg+xml;base64,' + btoa(`<svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
   <!-- Bottom rect: raw acquisition -->
   <rect x="14" y="32" width="20" height="6" rx="1" fill="#C9A84C" opacity="0.5"/>

@@ -1,13 +1,13 @@
 // ════════════════════════════════════════════════════════════════
-// FOUNDRY — Data Entry (Deal Setup, Unit Mix, Comps, Inputs)
+// FOUNDRY - Data Entry (Deal Setup, Unit Mix, Comps, Inputs)
 // ════════════════════════════════════════════════════════════════
 //
 // Renders mode-aware input forms. Sections wired in M1:
 //   - Deal Setup (mode-aware property + strategy fields)
 //   - Unit Mix (BRRRR only)
 //   - Comps (F&F only)
-//   - Operating Assumptions (BRRRR only — opex %, vacancy, reserves)
-//   - Capital Structure (both modes — purchase, reno, loan terms,
+//   - Operating Assumptions (BRRRR only - opex %, vacancy, reserves)
+//   - Capital Structure (both modes - purchase, reno, loan terms,
 //     refi terms for BRRRR, hold for F&F)
 //
 // Pattern: each input wires to onInputChange(field, value) which
@@ -65,7 +65,7 @@ function renderDealSetupForm() {
             <label>Subject Area (SF) ${mode === 'fix_and_flip' ? '<span class="req">*</span>' : ''}</label>
             <input type="number" step="1" value="${i.subject_area_sf ?? ''}"
                    oninput="onInputChange('subject_area_sf', this.value)" />
-            ${mode === 'fix_and_flip' ? '<div class="form-hint">Required — drives comp-based ARV.</div>' : ''}
+            ${mode === 'fix_and_flip' ? '<div class="form-hint">Required - drives comp-based ARV.</div>' : ''}
           </div>
         </div>
       </div>
@@ -115,7 +115,7 @@ function renderDealSetupForm() {
             <option value="purchase_price"  ${i.tax_basis_mode === 'purchase_price' ? 'selected' : ''}>Purchase Price (legacy parity)</option>
           </select>
           <div class="form-hint">
-            Default: ARV — the institutionally-correct assumption (county will reassess).
+            Default: ARV - the institutionally-correct assumption (county will reassess).
             Switch to "Purchase Price" only for parity with legacy spreadsheet output.
           </div>
         </div>
@@ -171,7 +171,7 @@ function renderUnitMixBlock() {
                  oninput="updateUnitRow(${idx}, 'count', this.value)" class="num-input" /></td>
       <td><input type="number" step="1" value="${u.rent ?? 0}"
                  oninput="updateUnitRow(${idx}, 'rent', this.value)" class="num-input" /></td>
-      <td class="num-cell">${u.count && u.rent ? f$(Number(u.count) * Number(u.rent)) : '—'}</td>
+      <td class="num-cell">${u.count && u.rent ? f$(Number(u.count) * Number(u.rent)) : '-'}</td>
       <td><button class="btn-icon-del" onclick="removeUnitRow(${idx})" title="Remove">×</button></td>
     </tr>
   `).join('');
@@ -260,14 +260,14 @@ function renderCompsBlock() {
                  oninput="updateCompRow(${idx}, 'sales_price', this.value)" class="num-input" /></td>
       <td><input type="number" step="1" value="${c.area_sf ?? 0}"
                  oninput="updateCompRow(${idx}, 'area_sf', this.value)" class="num-input" /></td>
-      <td class="num-cell">${c.sales_price && c.area_sf ? '$' + (Number(c.sales_price) / Number(c.area_sf)).toFixed(2) : '—'}</td>
+      <td class="num-cell">${c.sales_price && c.area_sf ? '$' + (Number(c.sales_price) / Number(c.area_sf)).toFixed(2) : '-'}</td>
       <td><input type="number" step="1" value="${c.dom ?? ''}"
                  oninput="updateCompRow(${idx}, 'dom', this.value)" class="num-input" /></td>
       <td><button class="btn-icon-del" onclick="removeCompRow(${idx})" title="Remove">×</button></td>
     </tr>
   `).join('');
 
-  // Averages — only over comps with data
+  // Averages - only over comps with data
   const validForPrice = comps.filter(c => Number(c.sales_price) > 0);
   const validForPsf   = comps.filter(c => Number(c.sales_price) > 0 && Number(c.area_sf) > 0);
   const validForDom   = comps.filter(c => Number(c.dom) > 0);
@@ -292,10 +292,10 @@ function renderCompsBlock() {
       <tfoot>
         <tr>
           <td><strong>Average</strong></td>
-          <td class="num-cell"><strong>${avgPrice ? f$(avgPrice) : '—'}</strong></td>
-          <td class="num-cell"><strong>${avgArea ? fN(avgArea) : '—'}</strong></td>
-          <td class="num-cell"><strong>${avgPsf ? '$' + avgPsf.toFixed(2) : '—'}</strong></td>
-          <td class="num-cell"><strong>${avgDom ? avgDom.toFixed(0) : '—'}</strong></td>
+          <td class="num-cell"><strong>${avgPrice ? f$(avgPrice) : '-'}</strong></td>
+          <td class="num-cell"><strong>${avgArea ? fN(avgArea) : '-'}</strong></td>
+          <td class="num-cell"><strong>${avgPsf ? '$' + avgPsf.toFixed(2) : '-'}</strong></td>
+          <td class="num-cell"><strong>${avgDom ? avgDom.toFixed(0) : '-'}</strong></td>
           <td></td>
         </tr>
       </tfoot>
@@ -378,7 +378,7 @@ function renderCapitalBlock() {
                  onchange="onInputChange('treat_mob_as_equity', this.checked)" />
           Count mobilization/contingency toward initial investor equity
         </label>
-          <div class="form-hint">Default off — spreadsheet excludes mob/conting from initial equity (assumed drawn back).</div>
+          <div class="form-hint">Default off - spreadsheet excludes mob/conting from initial equity (assumed drawn back).</div>
         </div>
         <div class="form-row"><label>Consulting Fees Override</label>
           <input type="number" step="1" value="${i.consulting_fees_override ?? ''}"
@@ -480,7 +480,7 @@ function renderCapitalBlock() {
         </div>
       </div>
 
-      <!-- ── EXIT (BRRRR — Year-10 disposition) ── -->
+      <!-- ── EXIT (BRRRR - Year-10 disposition) ── -->
       <div class="form-group" data-mode="brrrr">
         <div class="form-group-title">Exit (Year-${i.target_hold_years || 10} Disposition)</div>
         <div class="form-row form-row-2col">
@@ -488,31 +488,31 @@ function renderCapitalBlock() {
             <label>Annual Appreciation</label>
             <input type="number" step="0.001" value="${i.appreciation_pct ?? 0.05}"
                    oninput="onInputChange('appreciation_pct', this.value)" />
-            <div class="form-hint">Default 5% — applied to stabilized ARV through hold.</div>
+            <div class="form-hint">Default 5% - applied to stabilized ARV through hold.</div>
           </div>
           <div>
             <label>Sale Cost %</label>
             <input type="number" step="0.001" value="${i.sale_cost_pct ?? 0.07}"
                    oninput="onInputChange('sale_cost_pct', this.value)" />
-            <div class="form-hint">Default 7% — commission + closing.</div>
+            <div class="form-hint">Default 7% - commission + closing.</div>
           </div>
         </div>
         <div class="form-row">
           <label>Annual Rent Growth (Proforma)</label>
           <input type="number" step="0.001" value="${i.rent_growth_pct ?? 0.03}"
                  oninput="onInputChange('rent_growth_pct', this.value)" />
-          <div class="form-hint">Default 3% — applied to cash flow Y2-Y${i.target_hold_years || 10}.</div>
+          <div class="form-hint">Default 3% - applied to cash flow Y2-Y${i.target_hold_years || 10}.</div>
         </div>
       </div>
       ` : `
-      <!-- ── EXIT (F&F — disposition split) ── -->
+      <!-- ── EXIT (F&F - disposition split) ── -->
       <div class="form-group" data-mode="fix_and_flip">
         <div class="form-group-title">Disposition</div>
         <div class="form-row">
           <label>Sale Cost %</label>
           <input type="number" step="0.001" value="${i.sale_cost_pct ?? 0.07}"
                  oninput="onInputChange('sale_cost_pct', this.value)" />
-          <div class="form-hint">Default 7% — commission + closing.</div>
+          <div class="form-hint">Default 7% - commission + closing.</div>
         </div>
         <div class="form-row">
           <label>LP Share of Gross Proceeds</label>
