@@ -88,7 +88,7 @@ async function _postWorker(route, body) {
 // everything into marketAnalysis. Idempotent: re-running uses cache.
 async function fetchMarketData(zip, opts) {
   opts = opts || {};
-  const yearAcs = opts.yearAcs || 2024;
+  const yearAcs = opts.yearAcs || 2023;
   const yearFmr = opts.yearFmr || 2025;
 
   if (!/^\d{5}$/.test(String(zip || ''))) {
@@ -457,10 +457,10 @@ function renderMarketPage() {
         </div>
         <div class="field"><label>ACS year</label>
           <select onchange="onInputChange('market_year_acs', this.value)">
-            <option value="2024" ${(ma.year_acs == 2024 || !ma.year_acs) ? 'selected' : ''}>2024 (latest)</option>
-            <option value="2023" ${ma.year_acs == 2023 ? 'selected' : ''}>2023</option>
+            <option value="2023" ${(ma.year_acs == 2023 || !ma.year_acs) ? 'selected' : ''}>2023 (latest published)</option>
             <option value="2022" ${ma.year_acs == 2022 ? 'selected' : ''}>2022</option>
             <option value="2021" ${ma.year_acs == 2021 ? 'selected' : ''}>2021</option>
+            <option value="2020" ${ma.year_acs == 2020 ? 'selected' : ''}>2020</option>
           </select>
         </div>
         <div class="field">
@@ -653,6 +653,6 @@ function fetchMarketDataFromUI() {
     alert('Enter a zip code first.');
     return;
   }
-  const yearAcs = parseInt(inputs.market_year_acs || 2024, 10);
+  const yearAcs = parseInt(inputs.market_year_acs || 2023, 10);
   fetchMarketData(zip, { yearAcs });
 }
