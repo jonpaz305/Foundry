@@ -606,7 +606,7 @@
                 <td class="num">${h.fmtMoney(y.cf)}</td>
               </tr>`).join('')}
           </tbody>
-          <caption>Assumes ${h.fmtPct(rg, 1)} annual rent growth; expense ratio and vacancy held constant; refinance month ${refiMonth} in Y1.</caption>
+          <caption>Assumes ${h.fmtPct(rg, 1)} annual rent growth; expense ratio and vacancy held constant. Y1 reflects ${refiMonth} months of bridge-rate carry plus ${12 - refiMonth} months of refi-rate DS (this differs from the Dashboard's Stabilized Annual Cash Flow figure, which shows the stabilized run-rate after refi).</caption>
         </table>
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Distributions to Investor</div>
