@@ -219,7 +219,7 @@
               <span>${_esc(r.category || '-')}</span>
             </div>
             <div class="print-risk-row-title">${_esc(r.title || 'Untitled risk')}</div>
-            <div class="ds-risk-detail">${_esc(_truncate(r.detail || '', 180))}</div>
+            <div class="ds-risk-detail">${_esc(_truncate(r.detail || '', 110))}</div>
           </div>`).join('')}
         ${unresolved.length > 5 ? `<div class="ds-risks-more">+ ${unresolved.length - 5} additional risk${unresolved.length - 5 === 1 ? '' : 's'} on the full register.</div>` : ''}
       </div>`;
@@ -281,7 +281,7 @@
     const showAddrSub = addrLine && !_normalizeForCompare(dealName).includes(_normalizeForCompare(addrLine));
 
     return `
-      <div class="print-page">
+      <div class="print-page print-page-compact">
 
         ${_header(h)}
 
