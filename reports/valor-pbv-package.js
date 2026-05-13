@@ -653,17 +653,37 @@
 
 
   // ── MAIN ENTRY ────────────────────────────────────────────────
+  // ── PAGE: MODEL ASSUMPTIONS AND METHODOLOGY (Path A Pass 3) ──
+  function _pageModelAssumptionsValor(deal, R, inputs, market, h, pageNum, totalPages) {
+    const mode = (deal && deal.deal_mode) || 'brrrr';
+    return `
+      <div class="print-page print-page-compact valor-page">
+        ${_header(h, 'Model Assumptions and Methodology')}
+
+        <div class="print-section pb-avoid"><span class="ps-accent valor-accent"></span>Model Assumptions and Methodology</div>
+        <div style="font-size:9pt;color:var(--print-muted);margin-bottom:6pt;line-height:1.45">
+          The following inventory of inputs, derived values, and methodological choices was used to produce the figures elsewhere in this report. Valor PBV variant: includes HUD-VASH program assumptions, FMR / ACS data vintage, and PHA-dependency disclosures.
+        </div>
+
+        ${typeof modelAssumptionsForValorPackage === 'function' ? modelAssumptionsForValorPackage(R, inputs, market, mode) : ''}
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
+  }
+
+
   function renderReport_valor_pbv(deal, R, inputs, market, helpers) {
     const h = helpers || {};
-    const totalPages = 6;
+    const totalPages = 7;  // +1 Model Assumptions
 
     const pages = [
       _page1(deal, R, inputs, market, h, 1, totalPages),
       _page2(deal, R, inputs, market, h, 2, totalPages),
       _page3(deal, R, inputs, market, h, 3, totalPages),
       _page4(deal, R, inputs, market, h, 4, totalPages),
-      _page5(deal, R, inputs, market, h, 5, totalPages),
-      _page6(deal, R, inputs, market, h, 6, totalPages)
+      _pageModelAssumptionsValor(deal, R, inputs, market, h, 5, totalPages),
+      _page5(deal, R, inputs, market, h, 6, totalPages),
+      _page6(deal, R, inputs, market, h, 7, totalPages)
     ];
 
     return pages.join('\n');
