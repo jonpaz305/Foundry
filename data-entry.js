@@ -602,8 +602,9 @@ function renderCapitalBlock() {
           <input type="number" class="num" value="${i.purchase_price ?? 0}" oninput="onInputChange('purchase_price', this.value)"/></div>
         <div class="field"><label>Capex budget</label>
           <input type="number" class="num" value="${i.capex_budget ?? 0}" oninput="onInputChange('capex_budget', this.value)"/></div>
-        <div class="field"><label>GC contingency</label>
-          <input type="number" class="num" value="${i.gc_contingency ?? 0}" oninput="onInputChange('gc_contingency', this.value)"/></div>
+        <div class="field"><label>Sponsor mobilization</label>
+          <input type="number" class="num" value="${i.gc_contingency ?? 0}" placeholder="Approx 4-5 draws of capex float" oninput="onInputChange('gc_contingency', this.value)"/>
+          <div class="hint">Float to cover GC mobilization and draw-cycle lag before lender reimbursement. Reimbursed via construction draws before refi.</div></div>
       </div>
       <div class="g2" style="margin-bottom:1rem">
         <div class="field"><label>Consulting fees override</label>
@@ -611,7 +612,7 @@ function renderCapitalBlock() {
         ${mode === 'brrrr' ? `
           <label class="field-cb" style="margin-top:1.4rem">
             <input type="checkbox" ${i.treat_mob_as_equity ? 'checked' : ''} onchange="onInputChange('treat_mob_as_equity', this.checked)"/>
-            Count GC contingency as initial investor equity
+            Count sponsor mobilization as initial investor equity
           </label>
         ` : '<div></div>'}
       </div>
@@ -633,35 +634,56 @@ function renderCapitalBlock() {
         <div class="field"><label>Interest rate</label>
           <input type="number" step="0.001" class="num" value="${i.initial_rate ?? 0.127}" oninput="onInputChange('initial_rate', this.value)"/></div>
       </div>
-      <div class="g3" style="margin-bottom:1rem">
+      <div class="g2" style="margin-bottom:1rem">
         <div class="field"><label>Interest type</label>
           <select onchange="onInputChange('initial_interest_type', this.value)">
             <option value="IO" ${i.initial_interest_type === 'IO' ? 'selected' : ''}>IO</option>
             <option value="PI" ${i.initial_interest_type === 'PI' ? 'selected' : ''}>PI (30yr amort)</option>
           </select></div>
-        <div class="field"><label>Closing cost baseline ($)</label>
-          <input type="number" class="num" value="${i.closing_cost_baseline ?? 2444}" oninput="onInputChange('closing_cost_baseline', this.value)"/>
-          <div class="hint">Cuyahoga title/escrow default $2,444.</div></div>
-        <div class="field"><label>Closing cost % of loan</label>
-          <input type="number" step="0.001" class="num" value="${i.closing_cost_loan_pct ?? 0.045}" oninput="onInputChange('closing_cost_loan_pct', this.value)"/>
-          <div class="hint">Origination 2.5% + points 2%. Default 4.5%.</div></div>
-      </div>
-      ${mode === 'brrrr' ? `
-      <div class="g2" style="margin-bottom:1rem">
-        <div class="field"><label>Transfer tax add-on ($)</label>
-          <input type="number" class="num" value="${i.closing_cost_transfer_addon ?? 2400}" oninput="onInputChange('closing_cost_transfer_addon', this.value)"/>
-          <div class="hint">Cuyahoga multifamily transfer fees. Default $2,400.</div></div>
         <div></div>
       </div>
 
-      <div class="ssub">Capex Execution &amp; Sponsor Float</div>
+      <div class="ssub">Closing Costs</div>
+      <div class="g3" style="margin-bottom:1rem">
+        <div class="field"><label>Closing cost baseline ($)</label>
+          <input type="number" class="num" value="${i.closing_cost_baseline ?? 2444}" oninput="onInputChange('closing_cost_baseline', this.value)"/>
+          <div class="hint">Title/escrow/recording. Default $2,444.</div></div>
+        <div class="field"><label>Insurance ($)</label>
+          <input type="number" class="num" value="${i.closing_cost_insurance ?? 0}" placeholder="First-year premium at close" oninput="onInputChange('closing_cost_insurance', this.value)"/>
+          <div class="hint">First-year property insurance premium paid at closing.</div></div>
+        <div class="field"><label>Appraisal ($)</label>
+          <input type="number" class="num" value="${i.closing_cost_appraisal ?? 0}" placeholder="Lender-ordered appraisal" oninput="onInputChange('closing_cost_appraisal', this.value)"/>
+          <div class="hint">Appraisal fee invoiced by the lender or appraisal firm.</div></div>
+      </div>
+      <div class="g3" style="margin-bottom:1rem">
+        <div class="field"><label>Origination fee (%)</label>
+          <input type="number" step="0.001" class="num" value="${i.origination_pct ?? 0.025}" oninput="onInputChange('origination_pct', this.value)"/>
+          <div class="hint">Lender origination as % of loan. Default 2.5%.</div></div>
+        <div class="field"><label>Lender points (%)</label>
+          <input type="number" step="0.001" class="num" value="${i.lender_points_pct ?? 0.020}" oninput="onInputChange('lender_points_pct', this.value)"/>
+          <div class="hint">Lender points as % of loan. Default 2.0%.</div></div>
+        <div class="field"><label>Broker points (%)</label>
+          <input type="number" step="0.001" class="num" value="${i.broker_points_pct ?? 0}" oninput="onInputChange('broker_points_pct', this.value)"/>
+          <div class="hint">Mortgage broker points as % of loan, if any.</div></div>
+      </div>
+      <div class="g2" style="margin-bottom:1rem">
+        <div class="field"><label>Lender flat fees ($)</label>
+          <input type="number" class="num" value="${i.lender_flat_fees ?? 0}" placeholder="Legal, environmental, processing" oninput="onInputChange('lender_flat_fees', this.value)"/>
+          <div class="hint">Residual flat-dollar lender fees beyond origination, points, and appraisal.</div></div>
+        ${mode === 'brrrr' ? `
+        <div class="field"><label>Transfer tax add-on ($)</label>
+          <input type="number" class="num" value="${i.closing_cost_transfer_addon ?? 2400}" oninput="onInputChange('closing_cost_transfer_addon', this.value)"/>
+          <div class="hint">Cuyahoga multifamily transfer fees. Default $2,400.</div></div>
+        ` : '<div></div>'}
+      </div>
+
+      ${mode === 'brrrr' ? `
+      <div class="ssub">Capex Execution Window</div>
       <div class="g2" style="margin-bottom:1rem">
         <div class="field"><label>Capex duration (months)</label>
           <input type="number" step="1" min="1" class="num" value="${i.capex_duration_months ?? ''}" placeholder="Default: 6" oninput="onInputChange('capex_duration_months', this.value)"/>
           <div class="hint">Months over which the construction tranche draws fund (straight-line). Drives month-by-month bridge carry.</div></div>
-        <div class="field"><label>Sponsor mobilization ($)</label>
-          <input type="number" class="num" value="${i.sponsor_mobilization_override ?? ''}" placeholder="Default: capex / 4.5 (~22%)" oninput="onInputChange('sponsor_mobilization_override', this.value)"/>
-          <div class="hint">Dollars the sponsor fronts to mobilize GC before the first construction draw is reimbursed. Auto-populates at ~22% of capex; override to lock a specific amount.</div></div>
+        <div></div>
       </div>
       ` : ''}
 

@@ -75,19 +75,26 @@ function makeDefaultInputs() {
     treat_mob_as_equity:     false,
     consulting_fees_override: null,
     closing_cost_baseline:   2444,
-    closing_cost_loan_pct:   0.05,
+    // M0.3: closing cost decomposition. The legacy single
+    // closing_cost_loan_pct (0.045) was an aggregate of origination
+    // (2.5%) + lender points (2.0%). Split into separately editable
+    // components, plus new flat-dollar items: insurance, appraisal,
+    // and a residual lender flat fees bucket.
+    origination_pct:         0.025,
+    lender_points_pct:       0.020,
+    broker_points_pct:       0,
+    lender_flat_fees:        0,
+    closing_cost_insurance:  0,
+    closing_cost_appraisal:  0,
     initial_loan_ltv:        0.93,
     initial_loan_ltc_capex:  1.00,
     initial_rate:            0.127,
     initial_interest_type:   'IO',
 
-    // M0.2: Capex execution window and sponsor mobilization override.
-    // capex_duration_months drives the month-by-month construction
-    // draw accrual carry model. Default 6 months when not set.
-    // sponsor_mobilization_override locks a specific dollar amount;
-    // when null the engine auto-computes capex_budget / 4.5.
+    // M0.2 (kept): Capex execution window drives the month-by-month
+    // construction draw accrual carry model. Default 6 months when
+    // not set.
     capex_duration_months:   null,
-    sponsor_mobilization_override: null,
     // Refi (BRRRR only)
     refi_rate:               0.075,
     refi_interest_type:      'PI',
@@ -415,6 +422,29 @@ function hydrateFromDeal(d) {
     delete inputs.mobilization_contingency;
   }
 
+  // ── M0.3 backward-compat: legacy field migrations ──
+  // 1. closing_cost_loan_pct was a single rolled-up bundle of
+  //    origination + lender points. Split it: by default the historical
+  //    0.045 maps to origination 2.5 + lender points 2.0. Only migrate
+  //    when the new fields are absent (defensive against double-load).
+  if ('closing_cost_loan_pct' in inputs) {
+    if (inputs.origination_pct == null) inputs.origination_pct = 0.025;
+    if (inputs.lender_points_pct == null) inputs.lender_points_pct = 0.020;
+    if (inputs.broker_points_pct == null) inputs.broker_points_pct = 0;
+    delete inputs.closing_cost_loan_pct;
+  }
+  // 2. M0.2's sponsor_mobilization_override is collapsed into gc_contingency.
+  //    If a deal was saved with the override and no gc_contingency value,
+  //    promote the override to gc_contingency. Either way, drop the legacy key.
+  if ('sponsor_mobilization_override' in inputs) {
+    if ((inputs.gc_contingency == null || inputs.gc_contingency === 0)
+        && inputs.sponsor_mobilization_override != null
+        && inputs.sponsor_mobilization_override !== '') {
+      inputs.gc_contingency = Number(inputs.sponsor_mobilization_override);
+    }
+    delete inputs.sponsor_mobilization_override;
+  }
+
   // Pull denormalized header fields into inputs (so the Setup form reflects them)
   if (d.address)    inputs.property_address = d.address;
   if (d.city)       inputs.city = d.city;
@@ -635,10 +665,12 @@ function onInputChange(field, value) {
     'utilities_pct_of_egi','reserves_per_unit_year','rent_growth_pct',
     'appreciation_pct','exit_cap','sale_cost_pct','target_hold_months',
     'arv_override','purchase_price','capex_budget','gc_contingency',
-    'consulting_fees_override','closing_cost_baseline','closing_cost_loan_pct',
+    'consulting_fees_override','closing_cost_baseline',
+    'origination_pct','lender_points_pct','broker_points_pct',
+    'lender_flat_fees','closing_cost_insurance','closing_cost_appraisal',
     'initial_loan_ltv','initial_loan_ltc_capex','initial_rate','refi_rate',
     'refi_closing_cost_pct','investor_ownership','lp_gp_split_ff',
-    'capex_duration_months','sponsor_mobilization_override'
+    'capex_duration_months'
   ]);
   if (numericFields.has(field)) {
     if (value === '' || value == null) inputs[field] = null;

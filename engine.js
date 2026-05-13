@@ -275,13 +275,17 @@ function computeBRRRR() {
     ? Math.round(_num(i.capex_duration_months))
     : 6;
 
-  // M0.2: Sponsor mobilization override. The auto-computed value is
-  // capex_budget / 4.5 (midpoint of 1/4 to 1/5 of capex). User can set
-  // sponsor_mobilization_override to lock a specific dollar amount.
-  // Effective sponsor_mobilization = override ?? auto-computed.
-  const sponsor_mobilization_override = (i.sponsor_mobilization_override != null && i.sponsor_mobilization_override !== '')
-    ? _num(i.sponsor_mobilization_override)
-    : null;
+  // M0.3: Closing costs decomposition. The old single closing_cost_loan_pct
+  // (typically 0.045 = origination 2.5% + points 2%) is now split into
+  // four editable components plus two new flat-dollar items (insurance,
+  // appraisal). Backward-compat: if old field present and new fields are
+  // not, the hydration shim splits 0.045 → origination 0.025 + points 0.020.
+  const origination_pct      = i.origination_pct != null ? _num(i.origination_pct) : 0.025;
+  const lender_points_pct    = i.lender_points_pct != null ? _num(i.lender_points_pct) : 0.020;
+  const broker_points_pct    = i.broker_points_pct != null ? _num(i.broker_points_pct) : 0;
+  const lender_flat_fees     = _num(i.lender_flat_fees);
+  const closing_cost_insurance = _num(i.closing_cost_insurance);
+  const closing_cost_appraisal = _num(i.closing_cost_appraisal);
 
   const target_refi_m  = _num(i.target_refi_months);
   const target_hold_y  = Math.max(1, Math.round(_num(i.target_hold_years) || 10));
@@ -337,32 +341,45 @@ function computeBRRRR() {
   const construction_tranche = capex_budget * initial_ltc_capex;
   const initial_loan_amt = acquisition_tranche + construction_tranche;
 
-  // Sponsor's out-of-pocket capex float. Defaults to 1/4.5 of capex
-  // (midpoint of 1/4 to 1/5, ~22%), overridable per deal. This is the
-  // dollars the sponsor fronts to mobilize the GC before the first
-  // construction draw is reimbursed.
-  const sponsor_mobilization = sponsor_mobilization_override != null
-    ? sponsor_mobilization_override
-    : capex_budget / 4.5;
 
-  // Capex funding gap: dollars of capex NOT covered by the construction
-  // tranche. At 100% LTC the gap is zero; at 91% LTC on $616K capex the
-  // gap is ~$55K (sponsor equity into capex over and above mobilization).
-  const capex_funding_gap = Math.max(0, capex_budget - construction_tranche);
-
-
-  // ── CLOSING COSTS ───────────────────────────────────────────
-  // Spreadsheet B24: $4,844 fixed + 4.5% of initial loan
-  // (1395+250+150+299+350) + (loan*0.025) + (loan*0.02) + 2400
-  // = 2444 + 4.5%*loan + 2400 = 4844 + 4.5%*loan
-  // The fixed baseline ($2,444 title/escrow) and the loan-percentage
-  // bundle (origination 2.5% + points 2% = 4.5%) are both editable.
-  // The $2,400 transfer-tax add-on is BRRRR-specific (assumed by the
-  // spreadsheet for multifamily transactions).
+  // ── CLOSING COSTS (M0.3 decomposition) ──────────────────────
+  // Pre-M0.3 the loan-percentage bundle was a single field
+  // closing_cost_loan_pct (typically 0.045 = origination 2.5% + points
+  // 2%). M0.3 splits this into separately editable components:
+  //   - origination_pct       (default 2.5%)
+  //   - lender_points_pct     (default 2.0%)
+  //   - broker_points_pct     (default 0%)
+  //   - lender_flat_fees      (default $0, junk fees: legal,
+  //                            environmental, processing)
+  //   - closing_cost_insurance (default $0, first-year premium at close)
+  //   - closing_cost_appraisal (default $0, lender-ordered appraisal)
+  //
+  // New formula:
+  //   closing_costs = baseline + transfer_addon + insurance + appraisal
+  //                 + (origination + lender_pts + broker_pts) × loan
+  //                 + lender_flat_fees
+  //
+  // Backward-compat: if a deal has no decomposed fields but has the old
+  // closing_cost_loan_pct, the hydration shim splits it (origination 2.5
+  // + points 2 = 4.5) so the total matches exactly. Old field is dropped
+  // on save.
   const cc_baseline = i.closing_cost_baseline != null ? _num(i.closing_cost_baseline) : 2444;
-  const cc_loan_pct = i.closing_cost_loan_pct != null ? _num(i.closing_cost_loan_pct) : 0.045;
   const cc_transfer_addon = i.closing_cost_transfer_addon != null ? _num(i.closing_cost_transfer_addon) : 2400;
-  const closing_costs = cc_baseline + cc_transfer_addon + initial_loan_amt * cc_loan_pct;
+
+  // Compute the loan-percentage component dollars (for the Closing Cost
+  // Detail report, which itemizes each).
+  const cc_origination = initial_loan_amt * origination_pct;
+  const cc_lender_points = initial_loan_amt * lender_points_pct;
+  const cc_broker_points = initial_loan_amt * broker_points_pct;
+
+  const closing_costs = cc_baseline
+    + cc_transfer_addon
+    + closing_cost_insurance
+    + closing_cost_appraisal
+    + cc_origination
+    + cc_lender_points
+    + cc_broker_points
+    + lender_flat_fees;
 
 
   // ── CONSULTING ──────────────────────────────────────────────
@@ -516,6 +533,34 @@ function computeBRRRR() {
     ? (total_project_cost - initial_loan_amt)
     : (total_project_cost - initial_loan_amt - gc_contingency);
 
+  // ── M0.3: EQUITY REQUIRED BREAKDOWN ─────────────────────────
+  // Decompose initial_investor_equity into its constituent components
+  // for the new Equity Required Breakdown report section and dashboard
+  // panel. These lines are NOT a new math layer; they're a labeled
+  // itemization of the same TPC-minus-loan-minus-(maybe-mobilization)
+  // computation above. By construction the components sum to
+  // initial_investor_equity (sanity-checked in regression).
+  //
+  // Components:
+  //   1. Mortgage down payment on acquisition: cash above the
+  //      acquisition tranche to close the purchase
+  //   2. Sponsor capex above lender funding: the gap between full
+  //      capex and the construction tranche (sponsor equity into capex)
+  //   3. Closing costs: ALL closing cost lines, including the loan-
+  //      percentage components, insurance, appraisal, baseline, transfer
+  //   4. Consulting / project fee
+  //   5. Bridge debt service through refi (the M0.2 month-by-month carry)
+  //   6. Sponsor mobilization (only when treat_mob_eq toggle is on)
+  const equity_acq_down_payment = Math.max(0, purchase_price - acquisition_tranche);
+  const equity_capex_gap = Math.max(0, capex_budget - construction_tranche);
+  const equity_closing_costs = closing_costs;
+  const equity_consulting = consulting;
+  const equity_bridge_carry = debt_service_pre_refi;
+  const equity_gc_contingency_if_equity = treat_mob_eq ? gc_contingency : 0;
+  const equity_required_breakdown_total = equity_acq_down_payment
+    + equity_capex_gap + equity_closing_costs + equity_consulting
+    + equity_bridge_carry + equity_gc_contingency_if_equity;
+
   const capital_returned_at_refi = Math.max(0, Math.min(initial_investor_equity, net_cash_out));
   const investor_equity_remaining = initial_investor_equity - capital_returned_at_refi;
   const excess_refi_proceeds = Math.max(0, net_cash_out - capital_returned_at_refi);
@@ -666,9 +711,20 @@ function computeBRRRR() {
     debt_service_pre_refi,
     // M0.2: two-tranche bridge surfaced fields
     acquisition_tranche, construction_tranche,
-    sponsor_mobilization, capex_funding_gap,
     capex_duration_months_resolved: capex_duration_months,
     construction_carry_schedule,
+
+    // M0.3: closing cost components (for itemized Closing Cost Detail report)
+    cc_baseline, cc_transfer_addon,
+    cc_origination, cc_lender_points, cc_broker_points,
+    cc_insurance: closing_cost_insurance,
+    cc_appraisal: closing_cost_appraisal,
+    cc_lender_flat_fees: lender_flat_fees,
+
+    // M0.3: equity required breakdown (sums to initial_investor_equity)
+    equity_acq_down_payment, equity_capex_gap, equity_closing_costs,
+    equity_consulting, equity_bridge_carry,
+    equity_gc_contingency_if_equity, equity_required_breakdown_total,
 
     // Stabilized valuation
     stabilized_arv, arv_per_unit, value_creation, value_creation_pct,
@@ -808,14 +864,28 @@ function computeFF() {
   const initial_loan_amt = purchase_price * initial_ltv + capex_budget;
 
 
-  // ── CLOSING COSTS ───────────────────────────────────────────
-  // F&F spreadsheet: 2444 + 0.015×loan + 0.03×loan = 2444 + 4.5%×loan
-  // (No $2,400 transfer add-on; that's a BRRRR-only line item.)
-  // Both the baseline and loan pct are editable; defaults match the
-  // F&F template exactly.
+  // ── CLOSING COSTS (M0.3 decomposition) ──────────────────────
+  // F&F uses the same M0.3 decomposition as BRRRR, minus the transfer
+  // tax add-on. Same backward-compat shim from old closing_cost_loan_pct.
   const cc_baseline = i.closing_cost_baseline != null ? _num(i.closing_cost_baseline) : 2444;
-  const cc_loan_pct = i.closing_cost_loan_pct != null ? _num(i.closing_cost_loan_pct) : 0.045;
-  const closing_costs = cc_baseline + initial_loan_amt * cc_loan_pct;
+  const origination_pct      = i.origination_pct != null ? _num(i.origination_pct) : 0.025;
+  const lender_points_pct    = i.lender_points_pct != null ? _num(i.lender_points_pct) : 0.020;
+  const broker_points_pct    = i.broker_points_pct != null ? _num(i.broker_points_pct) : 0;
+  const lender_flat_fees     = _num(i.lender_flat_fees);
+  const closing_cost_insurance = _num(i.closing_cost_insurance);
+  const closing_cost_appraisal = _num(i.closing_cost_appraisal);
+
+  const cc_origination = initial_loan_amt * origination_pct;
+  const cc_lender_points = initial_loan_amt * lender_points_pct;
+  const cc_broker_points = initial_loan_amt * broker_points_pct;
+
+  const closing_costs = cc_baseline
+    + closing_cost_insurance
+    + closing_cost_appraisal
+    + cc_origination
+    + cc_lender_points
+    + cc_broker_points
+    + lender_flat_fees;
 
 
   // ── CONSULTING ──────────────────────────────────────────────
@@ -983,6 +1053,13 @@ function computeFF() {
     closing_costs, consulting, debt_service_pre_sale,
     total_project_cost, total_project_cost_per_unit, price_per_unit,
 
+    // M0.3: closing cost components (for itemized Closing Cost Detail report)
+    cc_baseline,
+    cc_origination, cc_lender_points, cc_broker_points,
+    cc_insurance: closing_cost_insurance,
+    cc_appraisal: closing_cost_appraisal,
+    cc_lender_flat_fees: lender_flat_fees,
+
     // Initial debt
     initial_loan_amt, initial_monthly_ds,
 
@@ -1032,7 +1109,6 @@ const ENGINE_RISK_THRESHOLDS = {
   exit_cap_compression_bps: 50,      // exit cap compressed >50 bps below entry
   value_creation_min_brrrr: 0.20,    // BRRRR value creation below 20%
   in_basis_pct_max:         0.80,    // post-refi in-basis >80% of ARV
-  capex_funding_gap_pct_min: 0.05,   // gap (capex - construction tranche) >5% of capex
 
   // F&F
   comp_cv_max:              0.25,    // CoV of comp $/SF above 25%
@@ -1055,7 +1131,6 @@ const HIGH_TIER = {
   exit_cap_compression_bps_high: 100,
   value_creation_min_brrrr_high: 0.10,
   in_basis_pct_max_high:    0.90,    // >90% in-basis is high
-  capex_funding_gap_pct_min_high: 0.15, // gap >15% of capex is high severity (sponsor liquidity strain)
   comp_cv_max_high:         0.40,
   comp_count_min_high:      2,
   dom_max_high:             120,
@@ -1235,33 +1310,6 @@ function computeEngineRisks(mode, R_in, inputs_in, comps_in) {
           title: 'Contingency below institutional minimum',
           detail: `Contingency ${_pctStr(cPct)} of TPC is below the ${_pctStr(T.contingency_pct_min, 0)} minimum. Recommend reserving at least 5%.`,
           value: cPct, threshold: T.contingency_pct_min
-        });
-      }
-    }
-
-    // --- Capex funding gap (M0.2) ---
-    // Construction tranche covers LTC × capex. The remainder (gap)
-    // is sponsor equity into capex on top of mobilization. A material
-    // gap signals sponsor liquidity strain through the value-add phase.
-    const _capex = +i_.capex_budget || 0;
-    const _gap = +R_.capex_funding_gap || 0;
-    if (_capex > 0 && _gap > 0) {
-      const gapPct = _gap / _capex;
-      if (gapPct > H.capex_funding_gap_pct_min_high) {
-        risks.push({
-          id: 'eng_capex_funding_gap', source: 'engine', severity: 'high',
-          category: 'Capital',
-          title: 'Capex funding gap above high-risk ceiling',
-          detail: `Construction tranche leaves ${_dollarStr(_gap)} (${_pctStr(gapPct)} of capex) unfunded by senior debt, above the ${_pctStr(H.capex_funding_gap_pct_min_high, 0)} high-severity ceiling. Sponsor must cover from equity through the capex execution period.`,
-          value: gapPct, threshold: H.capex_funding_gap_pct_min_high
-        });
-      } else if (gapPct > T.capex_funding_gap_pct_min) {
-        risks.push({
-          id: 'eng_capex_funding_gap', source: 'engine', severity: 'medium',
-          category: 'Capital',
-          title: 'Capex funding gap above institutional threshold',
-          detail: `Construction tranche leaves ${_dollarStr(_gap)} (${_pctStr(gapPct)} of capex) unfunded. Sponsor equity into capex above mobilization. Confirm liquidity through draw cycle.`,
-          value: gapPct, threshold: T.capex_funding_gap_pct_min
         });
       }
     }

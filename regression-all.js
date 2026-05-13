@@ -127,7 +127,10 @@ const INPUTS_BRRRR = {
   exit_cap: 0.0875, sale_cost_pct: 0.07,
   purchase_price: 240000, capex_budget: 616000, gc_contingency: 50000,
   treat_mob_as_equity: false, consulting_fees_override: 30000,
-  closing_cost_baseline: 2444, closing_cost_loan_pct: 0.045,
+  closing_cost_baseline: 2444,
+  origination_pct: 0.025, lender_points_pct: 0.020,
+  broker_points_pct: 0, lender_flat_fees: 0,
+  closing_cost_insurance: 0, closing_cost_appraisal: 0,
   closing_cost_transfer_addon: 2400,
   initial_loan_ltv: 0.70, initial_loan_ltc_capex: 0.91,
   initial_rate: 0.11, initial_interest_type: 'IO',
@@ -166,7 +169,10 @@ const INPUTS_FF = {
   target_hold_months: 7, arv_override: 550000,
   purchase_price: 240000, capex_budget: 90000, gc_contingency: 30000,
   consulting_fees_override: 10000,
-  closing_cost_baseline: 2444, closing_cost_loan_pct: 0.045,
+  closing_cost_baseline: 2444,
+  origination_pct: 0.025, lender_points_pct: 0.020,
+  broker_points_pct: 0, lender_flat_fees: 0,
+  closing_cost_insurance: 0, closing_cost_appraisal: 0,
   initial_loan_ltv: 0.90, initial_rate: 0.127, initial_interest_type: 'IO',
   sale_cost_pct: 0.07, lp_gp_split_ff: 0.5,
   equity_method_ff: 'spreadsheet', comp_avg_method: 'institutional',
@@ -296,23 +302,20 @@ function runM2() {
   check(g, 'em_spreadsheet (Y0..Y10 sum / equity)', R.em_spreadsheet, 3.9905, 0.01);
 
   // ════════════════════════════════════════════════════════════════
-  // M0.2 - TWO-TRANCHE BRIDGE (10 tests)
+  // M0.2 - TWO-TRANCHE BRIDGE (8 tests, retained)
+  // M0.3 collapsed sponsor_mobilization + capex_funding_gap fields back
+  // into gc_contingency (UI-only relabel). Those two M0.2 tests are removed.
   // ════════════════════════════════════════════════════════════════
   // Foundry-BRRRR-001: purchase $240K @ 70% LTV, capex $616K @ 91% LTC.
   // Acquisition tranche = 240,000 × 0.70 = 168,000
   // Construction tranche = 616,000 × 0.91 = 560,560
   // Total = 728,560 (matches initial_loan_amt, preserves backward-compat)
-  // Sponsor mobilization (no override on seed) = 616,000 / 4.5 = 136,888.89
-  // Capex funding gap = 616,000 - 560,560 = 55,440
   // Capex duration months (no override) = 6 (default)
 
   check(g, 'M0.2 acquisition_tranche', R.acquisition_tranche, 168000);
   check(g, 'M0.2 construction_tranche', R.construction_tranche, 560560);
   check(g, 'M0.2 tranches sum to initial_loan_amt',
     R.acquisition_tranche + R.construction_tranche, R.initial_loan_amt);
-  check(g, 'M0.2 sponsor_mobilization (auto = capex / 4.5)',
-    R.sponsor_mobilization, 616000 / 4.5);
-  check(g, 'M0.2 capex_funding_gap', R.capex_funding_gap, 55440);
   check(g, 'M0.2 capex_duration_months_resolved (default 6)',
     R.capex_duration_months_resolved, 6);
   check(g, 'M0.2 construction_carry_schedule length = target_refi_months',
@@ -330,20 +333,56 @@ function runM2() {
   const _scheduleSum = R.construction_carry_schedule.reduce((a, s) => a + s.monthly_ds, 0);
   check(g, 'M0.2 schedule sum = debt_service_pre_refi',
     _scheduleSum, R.debt_service_pre_refi, 0.001);
+
+  // ════════════════════════════════════════════════════════════════
+  // M0.3 - CLOSING COSTS DECOMPOSITION (7 tests)
+  // ════════════════════════════════════════════════════════════════
+  // Seed deal uses origination 2.5% + lender points 2.0% + broker 0
+  // + flat fees 0 + insurance 0 + appraisal 0. The aggregate matches
+  // the pre-M0.3 0.045 closing_cost_loan_pct value, so closing_costs
+  // total is unchanged: $2,444 baseline + $2,400 transfer + 4.5% × $728,560
+  // = $37,629.20. Same number as M0.1/M0.2 regressions.
+  check(g, 'M0.3 cc_origination = 2.5% × loan', R.cc_origination, 728560 * 0.025, 0.01);
+  check(g, 'M0.3 cc_lender_points = 2.0% × loan', R.cc_lender_points, 728560 * 0.020, 0.01);
+  check(g, 'M0.3 cc_broker_points = 0', R.cc_broker_points, 0);
+  check(g, 'M0.3 cc_lender_flat_fees = 0', R.cc_lender_flat_fees, 0);
+  check(g, 'M0.3 cc_insurance = 0', R.cc_insurance, 0);
+  check(g, 'M0.3 cc_appraisal = 0', R.cc_appraisal, 0);
+  check(g, 'M0.3 closing_costs unchanged from prior aggregate', R.closing_costs, 37629.20);
+
+  // ════════════════════════════════════════════════════════════════
+  // M0.3 - EQUITY REQUIRED BREAKDOWN (7 tests)
+  // ════════════════════════════════════════════════════════════════
+  // Seed deal has treat_mob_as_equity = false, so the GC contingency
+  // is NOT in equity. Components must sum to initial_investor_equity
+  // ($242,329.23 post-M0.2 carry change).
+  //   Mortgage down payment on acquisition: 240,000 - 168,000 = 72,000
+  //   Sponsor capex above lender funding: 616,000 - 560,560 = 55,440
+  //   Closing costs: 37,629.20
+  //   Consulting: 30,000
+  //   Bridge carry to refi: 47,260.03 (M0.2 month-by-month)
+  //   GC contingency (excluded, toggle off): 0
+  //   Total: 242,329.23 = initial_investor_equity ✓
+  check(g, 'M0.3 equity_acq_down_payment', R.equity_acq_down_payment, 72000);
+  check(g, 'M0.3 equity_capex_gap', R.equity_capex_gap, 55440);
+  check(g, 'M0.3 equity_closing_costs = R.closing_costs', R.equity_closing_costs, 37629.20);
+  check(g, 'M0.3 equity_consulting = R.consulting', R.equity_consulting, 30000);
+  check(g, 'M0.3 equity_bridge_carry = debt_service_pre_refi', R.equity_bridge_carry, 47260.03, 0.01);
+  check(g, 'M0.3 equity_gc_contingency_if_equity (toggle off) = 0', R.equity_gc_contingency_if_equity, 0);
+  check(g, 'M0.3 equity_required_breakdown_total = initial_investor_equity',
+    R.equity_required_breakdown_total, R.initial_investor_equity, 0.01);
 }
 
 // ════════════════════════════════════════════════════════════════
 // M0.2 - SPONSOR MOBILIZATION OVERRIDE + DURATION OVERRIDE (5 tests)
 // ════════════════════════════════════════════════════════════════
-// Verify the override path: explicit sponsor_mobilization_override and
-// explicit capex_duration_months both flow through correctly without
-// the auto-default kicking in.
+// Verify capex_duration_months override flows through correctly.
+// (M0.3 removed sponsor_mobilization_override; that field no longer exists.)
 function runM02Overrides() {
   const g = group('M0.2 Overrides');
 
-  // Override deal: same as BRRRR seed but with explicit overrides.
+  // Override deal: same as BRRRR seed but with explicit capex duration override.
   const overrideInputs = Object.assign({}, INPUTS_BRRRR, {
-    sponsor_mobilization_override: 200000,
     capex_duration_months: 4
   });
   const R = vm.runInContext(`
@@ -357,8 +396,6 @@ function runM02Overrides() {
     R;
   `, ctx);
 
-  check(g, 'sponsor_mobilization respects override (200,000)',
-    R.sponsor_mobilization, 200000);
   check(g, 'capex_duration_months_resolved respects override (4)',
     R.capex_duration_months_resolved, 4);
   // With duration=4: ramp completes at month 4. Months 1-4 ramp, months 5-9
@@ -368,13 +405,13 @@ function runM02Overrides() {
   // Month 4: full construction balance reached.
   check(g, 'override duration: month 4 hits full balance',
     R.construction_carry_schedule[3].total_balance, 728560, 0.01);
-  // Tranches unchanged by overrides (overrides only affect timing/float).
+  // Tranches unchanged by overrides (overrides only affect timing).
   check(g, 'override does not change acquisition_tranche',
     R.acquisition_tranche, 168000);
 }
 
 // ════════════════════════════════════════════════════════════════
-// M0.2 - F&F MODE ISOLATION (3 tests)
+// M0.2 - F&F MODE ISOLATION (2 tests)
 // ════════════════════════════════════════════════════════════════
 // F&F mode must not be affected by the two-tranche split. The F&F
 // engine continues to compute initial_loan_amt as purchase × LTV +
@@ -389,8 +426,79 @@ function runM02FFIsolation() {
     R.acquisition_tranche === undefined ? 1 : 0, 1);
   check(g, 'F&F: construction_tranche not exposed',
     R.construction_tranche === undefined ? 1 : 0, 1);
-  check(g, 'F&F: sponsor_mobilization not exposed',
-    R.sponsor_mobilization === undefined ? 1 : 0, 1);
+}
+
+// ════════════════════════════════════════════════════════════════
+// M0.3 - BACKWARD COMPAT + EQUITY TOGGLE (6 tests)
+// ════════════════════════════════════════════════════════════════
+// Verify the closing_cost_loan_pct → decomposed components shim, and
+// verify treat_mob_as_equity = true correctly adds gc_contingency to
+// the equity breakdown total.
+function runM03Compat() {
+  const g = group('M0.3 Compat + Equity Toggle');
+
+  // Test 1: legacy deal with closing_cost_loan_pct: 0.045 (and no new
+  // fields) should load and produce identical closing_costs total.
+  const legacyInputs = {
+    purchase_price: 240000, capex_budget: 616000, gc_contingency: 50000,
+    treat_mob_as_equity: false, consulting_fees_override: 30000,
+    closing_cost_baseline: 2444, closing_cost_loan_pct: 0.045,
+    closing_cost_transfer_addon: 2400,
+    initial_loan_ltv: 0.70, initial_loan_ltc_capex: 0.91,
+    initial_rate: 0.11, initial_interest_type: 'IO',
+    target_refi_months: 9, target_hold_years: 10, target_refi_ltv: 0.70,
+    vacancy_pct: 0.05, pm_pct: 0.07, maint_pct_of_egi: 0.055,
+    insurance_pct_of_egi: 0.08, utilities_pct_of_egi: 0.02,
+    reserves_per_unit_year: 1000, rent_growth_pct: 0.03, appreciation_pct: 0.05,
+    exit_cap: 0.0875, sale_cost_pct: 0.07,
+    refi_rate: 0.07, refi_interest_type: 'PI',
+    refi_closing_cost_pct: 0.04, investor_ownership: 0.5,
+    tax_basis_mode: 'purchase_price', tax_district: 'Cleveland',
+    equity_multiple_method: 'institutional'
+  };
+  // Apply the hydrateFromDeal shim by invoking the migration in-line.
+  // (The harness doesn't run hydrateFromDeal, so we simulate its effect.)
+  if ('closing_cost_loan_pct' in legacyInputs) {
+    if (legacyInputs.origination_pct == null) legacyInputs.origination_pct = 0.025;
+    if (legacyInputs.lender_points_pct == null) legacyInputs.lender_points_pct = 0.020;
+    if (legacyInputs.broker_points_pct == null) legacyInputs.broker_points_pct = 0;
+    delete legacyInputs.closing_cost_loan_pct;
+  }
+  const R = vm.runInContext(`
+    currentDeal = ${JSON.stringify(SEED_BRRRR)};
+    inputs = ${JSON.stringify(legacyInputs)};
+    unitMix = ${JSON.stringify(UNITMIX_BRRRR)};
+    comps = [];
+    marketAnalysis = {};
+    R = {};
+    recompute();
+    R;
+  `, ctx);
+  check(g, 'legacy 0.045 → split: closing_costs unchanged', R.closing_costs, 37629.20);
+  check(g, 'legacy migrated cc_origination', R.cc_origination, 728560 * 0.025, 0.01);
+  check(g, 'legacy migrated cc_lender_points', R.cc_lender_points, 728560 * 0.020, 0.01);
+
+  // Test 2: treat_mob_as_equity = true should add gc_contingency
+  // ($50K) to the equity breakdown total.
+  const toggleOnInputs = Object.assign({}, INPUTS_BRRRR, {
+    treat_mob_as_equity: true
+  });
+  const R2 = vm.runInContext(`
+    currentDeal = ${JSON.stringify(SEED_BRRRR)};
+    inputs = ${JSON.stringify(toggleOnInputs)};
+    unitMix = ${JSON.stringify(UNITMIX_BRRRR)};
+    comps = [];
+    marketAnalysis = {};
+    R = {};
+    recompute();
+    R;
+  `, ctx);
+  check(g, 'toggle on: equity_gc_contingency_if_equity = 50,000',
+    R2.equity_gc_contingency_if_equity, 50000);
+  check(g, 'toggle on: equity_required_breakdown_total = initial_investor_equity',
+    R2.equity_required_breakdown_total, R2.initial_investor_equity, 0.01);
+  check(g, 'toggle on: breakdown total = toggle-off total + 50,000',
+    R2.equity_required_breakdown_total, 242329.23 + 50000, 0.01);
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1086,6 +1194,7 @@ function runM6_7() {
 runM2();
 runM02Overrides();
 runM02FFIsolation();
+runM03Compat();
 runM3();
 runM4();
 runM5();

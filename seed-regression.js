@@ -55,7 +55,12 @@ const SEED_BRRRR_2048_E_79TH = {
     treat_mob_as_equity: false,
     consulting_fees_override: 30000,  // overrides max($10k, 3%) default
     closing_cost_baseline: 2444,
-    closing_cost_loan_pct: 0.045,
+    origination_pct: 0.025,
+    lender_points_pct: 0.020,
+    broker_points_pct: 0,
+    lender_flat_fees: 0,
+    closing_cost_insurance: 0,
+    closing_cost_appraisal: 0,
     closing_cost_transfer_addon: 2400,
     initial_loan_ltv: 0.70,           // overrides 0.93 default - this deal is 70/91
     initial_loan_ltc_capex: 0.91,
@@ -102,7 +107,12 @@ const SEED_FF_2455_W_7TH = {
     gc_contingency: 30000,
     consulting_fees_override: 10000,
     closing_cost_baseline: 2444,
-    closing_cost_loan_pct: 0.045,
+    origination_pct: 0.025,
+    lender_points_pct: 0.020,
+    broker_points_pct: 0,
+    lender_flat_fees: 0,
+    closing_cost_insurance: 0,
+    closing_cost_appraisal: 0,
     initial_loan_ltv: 0.90,            // this deal is 90 LTV
     initial_rate: 0.127,
     initial_interest_type: 'IO',
