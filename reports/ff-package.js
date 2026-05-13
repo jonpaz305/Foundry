@@ -731,11 +731,21 @@
           ` : ''}
         </div>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Disclaimers</div>
+        ${_footer(pageNum, totalPages)}
+      </div>`;
+  }
+
+  // ── PAGE 9: NOTICES AND DISCLAIMERS (Path A - always renders) ──
+  function _pageDisclaimers(deal, R, inputs, market, h, pageNum, totalPages) {
+    const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
+    const coName = co && co.name ? co.name : 'ASJP';
+    return `
+      <div class="print-page print-page-compact">
+        ${_header(h, 'Notices and Disclaimers')}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Notices and Disclaimers</div>
         <div class="bp-disclaimer">
-          <p>This package is provided for informational purposes only and does not constitute an offer to sell or a solicitation of an offer to buy any securities. Any such offer or solicitation will be made only by means of a confidential private placement memorandum and related subscription documents.</p>
-          <p>The information contained herein, including forecasts, projections, and forward-looking statements regarding investment returns, has been prepared in good faith based on assumptions believed to be reasonable. Actual results may differ materially from those projected. Prospective investors should not rely solely on this material in making any investment decision.</p>
-          <p>Past performance is not indicative of future results. Real estate investments involve substantial risk, including the potential loss of invested capital. Prospective investors should consult their own legal, tax, and financial advisors.</p>
+          ${typeof disclaimersForEquityPackage === 'function' ? disclaimersForEquityPackage(coName, { isFF: true }) : ''}
         </div>
 
         ${_footer(pageNum, totalPages)}
@@ -777,7 +787,7 @@
 
     const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
     const hasSponsorPage = !!(co && (co.subtitle || (co.contact_info && (co.contact_info.email || co.contact_info.phone || co.contact_info.website || co.contact_info.address))));
-    const totalPages = 7 + (hasSponsorPage ? 1 : 0);
+    const totalPages = 7 + (hasSponsorPage ? 1 : 0) + 1;  // +1 for Notices and Disclaimers page
 
     pages.push(_page1(deal, R, inputs, market, h, 1, totalPages));
     pages.push(_page2(deal, R, inputs, market, h, 2, totalPages));
@@ -786,10 +796,12 @@
     pages.push(_page5(deal, R, inputs, market, h, 5, totalPages));
     pages.push(_page6(deal, R, inputs, market, h, 6, totalPages));
     pages.push(_page7(deal, R, inputs, market, h, 7, totalPages));
+    let nextPage = 8;
     if (hasSponsorPage) {
-      const p8 = _page8(deal, R, inputs, market, h, 8, totalPages);
-      if (p8) pages.push(p8);
+      const p8 = _page8(deal, R, inputs, market, h, nextPage, totalPages);
+      if (p8) { pages.push(p8); nextPage++; }
     }
+    pages.push(_pageDisclaimers(deal, R, inputs, market, h, nextPage, totalPages));
 
     return pages.join('\n');
   }
