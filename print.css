@@ -58,7 +58,10 @@ html, body {
   html, body { background: #ffffff; }
   .print-page {
     width: auto;
-    min-height: 0;
+    /* min-height matches the printable area (US Letter minus @page margins)
+       so the flex container can stretch and pin the footer to the bottom
+       via margin-top:auto on .print-footer. */
+    min-height: 9.9in;
     margin: 0;
     padding: 0;
     box-shadow: none;
