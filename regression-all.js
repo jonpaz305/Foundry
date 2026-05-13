@@ -1287,6 +1287,10 @@ function runM6_8() {
     econHtml.includes('Construction Tranche') ? 1 : 0, 1);
   check(g, 'BRRRR economics: contains Total Bridge Loan row',
     econHtml.includes('Total Bridge Loan') ? 1 : 0, 1);
+  check(g, 'BRRRR economics: contains Capital Recapture row (BRRRR only)',
+    econHtml.includes('Capital Recapture') ? 1 : 0, 1);
+  check(g, 'BRRRR economics: Capital Recapture rendered with tone color',
+    /Capital Recapture[\s\S]{0,500}#3fb950|#d29922|#f85e5e/.test(econHtml) ? 1 : 0, 1);
 
   // ── F&F Deal Economics panel
   const econFFHtml = vm.runInContext(`renderDealEconomicsPanel('fix_and_flip')`, dashCtx);
@@ -1294,6 +1298,8 @@ function runM6_8() {
     typeof econFFHtml === 'string' && econFFHtml.length > 0 ? 1 : 0, 1);
   check(g, 'F&F economics: subtitle reads disposition',
     econFFHtml.includes('disposition') ? 1 : 0, 1);
+  check(g, 'F&F economics: Capital Recapture row hidden (BRRRR-only metric)',
+    econFFHtml.indexOf('Capital Recapture') < 0 ? 1 : 0, 1);
 
   // ── Equity Required Breakdown panel
   const eqHtml = vm.runInContext(`renderEquityBreakdownPanel()`, dashCtx);

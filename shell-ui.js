@@ -449,10 +449,32 @@ function renderCompValidationPanelFF() {
 function renderDealEconomicsPanel(mode) {
   if (!R || typeof R !== 'object') return '';
 
+  // Internal helper: compute color tone for capital recapture against
+  // the same green/amber/red thresholds the Internal Memo and risk
+  // register use (>=80% green, 60-80% amber, <60% red). Returns the
+  // CSS color token or null for the default text color. The recapture
+  // value in R is normalized to a 0-1 fraction; engine sometimes emits
+  // 0-100 form, so coerce defensively.
+  function _recaptureTone(pct) {
+    if (pct == null || !isFinite(pct)) return null;
+    const v = pct > 1 ? pct / 100 : pct;
+    if (v >= 0.80) return '#3fb950';   // green - meets recycle threshold
+    if (v >= 0.60) return '#d29922';   // amber - acceptable but watch
+    return '#f85e5e';                  // red - recycle thesis fails
+  }
+
   let rows;
   if (mode === 'brrrr') {
     const refi_ltv = (R.refi_loan_amount > 0 && R.stabilized_arv > 0)
       ? R.refi_loan_amount / R.stabilized_arv : null;
+    // Capital Recapture row tagged with a tone color when present.
+    // The third element of the row tuple (when provided) overrides the
+    // default text color in the cell renderer below. BRRRR mode only;
+    // F&F omits this row entirely per spec.
+    const recapTone = _recaptureTone(R.capital_recaptured_pct);
+    const recapVal = R.capital_recaptured_pct != null
+      ? fP(R.capital_recaptured_pct > 1 ? R.capital_recaptured_pct / 100 : R.capital_recaptured_pct)
+      : '-';
     rows = [
       ['Purchase Price',           inputs.purchase_price != null ? f$(inputs.purchase_price) : '-'],
       ['Capex Budget',             inputs.capex_budget != null ? f$(inputs.capex_budget) : '-'],
@@ -463,6 +485,7 @@ function renderDealEconomicsPanel(mode) {
       ['Refi Loan',                R.refi_loan_amount != null ? f$(R.refi_loan_amount) : '-'],
       ['Stabilized NOI',           R.stabilized_noi != null ? f$(R.stabilized_noi) : '-'],
       ['Refi LTV',                 refi_ltv != null ? fP(refi_ltv) : '-'],
+      ['Capital Recapture',        recapVal, recapTone],
       ['Post-Refi In-Basis',       R.post_refi_in_basis_pct != null ? fP(R.post_refi_in_basis_pct) : '-'],
       ['Annual Cash Flow',         R.annual_cash_flow != null ? f$(R.annual_cash_flow) : '-'],
       ['Breakeven Occupancy',      R.breakeven_occupancy != null ? fP(R.breakeven_occupancy) : '-']
@@ -482,11 +505,20 @@ function renderDealEconomicsPanel(mode) {
     ];
   }
 
-  const rowsHtml = rows.map(([lbl, val]) =>
-    `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+  // Row renderer accepts an optional third element (color override). When
+  // present, the value cell is colored accordingly (used for the BRRRR
+  // Capital Recapture tone band). When absent, the default text color
+  // applies. All cells use the standard mono font for numeric values.
+  const rowsHtml = rows.map(r => {
+    const lbl = r[0];
+    const val = r[1];
+    const tone = r[2] || null;
+    const valStyle = `color:${tone ? tone : 'var(--text)'};font-family:var(--fm);font-weight:600`;
+    return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
        <span style="color:var(--text2)">${escapeHtml(lbl)}</span>
-       <span style="color:var(--text);font-family:var(--fm);font-weight:600">${escapeHtml(val)}</span>
-     </div>`).join('');
+       <span style="${valStyle}">${escapeHtml(val)}</span>
+     </div>`;
+  }).join('');
 
   return `
     <div class="comp-validation-panel">
