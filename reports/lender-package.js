@@ -274,7 +274,7 @@
               <tr><td>Closing Costs</td><td class="num">${h.fmtMoney(closing)}</td><td class="num">${h.fmtPct(closing / Math.max(1, totalUses))}</td></tr>
               <tr><td>Consulting</td><td class="num">${h.fmtMoney(consulting)}</td><td class="num">${h.fmtPct(consulting / Math.max(1, totalUses))}</td></tr>
               <tr><td>Carry (DS through ${mode === 'brrrr' ? 'Refi' : 'Sale'})</td><td class="num">${h.fmtMoney(carry)}</td><td class="num">${h.fmtPct(carry / Math.max(1, totalUses))}</td></tr>
-              <tr><td>GC Contingency</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, totalUses))}</td></tr>
+              <tr><td>Sponsor Mobilization</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, totalUses))}</td></tr>
               <tr class="totals"><td>Total Uses</td><td class="num">${h.fmtMoney(totalUses)}</td><td class="num">100.0%</td></tr>
             </tbody>
           </table>
@@ -301,7 +301,7 @@
               <thead><tr><th>Component</th><th class="num">Amount</th><th class="num">% TPC</th></tr></thead>
               <tbody>
                 <tr><td>Cash Equity at Closing</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${h.fmtPct(investorEquity / Math.max(1, R.total_project_cost))}</td></tr>
-                <tr><td>GC Contingency</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, R.total_project_cost))}</td></tr>
+                <tr><td>Sponsor Mobilization</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, R.total_project_cost))}</td></tr>
                 <tr class="totals"><td>Total Capital at Risk</td><td class="num">${h.fmtMoney(investorEquity + contingency)}</td><td class="num">${h.fmtPct((investorEquity + contingency) / Math.max(1, R.total_project_cost))}</td></tr>
               </tbody>
             </table>
@@ -643,7 +643,7 @@
               <thead><tr><th>Line</th><th class="num">Amount</th><th class="num">$/SF</th></tr></thead>
               <tbody>
                 <tr><td>Capex Budget</td><td class="num">${h.fmtMoney(inputs.capex_budget)}</td><td class="num">${(sqft > 0 && inputs.capex_budget > 0) ? h.fmtMoney(inputs.capex_budget / sqft) : '-'}</td></tr>
-                <tr><td>GC Contingency</td><td class="num">${h.fmtMoney(inputs.gc_contingency)}</td><td class="num">${(sqft > 0 && inputs.gc_contingency > 0) ? h.fmtMoney(inputs.gc_contingency / sqft) : '-'}</td></tr>
+                <tr><td>Sponsor Mobilization</td><td class="num">${h.fmtMoney(inputs.gc_contingency)}</td><td class="num">${(sqft > 0 && inputs.gc_contingency > 0) ? h.fmtMoney(inputs.gc_contingency / sqft) : '-'}</td></tr>
                 <tr><td>Consulting</td><td class="num">${h.fmtMoney(R.consulting)}</td><td class="num">${(sqft > 0 && R.consulting > 0) ? h.fmtMoney(R.consulting / sqft) : '-'}</td></tr>
                 <tr class="totals"><td>Total Envelope</td><td class="num">${h.fmtMoney((inputs.capex_budget || 0) + (inputs.gc_contingency || 0) + (R.consulting || 0))}</td><td class="num">${(sqft > 0) ? h.fmtMoney(((inputs.capex_budget || 0) + (inputs.gc_contingency || 0) + (R.consulting || 0)) / sqft) : '-'}</td></tr>
               </tbody>
