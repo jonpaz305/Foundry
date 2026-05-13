@@ -184,10 +184,13 @@
   function _loanRequest(R, inputs, mode, h) {
     const rows = [];
     if (mode === 'brrrr') {
+      const acqTranche = R.acquisition_tranche || 0;
+      const conTranche = R.construction_tranche || 0;
+      const capexDur = R.capex_duration_months_resolved || 6;
       rows.push(['Loan Type',          'Bridge (with refi takeout)']);
       rows.push(['Requested Amount',   h.fmtMoney(R.initial_loan_amt)]);
-      rows.push(['LTV (Purchase)',     h.fmtPct(inputs.initial_loan_ltv)]);
-      rows.push(['LTC + Capex',         h.fmtPct(inputs.initial_loan_ltc_capex)]);
+      rows.push(['Acquisition Tranche', `${h.fmtMoney(acqTranche)} (${h.fmtPct(inputs.initial_loan_ltv)} of purchase)`]);
+      rows.push(['Construction Tranche', `${h.fmtMoney(conTranche)} (${h.fmtPct(inputs.initial_loan_ltc_capex)} of capex, draws over ${capexDur} mo)`]);
       rows.push(['Rate',               h.fmtPct(inputs.initial_rate, 2)]);
       rows.push(['Interest Type',      _esc(inputs.initial_interest_type || 'IO')]);
       rows.push(['Term to Refi',       (inputs.target_refi_months || 9) + ' months']);
@@ -217,15 +220,43 @@
     const totalSources = initialLoan + investorEquity;
 
     const purchase = inputs.purchase_price || 0;
-    const reno = inputs.capex_budget || 0;
+    const capex = inputs.capex_budget || 0;
     const closing = R.closing_costs || 0;
     const consulting = R.consulting || 0;
     const carry = mode === 'brrrr' ? (R.debt_service_pre_refi || 0) : (R.debt_service_pre_sale || 0);
     const contingency = inputs.gc_contingency || 0;
-    const totalUses = purchase + reno + closing + consulting + carry + contingency;
+    const totalUses = purchase + capex + closing + consulting + carry + contingency;
 
     const sponsorPct = totalSources > 0 ? investorEquity / totalSources : 0;
     const loanPct = totalSources > 0 ? initialLoan / totalSources : 0;
+
+    // M0.2 BRRRR: surface the two bridge tranches in Sources.
+    const acqTranche = R.acquisition_tranche || 0;
+    const conTranche = R.construction_tranche || 0;
+    const acqPct = totalSources > 0 ? acqTranche / totalSources : 0;
+    const conPct = totalSources > 0 ? conTranche / totalSources : 0;
+
+    const sourcesBlock = mode === 'brrrr' ? `
+      <table class="print-table pb-avoid">
+        <thead><tr><th>Sources</th><th class="num">Amount</th><th class="num">%</th></tr></thead>
+        <tbody>
+          <tr><td>Senior Debt: Acquisition Tranche</td><td class="num">${h.fmtMoney(acqTranche)}</td><td class="num">${h.fmtPct(acqPct)}</td></tr>
+          <tr><td>Senior Debt: Construction Tranche</td><td class="num">${h.fmtMoney(conTranche)}</td><td class="num">${h.fmtPct(conPct)}</td></tr>
+          <tr><td style="padding-left:1.5em">Total Bridge</td><td class="num">${h.fmtMoney(initialLoan)}</td><td class="num">${h.fmtPct(loanPct)}</td></tr>
+          <tr><td>Sponsor / Investor Equity</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${h.fmtPct(sponsorPct)}</td></tr>
+          <tr class="totals"><td>Total Sources</td><td class="num">${h.fmtMoney(totalSources)}</td><td class="num">100.0%</td></tr>
+        </tbody>
+      </table>
+    ` : `
+      <table class="print-table pb-avoid">
+        <thead><tr><th>Sources</th><th class="num">Amount</th><th class="num">%</th></tr></thead>
+        <tbody>
+          <tr><td>Requested Loan</td><td class="num">${h.fmtMoney(initialLoan)}</td><td class="num">${h.fmtPct(loanPct)}</td></tr>
+          <tr><td>Sponsor / Investor Equity</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${h.fmtPct(sponsorPct)}</td></tr>
+          <tr class="totals"><td>Total Sources</td><td class="num">${h.fmtMoney(totalSources)}</td><td class="num">100.0%</td></tr>
+        </tbody>
+      </table>
+    `;
 
     return `
       <div class="print-page print-page-compact">
@@ -233,20 +264,13 @@
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Sources & Uses</div>
         <div class="bp-su-grid">
-          <table class="print-table pb-avoid">
-            <thead><tr><th>Sources</th><th class="num">Amount</th><th class="num">%</th></tr></thead>
-            <tbody>
-              <tr><td>Requested Loan</td><td class="num">${h.fmtMoney(initialLoan)}</td><td class="num">${h.fmtPct(loanPct)}</td></tr>
-              <tr><td>Sponsor / Investor Equity</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${h.fmtPct(sponsorPct)}</td></tr>
-              <tr class="totals"><td>Total Sources</td><td class="num">${h.fmtMoney(totalSources)}</td><td class="num">100.0%</td></tr>
-            </tbody>
-          </table>
+          ${sourcesBlock}
 
           <table class="print-table pb-avoid">
             <thead><tr><th>Uses</th><th class="num">Amount</th><th class="num">%</th></tr></thead>
             <tbody>
               <tr><td>Purchase Price</td><td class="num">${h.fmtMoney(purchase)}</td><td class="num">${h.fmtPct(purchase / Math.max(1, totalUses))}</td></tr>
-              <tr><td>Capex Budget</td><td class="num">${h.fmtMoney(reno)}</td><td class="num">${h.fmtPct(reno / Math.max(1, totalUses))}</td></tr>
+              <tr><td>Capex Budget</td><td class="num">${h.fmtMoney(capex)}</td><td class="num">${h.fmtPct(capex / Math.max(1, totalUses))}</td></tr>
               <tr><td>Closing Costs</td><td class="num">${h.fmtMoney(closing)}</td><td class="num">${h.fmtPct(closing / Math.max(1, totalUses))}</td></tr>
               <tr><td>Consulting</td><td class="num">${h.fmtMoney(consulting)}</td><td class="num">${h.fmtPct(consulting / Math.max(1, totalUses))}</td></tr>
               <tr><td>Carry (DS through ${mode === 'brrrr' ? 'Refi' : 'Sale'})</td><td class="num">${h.fmtMoney(carry)}</td><td class="num">${h.fmtPct(carry / Math.max(1, totalUses))}</td></tr>
@@ -286,13 +310,23 @@
           <div>
             <div class="print-section pb-avoid"><span class="ps-accent"></span>Initial Debt Terms</div>
             <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
+              ${mode === 'brrrr' ? `
+              <div class="pl-row"><span class="pl-lbl">Acquisition Tranche</span><span class="pl-val">${h.fmtMoney(R.acquisition_tranche || 0)} (${h.fmtPct(inputs.initial_loan_ltv)} of purchase)</span></div>
+              <div class="pl-row"><span class="pl-lbl">Construction Tranche</span><span class="pl-val">${h.fmtMoney(R.construction_tranche || 0)} (${h.fmtPct(inputs.initial_loan_ltc_capex)} of capex)</span></div>
+              <div class="pl-row"><span class="pl-lbl">Total Bridge</span><span class="pl-val">${h.fmtMoney(R.initial_loan_amt)}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Rate / Type</span><span class="pl-val">${h.fmtPct(inputs.initial_rate, 2)} ${_esc(inputs.initial_interest_type || 'IO')}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Monthly DS (full balance)</span><span class="pl-val">${h.fmtMoney(R.initial_monthly_ds)}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Capex Execution Window</span><span class="pl-val">${R.capex_duration_months_resolved || 6} months</span></div>
+              <div class="pl-row"><span class="pl-lbl">Term to Refi</span><span class="pl-val">${inputs.target_refi_months || 9} months</span></div>
+              <div class="pl-row"><span class="pl-lbl">Total Carry to Refi</span><span class="pl-val">${h.fmtMoney(R.debt_service_pre_refi)}</span></div>
+              ` : `
               <div class="pl-row"><span class="pl-lbl">Loan Amount</span><span class="pl-val">${h.fmtMoney(R.initial_loan_amt)}</span></div>
               <div class="pl-row"><span class="pl-lbl">Rate / Type</span><span class="pl-val">${h.fmtPct(inputs.initial_rate, 2)} ${_esc(inputs.initial_interest_type || 'IO')}</span></div>
               <div class="pl-row"><span class="pl-lbl">LTV (Purchase)</span><span class="pl-val">${h.fmtPct(inputs.initial_loan_ltv)}</span></div>
-              ${mode === 'brrrr' ? `<div class="pl-row"><span class="pl-lbl">LTC + Capex</span><span class="pl-val">${h.fmtPct(inputs.initial_loan_ltc_capex)}</span></div>` : ''}
               <div class="pl-row"><span class="pl-lbl">Monthly DS</span><span class="pl-val">${h.fmtMoney(R.initial_monthly_ds)}</span></div>
-              <div class="pl-row"><span class="pl-lbl">Term</span><span class="pl-val">${mode === 'brrrr' ? (inputs.target_refi_months || 9) + ' mo to refi' : (inputs.target_hold_months || 0) + ' mo to sale'}</span></div>
-              <div class="pl-row"><span class="pl-lbl">Total DS Through ${mode === 'brrrr' ? 'Refi' : 'Sale'}</span><span class="pl-val">${h.fmtMoney(mode === 'brrrr' ? R.debt_service_pre_refi : R.debt_service_pre_sale)}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Term</span><span class="pl-val">${(inputs.target_hold_months || 0) + ' mo to sale'}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Total DS Through Sale</span><span class="pl-val">${h.fmtMoney(R.debt_service_pre_sale)}</span></div>
+              `}
             </div>
           </div>
         </div>
