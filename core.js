@@ -70,14 +70,14 @@ function makeDefaultInputs() {
 
     // Acquisition / debt (both modes)
     purchase_price:          0,
-    reno_budget:             0,
-    mobilization_contingency: 0,
+    capex_budget:            0,
+    gc_contingency:          0,
     treat_mob_as_equity:     false,
     consulting_fees_override: null,
     closing_cost_baseline:   2444,
     closing_cost_loan_pct:   0.05,
     initial_loan_ltv:        0.93,
-    initial_loan_ltc_reno:   1.00,
+    initial_loan_ltc_capex:  1.00,
     initial_rate:            0.127,
     initial_interest_type:   'IO',
 
@@ -387,6 +387,27 @@ function hydrateFromDeal(d) {
   if (d.inputs && typeof d.inputs === 'object') {
     Object.assign(inputs, d.inputs);
   }
+  // ── M0.1 backward-compat: migrate legacy field names ──
+  // Old deals saved before the M0.1 rename used reno_budget,
+  // initial_loan_ltc_reno, and mobilization_contingency. If those keys
+  // are present on the loaded inputs, copy their values to the new
+  // field names (overwriting the default 0), then delete the old keys
+  // so they're dropped on the next save. Presence-based, not null-based:
+  // capex_budget defaults to 0 from makeDefaultInputs, so a null check
+  // would incorrectly skip migration.
+  if ('reno_budget' in inputs) {
+    inputs.capex_budget = inputs.reno_budget;
+    delete inputs.reno_budget;
+  }
+  if ('initial_loan_ltc_reno' in inputs) {
+    inputs.initial_loan_ltc_capex = inputs.initial_loan_ltc_reno;
+    delete inputs.initial_loan_ltc_reno;
+  }
+  if ('mobilization_contingency' in inputs) {
+    inputs.gc_contingency = inputs.mobilization_contingency;
+    delete inputs.mobilization_contingency;
+  }
+
   // Pull denormalized header fields into inputs (so the Setup form reflects them)
   if (d.address)    inputs.property_address = d.address;
   if (d.city)       inputs.city = d.city;
@@ -606,9 +627,9 @@ function onInputChange(field, value) {
     'vacancy_pct','pm_pct','maint_pct_of_egi','insurance_pct_of_egi',
     'utilities_pct_of_egi','reserves_per_unit_year','rent_growth_pct',
     'appreciation_pct','exit_cap','sale_cost_pct','target_hold_months',
-    'arv_override','purchase_price','reno_budget','mobilization_contingency',
+    'arv_override','purchase_price','capex_budget','gc_contingency',
     'consulting_fees_override','closing_cost_baseline','closing_cost_loan_pct',
-    'initial_loan_ltv','initial_loan_ltc_reno','initial_rate','refi_rate',
+    'initial_loan_ltv','initial_loan_ltc_capex','initial_rate','refi_rate',
     'refi_closing_cost_pct','investor_ownership','lp_gp_split_ff'
   ]);
   if (numericFields.has(field)) {

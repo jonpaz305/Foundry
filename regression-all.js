@@ -125,11 +125,11 @@ const INPUTS_BRRRR = {
   insurance_pct_of_egi: 0.08, utilities_pct_of_egi: 0.02,
   reserves_per_unit_year: 1000, rent_growth_pct: 0.03, appreciation_pct: 0.05,
   exit_cap: 0.0875, sale_cost_pct: 0.07,
-  purchase_price: 240000, reno_budget: 616000, mobilization_contingency: 50000,
+  purchase_price: 240000, capex_budget: 616000, gc_contingency: 50000,
   treat_mob_as_equity: false, consulting_fees_override: 30000,
   closing_cost_baseline: 2444, closing_cost_loan_pct: 0.045,
   closing_cost_transfer_addon: 2400,
-  initial_loan_ltv: 0.70, initial_loan_ltc_reno: 0.91,
+  initial_loan_ltv: 0.70, initial_loan_ltc_capex: 0.91,
   initial_rate: 0.11, initial_interest_type: 'IO',
   refi_rate: 0.07, refi_interest_type: 'PI',
   refi_closing_cost_pct: 0.04,
@@ -164,7 +164,7 @@ const INPUTS_FF = {
   property_address: '2455 W 7 ST', city: 'Cleveland', state: 'OH', zip: '44113',
   asset_type: 'single_family', subject_area_sf: 2404, total_units_ff: 1,
   target_hold_months: 7, arv_override: 550000,
-  purchase_price: 240000, reno_budget: 90000, mobilization_contingency: 30000,
+  purchase_price: 240000, capex_budget: 90000, gc_contingency: 30000,
   consulting_fees_override: 10000,
   closing_cost_baseline: 2444, closing_cost_loan_pct: 0.045,
   initial_loan_ltv: 0.90, initial_rate: 0.127, initial_interest_type: 'IO',
@@ -472,7 +472,7 @@ function runM5() {
     refi_rate: 0.12,                  // brutal rate -> DSCR will drop
     target_refi_ltv: 0.82,            // > 80% refi LTV (high tier)
     exit_cap: 0.06,                   // aggressive compression
-    mobilization_contingency: 5000    // <3% of TPC
+    gc_contingency: 5000    // <3% of TPC
   });
   const stressedRisks = vm.runInContext(`
     currentDeal = ${JSON.stringify(SEED_BRRRR)};
@@ -503,7 +503,7 @@ function runM5() {
   // Stress: only 1 comp, huge ARV override, no contingency.
   const stressedFFInputs = Object.assign({}, INPUTS_FF, {
     arv_override: 800000,
-    mobilization_contingency: 1000   // <3% of TPC
+    gc_contingency: 1000   // <3% of TPC
   });
   const stressedFFComps = [
     { comp_type: 'sales', address: 'A', sales_price: 400000, area_sf: 1500, dom: 130, renovated: false, source: 'MLS' }
@@ -529,7 +529,7 @@ function runM5() {
   const sevMedDscr = vm.runInContext(`
     computeEngineRisks('brrrr',
       { dscr: 1.10, stabilized_arv: 1000000, refi_loan_amount: 700000, breakeven_occupancy: 0.6, capital_recaptured_pct: 0.95, post_refi_in_basis_pct: 0.5, total_project_cost: 1000000, value_creation_pct: 0.30 },
-      { mobilization_contingency: 100000 },
+      { gc_contingency: 100000 },
       []
     );
   `, ctx);
@@ -538,7 +538,7 @@ function runM5() {
   const sevHighDscr = vm.runInContext(`
     computeEngineRisks('brrrr',
       { dscr: 0.95, stabilized_arv: 1000000, refi_loan_amount: 700000, breakeven_occupancy: 0.6, capital_recaptured_pct: 0.95, post_refi_in_basis_pct: 0.5, total_project_cost: 1000000, value_creation_pct: 0.30 },
-      { mobilization_contingency: 100000 },
+      { gc_contingency: 100000 },
       []
     );
   `, ctx);
@@ -547,7 +547,7 @@ function runM5() {
   const sevMedRecapture = vm.runInContext(`
     computeEngineRisks('brrrr',
       { dscr: 1.5, stabilized_arv: 1000000, refi_loan_amount: 700000, breakeven_occupancy: 0.6, capital_recaptured_pct: 0.70, post_refi_in_basis_pct: 0.5, total_project_cost: 1000000, value_creation_pct: 0.30 },
-      { mobilization_contingency: 100000 },
+      { gc_contingency: 100000 },
       []
     );
   `, ctx);
@@ -556,7 +556,7 @@ function runM5() {
   const sevHighRecapture = vm.runInContext(`
     computeEngineRisks('brrrr',
       { dscr: 1.5, stabilized_arv: 1000000, refi_loan_amount: 700000, breakeven_occupancy: 0.6, capital_recaptured_pct: 0.50, post_refi_in_basis_pct: 0.5, total_project_cost: 1000000, value_creation_pct: 0.30 },
-      { mobilization_contingency: 100000 },
+      { gc_contingency: 100000 },
       []
     );
   `, ctx);
@@ -566,7 +566,7 @@ function runM5() {
   const cvHigh = vm.runInContext(`
     computeEngineRisks('fix_and_flip',
       { value_creation_pct: 0.30, comp_count_sales: 4, arv: 500000, comp_derived_arv: 500000, arv_source: 'comp', total_project_cost: 400000, comp_avg_dom: 50 },
-      { mobilization_contingency: 25000 },
+      { gc_contingency: 25000 },
       [
         { comp_type: 'sales', sales_price: 200000, area_sf: 1000, dom: 50 },
         { comp_type: 'sales', sales_price: 300000, area_sf: 1000, dom: 50 },
@@ -580,7 +580,7 @@ function runM5() {
   const cvLow = vm.runInContext(`
     computeEngineRisks('fix_and_flip',
       { value_creation_pct: 0.30, comp_count_sales: 3, arv: 500000, comp_derived_arv: 500000, arv_source: 'comp', total_project_cost: 400000, comp_avg_dom: 50 },
-      { mobilization_contingency: 25000 },
+      { gc_contingency: 25000 },
       [
         { comp_type: 'sales', sales_price: 500000, area_sf: 2500, dom: 50 },
         { comp_type: 'sales', sales_price: 510000, area_sf: 2550, dom: 50 },

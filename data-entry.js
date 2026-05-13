@@ -600,18 +600,18 @@ function renderCapitalBlock() {
       <div class="g3" style="margin-bottom:1rem">
         <div class="field"><label>Purchase price</label>
           <input type="number" class="num" value="${i.purchase_price ?? 0}" oninput="onInputChange('purchase_price', this.value)"/></div>
-        <div class="field"><label>Renovation budget</label>
-          <input type="number" class="num" value="${i.reno_budget ?? 0}" oninput="onInputChange('reno_budget', this.value)"/></div>
-        <div class="field"><label>Mobilization / contingency</label>
-          <input type="number" class="num" value="${i.mobilization_contingency ?? 0}" oninput="onInputChange('mobilization_contingency', this.value)"/></div>
+        <div class="field"><label>Capex budget</label>
+          <input type="number" class="num" value="${i.capex_budget ?? 0}" oninput="onInputChange('capex_budget', this.value)"/></div>
+        <div class="field"><label>GC contingency</label>
+          <input type="number" class="num" value="${i.gc_contingency ?? 0}" oninput="onInputChange('gc_contingency', this.value)"/></div>
       </div>
       <div class="g2" style="margin-bottom:1rem">
         <div class="field"><label>Consulting fees override</label>
-          <input type="number" class="num" value="${i.consulting_fees_override ?? ''}" placeholder="Default: max($10k, 3% of acq+reno)" oninput="onInputChange('consulting_fees_override', this.value)"/></div>
+          <input type="number" class="num" value="${i.consulting_fees_override ?? ''}" placeholder="Default: max($10k, 3% of acq+capex)" oninput="onInputChange('consulting_fees_override', this.value)"/></div>
         ${mode === 'brrrr' ? `
           <label class="field-cb" style="margin-top:1.4rem">
             <input type="checkbox" ${i.treat_mob_as_equity ? 'checked' : ''} onchange="onInputChange('treat_mob_as_equity', this.checked)"/>
-            Count mobilization/contingency as initial investor equity
+            Count GC contingency as initial investor equity
           </label>
         ` : '<div></div>'}
       </div>
@@ -622,13 +622,13 @@ function renderCapitalBlock() {
           <input type="number" step="0.01" class="num" value="${i.initial_loan_ltv ?? (mode === 'brrrr' ? 0.93 : 0.90)}" oninput="onInputChange('initial_loan_ltv', this.value)"/>
           <div class="hint">Default ${mode === 'brrrr' ? '0.93 (93%) for BRRRR HML' : '0.90 (90%) for F&F HML'}.</div></div>
         ${mode === 'brrrr' ? `
-        <div class="field"><label>LTC on reno</label>
-          <input type="number" step="0.01" class="num" value="${i.initial_loan_ltc_reno ?? 1.00}" oninput="onInputChange('initial_loan_ltc_reno', this.value)"/>
-          <div class="hint">Default 1.00 (100% reno funded via draws).</div></div>
+        <div class="field"><label>LTC on capex</label>
+          <input type="number" step="0.01" class="num" value="${i.initial_loan_ltc_capex ?? 1.00}" oninput="onInputChange('initial_loan_ltc_capex', this.value)"/>
+          <div class="hint">Default 1.00 (100% capex funded via draws).</div></div>
         ` : `
-        <div class="field"><label>Reno funding</label>
+        <div class="field"><label>Capex funding</label>
           <div style="padding:8px 11px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);border-radius:var(--r-sm);font-size:12px">100% via lender draws</div>
-          <div class="hint">F&F template assumes full reno funding by HML.</div></div>
+          <div class="hint">F&F template assumes full capex funding by HML.</div></div>
         `}
         <div class="field"><label>Interest rate</label>
           <input type="number" step="0.001" class="num" value="${i.initial_rate ?? 0.127}" oninput="onInputChange('initial_rate', this.value)"/></div>

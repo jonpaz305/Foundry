@@ -258,13 +258,13 @@ function computeBRRRR() {
 
   // ── INPUTS ──────────────────────────────────────────────────
   const purchase_price = _num(i.purchase_price);
-  const reno_budget    = _num(i.reno_budget);
+  const capex_budget   = _num(i.capex_budget);
   const consulting_in  = _num(i.consulting_fees_override);
-  const mob_contingency= _num(i.mobilization_contingency);
+  const gc_contingency = _num(i.gc_contingency);
   const treat_mob_eq   = !!i.treat_mob_as_equity;
 
   const initial_ltv    = _num(i.initial_loan_ltv);
-  const initial_ltc_re = _num(i.initial_loan_ltc_reno);
+  const initial_ltc_capex = _num(i.initial_loan_ltc_capex);
   const initial_rate   = _num(i.initial_rate);
   const initial_ITyp   = i.initial_interest_type || 'IO';
 
@@ -301,8 +301,8 @@ function computeBRRRR() {
 
 
   // ── INITIAL LOAN AMOUNT ─────────────────────────────────────
-  // Spreadsheet: E5 = purchase * LTV + reno * LTC_reno
-  const initial_loan_amt = purchase_price * initial_ltv + reno_budget * initial_ltc_re;
+  // Spreadsheet: E5 = purchase * LTV + capex * LTC_capex
+  const initial_loan_amt = purchase_price * initial_ltv + capex_budget * initial_ltc_capex;
 
 
   // ── CLOSING COSTS ───────────────────────────────────────────
@@ -321,15 +321,15 @@ function computeBRRRR() {
 
   // ── CONSULTING ──────────────────────────────────────────────
   // Spreadsheet hardcodes consulting at $30,000 (deal-specific).
-  // We default to max($10k, 3% of acq+reno) and allow override.
+  // We default to max($10k, 3% of acq+capex) and allow override.
   const consulting = consulting_in > 0
     ? consulting_in
-    : Math.max(10000, 0.03 * (purchase_price + reno_budget));
+    : Math.max(10000, 0.03 * (purchase_price + capex_budget));
 
 
   // ── TOTAL PROJECT COST ──────────────────────────────────────
-  // Spreadsheet B12: purchase + closing_costs + reno + consulting +
-  //                  mobilization + debt_service_pre_refi
+  // Spreadsheet B12: purchase + closing_costs + capex + consulting +
+  //                  gc_contingency + debt_service_pre_refi
   // Debt service pre-refi = monthly_ds * target_refi_months
   let initial_monthly_ds;
   if (initial_ITyp === 'IO') {
@@ -340,8 +340,8 @@ function computeBRRRR() {
   const debt_service_pre_refi = initial_monthly_ds * target_refi_m;
   const initial_annual_ds = initial_monthly_ds * 12;
 
-  const total_project_cost = purchase_price + closing_costs + reno_budget
-    + consulting + mob_contingency + debt_service_pre_refi;
+  const total_project_cost = purchase_price + closing_costs + capex_budget
+    + consulting + gc_contingency + debt_service_pre_refi;
   const total_project_cost_per_unit = totalUnits > 0 ? total_project_cost / totalUnits : 0;
 
 
@@ -431,7 +431,7 @@ function computeBRRRR() {
   // a toggle: treat_mob_as_equity (default false = match spreadsheet).
   const initial_investor_equity = treat_mob_eq
     ? (total_project_cost - initial_loan_amt)
-    : (total_project_cost - initial_loan_amt - mob_contingency);
+    : (total_project_cost - initial_loan_amt - gc_contingency);
 
   const capital_returned_at_refi = Math.max(0, Math.min(initial_investor_equity, net_cash_out));
   const investor_equity_remaining = initial_investor_equity - capital_returned_at_refi;
@@ -695,8 +695,8 @@ function computeFF() {
 
   // ── INPUTS ──────────────────────────────────────────────────
   const purchase_price = _num(i.purchase_price);
-  const reno_budget    = _num(i.reno_budget);
-  const mob_contingency= _num(i.mobilization_contingency);
+  const capex_budget   = _num(i.capex_budget);
+  const gc_contingency = _num(i.gc_contingency);
   const consulting_in  = _num(i.consulting_fees_override);
   const subject_area_sf= _num(i.subject_area_sf);
   const arv_override   = _num(i.arv_override);
@@ -715,9 +715,9 @@ function computeFF() {
 
 
   // ── INITIAL LOAN AMOUNT ─────────────────────────────────────
-  // Spreadsheet F&F: B18 × 0.9 + B21 (purchase × LTV + reno_full)
-  // The reno is funded 100% via draws, regardless of any "LTC" input.
-  const initial_loan_amt = purchase_price * initial_ltv + reno_budget;
+  // Spreadsheet F&F: B18 × 0.9 + B21 (purchase × LTV + capex_full)
+  // The capex is funded 100% via draws, regardless of any "LTC" input.
+  const initial_loan_amt = purchase_price * initial_ltv + capex_budget;
 
 
   // ── CLOSING COSTS ───────────────────────────────────────────
@@ -731,10 +731,10 @@ function computeFF() {
 
 
   // ── CONSULTING ──────────────────────────────────────────────
-  // Spreadsheet: MAX(10000, (purchase + reno) × 0.03)
+  // Spreadsheet: MAX(10000, (purchase + capex) × 0.03)
   const consulting = consulting_in > 0
     ? consulting_in
-    : Math.max(10000, 0.03 * (purchase_price + reno_budget));
+    : Math.max(10000, 0.03 * (purchase_price + capex_budget));
 
 
   // ── DEBT SERVICE PRE-SALE ───────────────────────────────────
@@ -748,9 +748,9 @@ function computeFF() {
 
 
   // ── TOTAL PROJECT COST ──────────────────────────────────────
-  // Spreadsheet B12: SUM(purchase, closing, reno, consulting, mob, DS)
-  const total_project_cost = purchase_price + closing_costs + reno_budget
-    + consulting + mob_contingency + debt_service_pre_sale;
+  // Spreadsheet B12: SUM(purchase, closing, capex, consulting, gc_cont, DS)
+  const total_project_cost = purchase_price + closing_costs + capex_budget
+    + consulting + gc_contingency + debt_service_pre_sale;
   const total_project_cost_per_unit = total_units > 0 ? total_project_cost / total_units : 0;
   const price_per_unit = total_units > 0 ? purchase_price / total_units : 0;
 
@@ -1128,7 +1128,7 @@ function computeEngineRisks(mode, R_in, inputs_in, comps_in) {
 
     // --- Contingency as pct of TPC (BRRRR) ---
     if (R_.total_project_cost > 0) {
-      const cont = +i_.mobilization_contingency || 0;
+      const cont = +i_.gc_contingency || 0;
       const cPct = cont / R_.total_project_cost;
       if (cPct < H.contingency_pct_min_high) {
         risks.push({
@@ -1290,7 +1290,7 @@ function computeEngineRisks(mode, R_in, inputs_in, comps_in) {
 
     // --- F&F contingency ---
     if (R_.total_project_cost > 0) {
-      const cont = +i_.mobilization_contingency || 0;
+      const cont = +i_.gc_contingency || 0;
       const cPct = cont / R_.total_project_cost;
       if (cPct < H.ff_contingency_pct_min_high) {
         risks.push({

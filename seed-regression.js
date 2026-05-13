@@ -50,15 +50,15 @@ const SEED_BRRRR_2048_E_79TH = {
     exit_cap: 0.0875,                 // overrides 0.0895 default
     sale_cost_pct: 0.07,
     purchase_price: 240000,
-    reno_budget: 616000,
-    mobilization_contingency: 50000,
+    capex_budget: 616000,
+    gc_contingency: 50000,
     treat_mob_as_equity: false,
     consulting_fees_override: 30000,  // overrides max($10k, 3%) default
     closing_cost_baseline: 2444,
     closing_cost_loan_pct: 0.045,
     closing_cost_transfer_addon: 2400,
     initial_loan_ltv: 0.70,           // overrides 0.93 default - this deal is 70/91
-    initial_loan_ltc_reno: 0.91,
+    initial_loan_ltc_capex: 0.91,
     initial_rate: 0.11,               // overrides 0.127 default
     initial_interest_type: 'IO',
     refi_rate: 0.07,                  // overrides 0.075 default
@@ -98,8 +98,8 @@ const SEED_FF_2455_W_7TH = {
     target_hold_months: 7,
     arv_override: 550000,              // spreadsheet uses manual ARV override
     purchase_price: 240000,
-    reno_budget: 90000,
-    mobilization_contingency: 30000,
+    capex_budget: 90000,
+    gc_contingency: 30000,
     consulting_fees_override: 10000,
     closing_cost_baseline: 2444,
     closing_cost_loan_pct: 0.045,
