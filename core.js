@@ -80,6 +80,15 @@ function makeDefaultInputs() {
     treat_mob_as_equity:     false,
     consulting_fees_override: null,
     consulting_fees_user_locked: false,  // A-smart: false = auto-recompute from 3% of (purchase+capex); true = user has overridden, freeze the value
+
+    // BRRRR ARV source selector (Path C).
+    //   'income_approach' (default): stabilized_arv = NOI / exit_cap. Engine behavior pre-Path-C.
+    //   'comp_derived':   stabilized_arv = comp_avg_psf × subject_area_sf (uses existing comp_derived_arv math).
+    //   'manual_override': stabilized_arv = arv_override_brrrr (sponsor judgment).
+    // The displayed cap rate becomes implied (NOI / ARV) when source is comp_derived or manual_override.
+    // arv_override_brrrr is BRRRR-only; F&F already has its own arv_override field (kept separate).
+    arv_source:              'income_approach',
+    arv_override_brrrr:      null,
     closing_cost_baseline:   2444,
     // M0.3: closing cost decomposition. The legacy single
     // closing_cost_loan_pct (0.045) was an aggregate of origination
@@ -983,7 +992,7 @@ function onInputChange(field, value) {
     'vacancy_pct','pm_pct','maint_pct_of_egi','insurance_pct_of_egi',
     'utilities_pct_of_egi','reserves_per_unit_year','rent_growth_pct',
     'appreciation_pct','exit_cap','sale_cost_pct','target_hold_months',
-    'arv_override','purchase_price','asking_price','capex_budget','gc_contingency',
+    'arv_override','arv_override_brrrr','purchase_price','asking_price','capex_budget','gc_contingency',
     'consulting_fees_override','closing_cost_baseline',
     'origination_pct','lender_points_pct','broker_points_pct',
     'lender_flat_fees','closing_cost_insurance','closing_cost_appraisal',

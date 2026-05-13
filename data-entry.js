@@ -6,6 +6,100 @@
 // ════════════════════════════════════════════════════════════════
 
 
+// Path C: ARV source selector. Renders dropdown + override field +
+// comp count warning + implied cap display. Reads inputs and R for
+// state, comps array for the <3-comp warning. Pure renderer; all
+// side effects flow through onInputChange like every other field.
+function _renderArvSourceSection(i, R, compsArr) {
+  const src = i.arv_source || 'income_approach';
+  const f$ = (x) => x == null || !isFinite(x) ? '-' : '$' + Math.round(Number(x)).toLocaleString();
+  const fPct = (x, dec) => x == null || !isFinite(x) ? '-' : (Number(x) * 100).toFixed(dec == null ? 2 : dec) + '%';
+
+  // Comp count for the warning
+  const salesComps = (compsArr || []).filter(c =>
+    (c.comp_type || 'sales') === 'sales' &&
+    Number(c.sales_price) > 0 && Number(c.area_sf) > 0);
+  const compCount = salesComps.length;
+  const compsBelowMin = compCount < 3;
+
+  // Compute the comp-derived ARV preview ($/SF * subject SF). Mirror the
+  // engine's logic so the user sees the same number that will be applied.
+  const subjSf = Number(i.subject_area_sf) || 0;
+  const renovated = salesComps.filter(c => !!c.renovated);
+  const useForAvg = i.comp_avg_include_unrenovated
+    ? salesComps
+    : (renovated.length > 0 ? renovated : salesComps);
+  let compAvgPsf = null;
+  if (useForAvg.length > 0) {
+    const sumPsf = useForAvg.reduce((a, c) => a + Number(c.sales_price) / Number(c.area_sf), 0);
+    compAvgPsf = sumPsf / useForAvg.length;
+  }
+  const compDerivedArv = (compAvgPsf != null && subjSf > 0) ? compAvgPsf * subjSf : null;
+
+  // Values to surface in the display row beneath the selector
+  const arvInUse = R.stabilized_arv;
+  const incomeArv = R.stabilized_arv_income_approach;
+  const impliedCap = R.implied_cap_rate;
+  const overrideVal = i.arv_override_brrrr;
+
+  // Source-specific helper text
+  let sourceHint = '';
+  if (src === 'income_approach') {
+    sourceHint = 'Default. ARV = stabilized NOI ÷ exit cap. The institutional standard for stabilized income-producing assets.';
+  } else if (src === 'comp_derived') {
+    sourceHint = `ARV = average $/SF from your sales comps × subject area (${subjSf > 0 ? subjSf.toLocaleString() + ' SF' : 'subject area not set'}). Currently using ${useForAvg.length} of ${compCount} sales comps.`;
+  } else if (src === 'manual_override') {
+    sourceHint = 'ARV is set manually based on sponsor judgment. The implied cap rate is shown below for institutional defensibility.';
+  }
+
+  // Implied cap line (only when source != income_approach)
+  const showImplied = (src !== 'income_approach');
+
+  return `
+    <div class="ssub" style="margin-top:0.5rem">ARV Source</div>
+    <div class="g3" style="margin-bottom:0.5rem">
+      <div class="field"><label>ARV source</label>
+        <select onchange="onInputChange('arv_source', this.value)">
+          <option value="income_approach"  ${src === 'income_approach' ? 'selected' : ''}>Income approach (NOI ÷ cap)</option>
+          <option value="comp_derived"     ${src === 'comp_derived' ? 'selected' : ''}>Comp-derived ($/SF × subject SF)</option>
+          <option value="manual_override"  ${src === 'manual_override' ? 'selected' : ''}>Manual override (sponsor judgment)</option>
+        </select>
+        <div class="hint">${sourceHint}</div>
+      </div>
+      ${src === 'manual_override' ? `
+        <div class="field"><label>Manual ARV ($)</label>
+          <input type="number" class="num" value="${overrideVal ?? ''}"
+                 placeholder="Enter ARV"
+                 oninput="onInputChange('arv_override_brrrr', this.value)"/>
+          <div class="hint">Enter the stabilized ARV based on your underwriting judgment. Reports will disclose the override.</div>
+        </div>
+      ` : src === 'comp_derived' ? `
+        <div class="field"><label>Comp-derived ARV (preview)</label>
+          <input type="text" class="num" value="${compDerivedArv != null ? f$(compDerivedArv) : 'No comps / no subject SF'}" disabled style="opacity:0.7"/>
+          <div class="hint">${compAvgPsf != null ? '$' + compAvgPsf.toFixed(2) + '/SF average from ' + useForAvg.length + ' comp(s)' : 'Enter sales comps with prices and areas on the Comps page.'}</div>
+        </div>
+      ` : `<div></div>`}
+      <div></div>
+    </div>
+
+    ${compsBelowMin && src === 'comp_derived' ? `
+      <div style="background:rgba(220,50,50,0.10);border:1px solid rgba(220,50,50,0.55);border-radius:6px;padding:0.6rem 0.85rem;margin-bottom:0.75rem;color:#ff9a9a;font-size:12px">
+        <strong style="color:#ff6b6b">⚠ Below institutional standard:</strong>
+        Only ${compCount} sales comp${compCount === 1 ? '' : 's'} entered. Institutional underwriting requires 3+ sales comps for a defensible comp-derived ARV. Add more on the Comps page or switch to a different ARV source.
+      </div>
+    ` : ''}
+
+    ${showImplied ? `
+      <div style="background:rgba(201,168,76,0.06);border-left:3px solid var(--gold);border-radius:4px;padding:0.5rem 0.85rem;margin-bottom:1rem;font-size:12px;color:var(--text2)">
+        <div><strong style="color:var(--text)">ARV in use:</strong> <span style="color:var(--gold-lt)">${f$(arvInUse)}</span></div>
+        <div style="margin-top:2px"><strong style="color:var(--text)">Income-approach ARV:</strong> ${f$(incomeArv)} (at ${fPct(i.exit_cap, 2)} input cap)</div>
+        <div style="margin-top:2px"><strong style="color:var(--text)">Implied cap rate at this ARV:</strong> <span style="color:var(--gold-lt)">${fPct(impliedCap, 2)}</span></div>
+      </div>
+    ` : ''}
+  `;
+}
+
+
 // A-smart consulting fee helper: returns the engine's auto-computed
 // consulting value for a given inputs object. Mirrors the engine's
 // fallback formula (max $10K, 3% of purchase + capex). Used by the
@@ -106,9 +200,14 @@ function renderDealSetupForm() {
           <div class="field"><label>Target hold period (years)</label>
             <input type="number" value="${i.target_hold_years ?? 10}" oninput="onInputChange('target_hold_years', this.value)"/></div>
           <div class="field"><label>Exit cap (refi valuation)</label>
-            <input type="number" step="0.0001" value="${i.exit_cap ?? 0.0895}" oninput="onInputChange('exit_cap', this.value)"/>
-            <div class="hint">Stabilized ARV = NOI / exit cap.</div></div>
+            <input type="number" step="0.0001" value="${i.exit_cap ?? 0.0895}" oninput="onInputChange('exit_cap', this.value)"
+                   ${(i.arv_source && i.arv_source !== 'income_approach') ? 'disabled style="opacity:0.55"' : ''}/>
+            <div class="hint">${(i.arv_source && i.arv_source !== 'income_approach')
+              ? 'Disabled: ARV source is overridden below. The implied cap rate is shown next to the ARV field.'
+              : 'Stabilized ARV = NOI / exit cap.'}</div></div>
         </div>
+
+        ${_renderArvSourceSection(i, typeof R === 'object' && R ? R : {}, typeof comps === 'object' && comps ? comps : [])}
       ` : `
         <div class="g3" style="margin-bottom:1rem">
           <div class="field"><label>Target hold period (months)</label>

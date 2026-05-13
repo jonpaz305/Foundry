@@ -932,7 +932,7 @@ function runM6_2() {
   check(g, 'BRRRR snapshot: contingency risk surfaced in Top Risks', brrrrHtml.includes('Contingency') ? 1 : 0, 1);
   // Layer 2 Fix 1: engine version stamp must appear on Deal Snapshot footer
   check(g, 'BRRRR snapshot: engine version stamp present (Layer 2 Fix 1)',
-    brrrrHtml.includes('Engine 1.0.0') ? 1 : 0, 1);
+    brrrrHtml.includes('Engine 1.1.0') ? 1 : 0, 1);
   // Layer 2 Fix 3: cash flow label disambiguated from BRRRR Package Y1
   check(g, 'BRRRR snapshot: cash flow label disambiguated to "Stabilized" (Layer 2 Fix 3)',
     brrrrHtml.includes('Stabilized Annual Cash Flow') ? 1 : 0, 1);
@@ -1129,7 +1129,7 @@ function runM6_5() {
   check(g, 'BRRRR memo: stabilized NOI in facts ($130,442)', brrrrHtml.includes('$130,442') ? 1 : 0, 1);
   // Layer 2 Fix 1: engine version stamp must appear on Internal Memo footer
   check(g, 'BRRRR memo: engine version stamp present (Layer 2 Fix 1)',
-    brrrrHtml.includes('Engine 1.0.0') ? 1 : 0, 1);
+    brrrrHtml.includes('Engine 1.1.0') ? 1 : 0, 1);
 
   // ── F&F (clean 2455 deal)
   loadFF();
@@ -1519,7 +1519,7 @@ function runM6_10() {
   check(g, 'BRRRR: equity multiple method disclosed',
     brrrrHtml.includes('Equity Multiple method') && brrrrHtml.includes('Institutional') ? 1 : 0, 1);
   check(g, 'BRRRR: engine version stamp present (dynamic semver from engine.js)',
-    brrrrHtml.includes('Engine version') && brrrrHtml.includes('1.0.0') ? 1 : 0, 1);
+    brrrrHtml.includes('Engine version') && brrrrHtml.includes('1.1.0') ? 1 : 0, 1);
   check(g, 'BRRRR: closing cost decomposition present (8 components)',
     brrrrHtml.includes('Origination fee') && brrrrHtml.includes('Lender points') ? 1 : 0, 1);
 
@@ -1642,8 +1642,8 @@ function runM8() {
     typeof v === 'string' && v.length > 0 ? 1 : 0, 1);
   check(g, 'FOUNDRY_ENGINE_VERSION matches MAJOR.MINOR.PATCH semver',
     /^\d+\.\d+\.\d+$/.test(v) ? 1 : 0, 1);
-  check(g, 'FOUNDRY_ENGINE_VERSION is 1.0.0 (Pass 4 baseline)',
-    v === '1.0.0' ? 1 : 0, 1);
+  check(g, 'FOUNDRY_ENGINE_VERSION is 1.1.0 (Path C)',
+    v === '1.1.0' ? 1 : 0, 1);
 
   // ── Engine version date is set
   const d = vm.runInContext(`typeof FOUNDRY_ENGINE_VERSION_DATE === 'string' ? FOUNDRY_ENGINE_VERSION_DATE : ''`, ctx);
@@ -1653,7 +1653,7 @@ function runM8() {
   // ── model-assumptions reads the live constant via _engineVersionStamp
   const stamp = vm.runInContext(`typeof _engineVersionStamp === 'function' ? _engineVersionStamp() : ''`, ctx);
   check(g, '_engineVersionStamp() returns dynamic value from engine.js',
-    stamp.includes('1.0.0') && stamp.includes(d) ? 1 : 0, 1);
+    stamp.includes('1.1.0') && stamp.includes(d) ? 1 : 0, 1);
 
   // ── Engine version flows into rendered Model Assumptions block
   loadBRRRR();
@@ -1669,7 +1669,7 @@ function runM8() {
   vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/brrrr-package.js'), 'utf8'), ctx, { filename: 'reports/brrrr-package.js' });
   const brrrrHtml = vm.runInContext(`renderReport_brrrr_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
   check(g, 'BRRRR Model Assumptions block contains live engine version',
-    brrrrHtml.includes('1.0.0') ? 1 : 0, 1);
+    brrrrHtml.includes('1.1.0') ? 1 : 0, 1);
   check(g, 'BRRRR Model Assumptions block contains engine version date',
     brrrrHtml.includes('(2026-05-13)') ? 1 : 0, 1);
 
@@ -1695,6 +1695,98 @@ function runM8() {
 }
 
 // ════════════════════════════════════════════════════════════════
+// M9 - PATH C: ARV SOURCE RESOLUTION (12 tests)
+// ════════════════════════════════════════════════════════════════
+// Verifies BRRRR ARV source selector: default (income_approach),
+// comp_derived (uses comp $/SF × subject SF), manual_override
+// (uses arv_override_brrrr). Confirms downstream (refi sizing,
+// value creation, IRR) responds correctly and that the income-
+// approach ARV remains exposed as a reference, plus implied cap
+// rate is surfaced.
+function runM9() {
+  const g = group('M9 Path C ARV Source');
+
+  // Helper: read current R out of the sandbox context
+  function readR() { return vm.runInContext('R', ctx); }
+
+  // ── 9.1: default behavior (income_approach) preserves pre-Path-C math
+  const Rdefault = loadBRRRR();
+  check(g, '9.1 default arv_source resolves to income_approach',
+    Rdefault.arv_source_resolved === 'income_approach' ? 1 : 0, 1);
+  check(g, '9.1 default stabilized_arv equals income-approach ARV',
+    Math.abs((Rdefault.stabilized_arv || 0) - (Rdefault.stabilized_arv_income_approach || 0)) < 1 ? 1 : 0, 1);
+  // SEED_BRRRR uses exit_cap = 0.0875; implied cap == exit_cap when source is income_approach
+  check(g, '9.1 default implied cap rate equals exit_cap input within tolerance',
+    Math.abs((Rdefault.implied_cap_rate || 0) - (vm.runInContext('inputs.exit_cap', ctx) || 0)) < 0.0001 ? 1 : 0, 1);
+
+  // ── 9.2: manual_override pushes stabilized_arv to overridden value
+  vm.runInContext(`
+    inputs.arv_source = 'manual_override';
+    inputs.arv_override_brrrr = 1000000;
+    R = {}; recompute();
+  `, ctx);
+  const Rover = readR();
+  check(g, '9.2 manual override sets stabilized_arv to $1,000,000',
+    Math.abs((Rover.stabilized_arv || 0) - 1000000) < 1 ? 1 : 0, 1);
+  check(g, '9.2 manual override preserves stabilized_arv_income_approach reference',
+    Math.abs((Rover.stabilized_arv_income_approach || 0) - (Rdefault.stabilized_arv_income_approach || 0)) < 1 ? 1 : 0, 1);
+  // refi_loan_amount = stabilized_arv × target_refi_ltv
+  const refiLtv = vm.runInContext('inputs.target_refi_ltv', ctx) || 0;
+  check(g, '9.2 manual override changes refi_loan_amount accordingly',
+    Math.abs((Rover.refi_loan_amount || 0) - 1000000 * refiLtv) < 1 ? 1 : 0, 1);
+  // Implied cap rate = NOI / new ARV
+  const expectedImplied = Rover.stabilized_noi / 1000000;
+  check(g, '9.2 manual override implied cap = NOI / 1M',
+    Math.abs((Rover.implied_cap_rate || 0) - expectedImplied) < 0.0001 ? 1 : 0, 1);
+
+  // ── 9.3: manual_override with null override falls back to income_approach
+  vm.runInContext(`
+    inputs.arv_source = 'manual_override';
+    inputs.arv_override_brrrr = null;
+    R = {}; recompute();
+  `, ctx);
+  const Rnull = readR();
+  check(g, '9.3 manual_override with null override stays on income-approach ARV',
+    Math.abs((Rnull.stabilized_arv || 0) - (Rnull.stabilized_arv_income_approach || 0)) < 1 ? 1 : 0, 1);
+
+  // ── 9.4: comp_derived without comps falls back to income_approach
+  vm.runInContext(`
+    inputs.arv_source = 'comp_derived';
+    inputs.arv_override_brrrr = null;
+    comps = [];
+    R = {}; recompute();
+  `, ctx);
+  const RcompEmpty = readR();
+  check(g, '9.4 comp_derived with empty comps falls back to income-approach ARV',
+    Math.abs((RcompEmpty.stabilized_arv || 0) - (RcompEmpty.stabilized_arv_income_approach || 0)) < 1 ? 1 : 0, 1);
+
+  // ── 9.5: comp_derived with comps uses comp_avg_psf × subject SF
+  vm.runInContext(`
+    inputs.arv_source = 'comp_derived';
+    inputs.subject_area_sf = 10000;
+    comps = [
+      { comp_type:'sales', sales_price:1000000, area_sf:10000, renovated:true },
+      { comp_type:'sales', sales_price:1100000, area_sf:10000, renovated:true },
+      { comp_type:'sales', sales_price:1200000, area_sf:10000, renovated:true }
+    ];
+    R = {}; recompute();
+  `, ctx);
+  const Rcomp = readR();
+  // Avg $/SF = (100+110+120)/3 = $110/SF; subject 10K SF → $1.1M ARV
+  check(g, '9.5 comp_derived ARV = avg PSF × subject SF',
+    Math.abs((Rcomp.stabilized_arv || 0) - 1100000) < 100 ? 1 : 0, 1);
+  check(g, '9.5 comp_derived preserves income-approach reference',
+    Rcomp.stabilized_arv_income_approach != null && Rcomp.stabilized_arv_income_approach > 0 ? 1 : 0, 1);
+
+  // ── 9.6: F&F mode unaffected by BRRRR-specific arv_source field
+  const Rff = loadFF();
+  check(g, '9.6 F&F mode: arv_source_resolved is undefined (BRRRR-only feature)',
+    Rff.arv_source_resolved === undefined ? 1 : 0, 1);
+  check(g, '9.6 F&F mode: implied_cap_rate is undefined (BRRRR-only feature)',
+    Rff.implied_cap_rate === undefined ? 1 : 0, 1);
+}
+
+// ════════════════════════════════════════════════════════════════
 // Run
 // ════════════════════════════════════════════════════════════════
 runM2();
@@ -1716,6 +1808,7 @@ runM6_9();
 runM6_10();
 runM7();
 runM8();
+runM9();
 
 // ── Report ────────────────────────────────────────────────────
 console.log('');

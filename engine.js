@@ -38,7 +38,7 @@
 // changes. This constant is read by model-assumptions.js (for the
 // Engine version line on every external report) and by core.js
 // (for snapshot record stamping in foundry_report_snapshots).
-const FOUNDRY_ENGINE_VERSION = '1.0.0';
+const FOUNDRY_ENGINE_VERSION = '1.1.0';
 const FOUNDRY_ENGINE_VERSION_DATE = '2026-05-13';
 
 
@@ -511,6 +511,60 @@ function computeBRRRR() {
   const total_operating_expenses = pm_dollars + maint_turnover + taxes + insurance + utilities + reserves;
   const expense_ratio = egi > 0 ? total_operating_expenses / egi : 0;
   const noi_margin = egi > 0 ? stabilized_noi / egi : 0;
+
+
+  // ── ARV SOURCE RESOLUTION (Path C) ──────────────────────────
+  // The income-approach ARV computed above (stabilized_noi / exit_cap) is
+  // the institutional default and is preserved as stabilized_arv_income_approach.
+  // The user can override the ARV used downstream by selecting:
+  //   'comp_derived':   use comp_avg_psf * subject_area_sf
+  //   'manual_override': use arv_override_brrrr (sponsor judgment)
+  // The income-approach value remains available for the reports' Model
+  // Assumptions disclosure and for the comp variance check.
+  //
+  // CRITICAL: the tax solve above used the income-approach ARV. Even if
+  // the user picks a different ARV source, taxes are still assessed
+  // against the income-approach ARV (which is the institutional standard:
+  // the assessor reassesses based on market valuation, not sponsor
+  // judgment). NOI, OPEX, and taxes are therefore unchanged. Only the
+  // ARV consumed by refi sizing, value creation, and disposition is
+  // re-resolved here.
+  const stabilized_arv_income_approach = stabilized_arv;
+  const arv_source = i.arv_source || 'income_approach';
+  const arv_override_in = _num(i.arv_override_brrrr);
+
+  // Compute comp-derived ARV early so it's available to the source switch.
+  // (The full comp validation block further down uses the same intermediate
+  // variables for variance flagging.)
+  const _arv_subject_sf = _num(i.subject_area_sf);
+  const _arv_includeUnren = !!i.comp_avg_include_unrenovated;
+  const _arv_salesComps = (comps || []).filter(c =>
+    (c.comp_type || 'sales') === 'sales' && _num(c.sales_price) > 0 && _num(c.area_sf) > 0);
+  let _arv_comp_avg_psf = null;
+  if (_arv_salesComps.length > 0 && _arv_subject_sf > 0) {
+    const renovated = _arv_salesComps.filter(c => !!c.renovated);
+    const useForAvg = _arv_includeUnren ? _arv_salesComps
+      : (renovated.length > 0 ? renovated : _arv_salesComps);
+    const sumPsf = useForAvg.reduce((a, c) => a + _num(c.sales_price) / _num(c.area_sf), 0);
+    _arv_comp_avg_psf = sumPsf / useForAvg.length;
+  }
+  const _arv_comp_derived = _arv_comp_avg_psf != null && _arv_subject_sf > 0
+    ? _arv_comp_avg_psf * _arv_subject_sf
+    : null;
+
+  if (arv_source === 'manual_override' && arv_override_in > 0) {
+    stabilized_arv = arv_override_in;
+  } else if (arv_source === 'comp_derived' && _arv_comp_derived != null && _arv_comp_derived > 0) {
+    stabilized_arv = _arv_comp_derived;
+  }
+  // else: keep stabilized_arv = stabilized_arv_income_approach (default).
+
+  // Implied cap rate at the ARV in use. When source is income_approach,
+  // this equals exit_cap (input). When source is comp_derived or
+  // manual_override, this is the implied cap rate (NOI / ARV) which
+  // surfaces on the Capital page and Model Assumptions.
+  const implied_cap_rate = stabilized_arv > 0 ? stabilized_noi / stabilized_arv : null;
+
   const arv_per_unit = totalUnits > 0 ? stabilized_arv / totalUnits : 0;
 
 
@@ -666,13 +720,19 @@ function computeBRRRR() {
   // BRRRR refi underwriter requires sales comps. Compute comp-derived
   // ARV via avg $/SF * subject area. Default to renovated-only.
   // Phase 0 audit: 3+ sales comps required; variance bands 10/20%.
-  const subject_area_sf = _num(i.subject_area_sf);
-  const includeUnren = !!i.comp_avg_include_unrenovated;  // default false
-  const compType = (c) => c.comp_type || 'sales';
-  const salesComps = (comps || []).filter(c => compType(c) === 'sales' && _num(c.sales_price) > 0 && _num(c.area_sf) > 0);
-  let comp_avg_psf = null;
+  //
+  // The comp variance check compares comp-derived ARV against the
+  // INCOME-APPROACH ARV (the institutional sanity check that the
+  // appraiser/lender will perform), NOT against whatever ARV the user
+  // selected via arv_source. This way the validation flag still
+  // signals "your income approach and your comps agree" regardless
+  // of which source the sponsor chose to underwrite from.
+  const subject_area_sf = _arv_subject_sf;
+  const includeUnren = _arv_includeUnren;
+  const salesComps = _arv_salesComps;
+  let comp_avg_psf = _arv_comp_avg_psf;
   let comp_avg_psf_renovated_only = null;
-  let comp_derived_arv = null;
+  let comp_derived_arv = _arv_comp_derived;
   let comp_variance_pct = null;
   let comp_validation_flag = null;
   let comp_count_sales = salesComps.length;
@@ -684,17 +744,11 @@ function computeBRRRR() {
       const sumPsf = renovated.reduce((a, c) => a + _num(c.sales_price) / _num(c.area_sf), 0);
       comp_avg_psf_renovated_only = sumPsf / renovated.length;
     }
-    const useForAvg = includeUnren ? salesComps : (renovated.length > 0 ? renovated : salesComps);
-    const sumPsf2 = useForAvg.reduce((a, c) => a + _num(c.sales_price) / _num(c.area_sf), 0);
-    comp_avg_psf = sumPsf2 / useForAvg.length;
-    if (subject_area_sf > 0) {
-      comp_derived_arv = comp_avg_psf * subject_area_sf;
-      if (stabilized_arv > 0) {
-        comp_variance_pct = Math.abs(stabilized_arv - comp_derived_arv) / stabilized_arv;
-        if (comp_variance_pct <= 0.10) comp_validation_flag = 'green';
-        else if (comp_variance_pct <= 0.20) comp_validation_flag = 'gold';
-        else comp_validation_flag = 'red';
-      }
+    if (comp_derived_arv != null && stabilized_arv_income_approach > 0) {
+      comp_variance_pct = Math.abs(stabilized_arv_income_approach - comp_derived_arv) / stabilized_arv_income_approach;
+      if (comp_variance_pct <= 0.10) comp_validation_flag = 'green';
+      else if (comp_variance_pct <= 0.20) comp_validation_flag = 'gold';
+      else comp_validation_flag = 'red';
     }
   }
 
@@ -738,6 +792,10 @@ function computeBRRRR() {
 
     // Stabilized valuation
     stabilized_arv, arv_per_unit, value_creation, value_creation_pct,
+    // Path C: ARV source resolution
+    stabilized_arv_income_approach, arv_source_resolved: arv_source,
+    arv_override_brrrr_resolved: arv_override_in,
+    implied_cap_rate,
 
     // Refinance
     refi_loan_amount, refi_monthly_ds, refi_annual_ds,
