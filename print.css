@@ -717,11 +717,29 @@ html, body {
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
-.bp-seg-debt    { background: #0a0a0b; }
+.bp-seg-debt        { background: #0a0a0b; }
+/* M0.2: two-tranche segmentation. Acquisition is solid black (senior,
+   funded at close). Construction is a slightly lighter charcoal to
+   visually distinguish the draw-based portion while preserving the
+   "debt = dark" convention. */
+.bp-seg-debt-acq    { background: #0a0a0b; }
+.bp-seg-debt-con    { background: #2a2a2e; }
 .bp-seg-sponsor { background: #C9A84C; color: #0a0a0b; }
 .bp-seg-lp      { background: #806008; }
 .bp-seg-lbl { font-size: 6.5pt; text-transform: uppercase; opacity: 0.9; }
 .bp-seg-val { font-size: 8.5pt; font-weight: 700; line-height: 1.1; }
+
+/* Capital Stack legend swatches (M0.2) */
+.bp-legend-swatch {
+  display: inline-block;
+  width: 9pt;
+  height: 9pt;
+  vertical-align: middle;
+  margin-right: 3pt;
+  border-radius: 1pt;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
 
 /* 10-year cash flow table - compact horizontal layout */
 .bp-cf-table {

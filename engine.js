@@ -268,6 +268,21 @@ function computeBRRRR() {
   const initial_rate   = _num(i.initial_rate);
   const initial_ITyp   = i.initial_interest_type || 'IO';
 
+  // M0.2: Capex execution window (months). Used to model month-by-month
+  // construction tranche draw accrual. Default 6 months. Manually
+  // overridable via the Capital panel.
+  const capex_duration_months = (i.capex_duration_months != null && _num(i.capex_duration_months) > 0)
+    ? Math.round(_num(i.capex_duration_months))
+    : 6;
+
+  // M0.2: Sponsor mobilization override. The auto-computed value is
+  // capex_budget / 4.5 (midpoint of 1/4 to 1/5 of capex). User can set
+  // sponsor_mobilization_override to lock a specific dollar amount.
+  // Effective sponsor_mobilization = override ?? auto-computed.
+  const sponsor_mobilization_override = (i.sponsor_mobilization_override != null && i.sponsor_mobilization_override !== '')
+    ? _num(i.sponsor_mobilization_override)
+    : null;
+
   const target_refi_m  = _num(i.target_refi_months);
   const target_hold_y  = Math.max(1, Math.round(_num(i.target_hold_years) || 10));
   const target_refi_ltv= _num(i.target_refi_ltv);
@@ -300,9 +315,40 @@ function computeBRRRR() {
   const gpr_annual = gpr_monthly * 12;
 
 
-  // ── INITIAL LOAN AMOUNT ─────────────────────────────────────
-  // Spreadsheet: E5 = purchase * LTV + capex * LTC_capex
-  const initial_loan_amt = purchase_price * initial_ltv + capex_budget * initial_ltc_capex;
+  // ── INITIAL LOAN: TWO-TRANCHE BRIDGE (M0.2) ─────────────────
+  // The bridge loan is composed of two distinct funding components:
+  //   1. Acquisition tranche: purchase_price × initial_ltv. Funded at
+  //      close; full balance outstanding from month 1.
+  //   2. Construction tranche: capex_budget × initial_ltc_capex.
+  //      Funded in draws as capex invoices are submitted. Modeled as
+  //      a straight-line draw over capex_duration_months, then held
+  //      flat from end-of-capex through refi.
+  //
+  // Total bridge = acquisition_tranche + construction_tranche. This
+  // sum is preserved as initial_loan_amt so all downstream consumers
+  // (closing cost basis, refi takeout, S&U totals) work unchanged.
+  //
+  // Spreadsheet parity: the additive formula
+  //   loan = purchase × LTV + capex × LTC
+  // is mathematically identical to the prior single-line computation.
+  // The change is surfacing the two tranches separately and modeling
+  // their carry month-by-month rather than at a flat balance.
+  const acquisition_tranche = purchase_price * initial_ltv;
+  const construction_tranche = capex_budget * initial_ltc_capex;
+  const initial_loan_amt = acquisition_tranche + construction_tranche;
+
+  // Sponsor's out-of-pocket capex float. Defaults to 1/4.5 of capex
+  // (midpoint of 1/4 to 1/5, ~22%), overridable per deal. This is the
+  // dollars the sponsor fronts to mobilize the GC before the first
+  // construction draw is reimbursed.
+  const sponsor_mobilization = sponsor_mobilization_override != null
+    ? sponsor_mobilization_override
+    : capex_budget / 4.5;
+
+  // Capex funding gap: dollars of capex NOT covered by the construction
+  // tranche. At 100% LTC the gap is zero; at 91% LTC on $616K capex the
+  // gap is ~$55K (sponsor equity into capex over and above mobilization).
+  const capex_funding_gap = Math.max(0, capex_budget - construction_tranche);
 
 
   // ── CLOSING COSTS ───────────────────────────────────────────
@@ -330,14 +376,51 @@ function computeBRRRR() {
   // ── TOTAL PROJECT COST ──────────────────────────────────────
   // Spreadsheet B12: purchase + closing_costs + capex + consulting +
   //                  gc_contingency + debt_service_pre_refi
-  // Debt service pre-refi = monthly_ds * target_refi_months
+  //
+  // M0.2 carry model: month-by-month draw accrual. For each month m
+  // from 1 to target_refi_months:
+  //   acquisition balance = acquisition_tranche (full from month 1)
+  //   construction balance = construction_tranche × min(m, capex_dur) / capex_dur
+  //   monthly_ds_m = (acq_bal + con_bal) × initial_rate / 12   (IO)
+  //                  OR PMT on (acq_bal + con_bal) (PI)
+  // Total debt_service_pre_refi = sum of monthly_ds_m across the
+  // capex execution + holding period through refi.
+  //
+  // initial_monthly_ds (the exposed scalar) is the FINAL month's
+  // payment at full bridge balance, which is what shell-ui and reports
+  // display as the "monthly debt service" before refi. Computing it
+  // this way keeps backward-compat with the single-number display.
+  const construction_carry_schedule = [];
+  let _accumulated_ds = 0;
+  const _capex_months = Math.min(target_refi_m, capex_duration_months);
+  for (let m = 1; m <= target_refi_m; m++) {
+    const ramp_factor = m <= _capex_months ? m / capex_duration_months : 1;
+    const construction_balance = construction_tranche * ramp_factor;
+    const total_balance = acquisition_tranche + construction_balance;
+    let ds_m;
+    if (initial_ITyp === 'IO') {
+      ds_m = total_balance * initial_rate / 12;
+    } else {
+      ds_m = PMT(initial_rate / 12, 30 * 12, total_balance);
+    }
+    construction_carry_schedule.push({
+      month: m,
+      acquisition_balance: acquisition_tranche,
+      construction_balance: construction_balance,
+      total_balance: total_balance,
+      monthly_ds: ds_m
+    });
+    _accumulated_ds += ds_m;
+  }
+  // Final-month (fully drawn) monthly DS. The headline number displayed
+  // in the UI and used by downstream coverage math (e.g., breakeven).
   let initial_monthly_ds;
   if (initial_ITyp === 'IO') {
     initial_monthly_ds = initial_loan_amt * initial_rate / 12;
   } else {
     initial_monthly_ds = PMT(initial_rate / 12, 30 * 12, initial_loan_amt);
   }
-  const debt_service_pre_refi = initial_monthly_ds * target_refi_m;
+  const debt_service_pre_refi = _accumulated_ds;
   const initial_annual_ds = initial_monthly_ds * 12;
 
   const total_project_cost = purchase_price + closing_costs + capex_budget
@@ -581,6 +664,11 @@ function computeBRRRR() {
     // Initial debt
     initial_loan_amt, initial_monthly_ds, initial_annual_ds,
     debt_service_pre_refi,
+    // M0.2: two-tranche bridge surfaced fields
+    acquisition_tranche, construction_tranche,
+    sponsor_mobilization, capex_funding_gap,
+    capex_duration_months_resolved: capex_duration_months,
+    construction_carry_schedule,
 
     // Stabilized valuation
     stabilized_arv, arv_per_unit, value_creation, value_creation_pct,
@@ -944,6 +1032,7 @@ const ENGINE_RISK_THRESHOLDS = {
   exit_cap_compression_bps: 50,      // exit cap compressed >50 bps below entry
   value_creation_min_brrrr: 0.20,    // BRRRR value creation below 20%
   in_basis_pct_max:         0.80,    // post-refi in-basis >80% of ARV
+  capex_funding_gap_pct_min: 0.05,   // gap (capex - construction tranche) >5% of capex
 
   // F&F
   comp_cv_max:              0.25,    // CoV of comp $/SF above 25%
@@ -966,6 +1055,7 @@ const HIGH_TIER = {
   exit_cap_compression_bps_high: 100,
   value_creation_min_brrrr_high: 0.10,
   in_basis_pct_max_high:    0.90,    // >90% in-basis is high
+  capex_funding_gap_pct_min_high: 0.15, // gap >15% of capex is high severity (sponsor liquidity strain)
   comp_cv_max_high:         0.40,
   comp_count_min_high:      2,
   dom_max_high:             120,
@@ -1145,6 +1235,33 @@ function computeEngineRisks(mode, R_in, inputs_in, comps_in) {
           title: 'Contingency below institutional minimum',
           detail: `Contingency ${_pctStr(cPct)} of TPC is below the ${_pctStr(T.contingency_pct_min, 0)} minimum. Recommend reserving at least 5%.`,
           value: cPct, threshold: T.contingency_pct_min
+        });
+      }
+    }
+
+    // --- Capex funding gap (M0.2) ---
+    // Construction tranche covers LTC × capex. The remainder (gap)
+    // is sponsor equity into capex on top of mobilization. A material
+    // gap signals sponsor liquidity strain through the value-add phase.
+    const _capex = +i_.capex_budget || 0;
+    const _gap = +R_.capex_funding_gap || 0;
+    if (_capex > 0 && _gap > 0) {
+      const gapPct = _gap / _capex;
+      if (gapPct > H.capex_funding_gap_pct_min_high) {
+        risks.push({
+          id: 'eng_capex_funding_gap', source: 'engine', severity: 'high',
+          category: 'Capital',
+          title: 'Capex funding gap above high-risk ceiling',
+          detail: `Construction tranche leaves ${_dollarStr(_gap)} (${_pctStr(gapPct)} of capex) unfunded by senior debt, above the ${_pctStr(H.capex_funding_gap_pct_min_high, 0)} high-severity ceiling. Sponsor must cover from equity through the capex execution period.`,
+          value: gapPct, threshold: H.capex_funding_gap_pct_min_high
+        });
+      } else if (gapPct > T.capex_funding_gap_pct_min) {
+        risks.push({
+          id: 'eng_capex_funding_gap', source: 'engine', severity: 'medium',
+          category: 'Capital',
+          title: 'Capex funding gap above institutional threshold',
+          detail: `Construction tranche leaves ${_dollarStr(_gap)} (${_pctStr(gapPct)} of capex) unfunded. Sponsor equity into capex above mobilization. Confirm liquidity through draw cycle.`,
+          value: gapPct, threshold: T.capex_funding_gap_pct_min
         });
       }
     }

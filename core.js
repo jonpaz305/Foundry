@@ -81,6 +81,13 @@ function makeDefaultInputs() {
     initial_rate:            0.127,
     initial_interest_type:   'IO',
 
+    // M0.2: Capex execution window and sponsor mobilization override.
+    // capex_duration_months drives the month-by-month construction
+    // draw accrual carry model. Default 6 months when not set.
+    // sponsor_mobilization_override locks a specific dollar amount;
+    // when null the engine auto-computes capex_budget / 4.5.
+    capex_duration_months:   null,
+    sponsor_mobilization_override: null,
     // Refi (BRRRR only)
     refi_rate:               0.075,
     refi_interest_type:      'PI',
@@ -630,7 +637,8 @@ function onInputChange(field, value) {
     'arv_override','purchase_price','capex_budget','gc_contingency',
     'consulting_fees_override','closing_cost_baseline','closing_cost_loan_pct',
     'initial_loan_ltv','initial_loan_ltc_capex','initial_rate','refi_rate',
-    'refi_closing_cost_pct','investor_ownership','lp_gp_split_ff'
+    'refi_closing_cost_pct','investor_ownership','lp_gp_split_ff',
+    'capex_duration_months','sponsor_mobilization_override'
   ]);
   if (numericFields.has(field)) {
     if (value === '' || value == null) inputs[field] = null;

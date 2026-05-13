@@ -653,6 +653,16 @@ function renderCapitalBlock() {
           <div class="hint">Cuyahoga multifamily transfer fees. Default $2,400.</div></div>
         <div></div>
       </div>
+
+      <div class="ssub">Capex Execution &amp; Sponsor Float</div>
+      <div class="g2" style="margin-bottom:1rem">
+        <div class="field"><label>Capex duration (months)</label>
+          <input type="number" step="1" min="1" class="num" value="${i.capex_duration_months ?? ''}" placeholder="Default: 6" oninput="onInputChange('capex_duration_months', this.value)"/>
+          <div class="hint">Months over which the construction tranche draws fund (straight-line). Drives month-by-month bridge carry.</div></div>
+        <div class="field"><label>Sponsor mobilization ($)</label>
+          <input type="number" class="num" value="${i.sponsor_mobilization_override ?? ''}" placeholder="Default: capex / 4.5 (~22%)" oninput="onInputChange('sponsor_mobilization_override', this.value)"/>
+          <div class="hint">Dollars the sponsor fronts to mobilize GC before the first construction draw is reimbursed. Auto-populates at ~22% of capex; override to lock a specific amount.</div></div>
+      </div>
       ` : ''}
 
       ${mode === 'brrrr' ? `

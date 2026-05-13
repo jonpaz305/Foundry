@@ -223,15 +223,25 @@ function runM2() {
   check(g, 'noi_margin', R.noi_margin, 0.665249);
   check(g, 'stabilized_arv', R.stabilized_arv, 1490765.71);
   check(g, 'arv_per_unit', R.arv_per_unit, 93172.86);
-  check(g, 'value_creation', R.value_creation, 457030.31);
-  check(g, 'value_creation_pct', R.value_creation_pct, 0.442115);
+  // M0.2: value_creation increases because TPC drops with month-by-month
+  // draw carry vs the prior flat-balance carry. Construction tranche
+  // ramps 0→full over capex_duration_months (default 6), so months 1-5
+  // accrue interest on a smaller balance.
+  check(g, 'value_creation', R.value_creation, 469876.48);
+  check(g, 'value_creation_pct', R.value_creation_pct, 0.460262);
 
   // Project Costs and Initial Debt (5)
   check(g, 'closing_costs', R.closing_costs, 37629.20);
-  check(g, 'total_project_cost', R.total_project_cost, 1033735.40);
+  // M0.2: TPC reflects lower bridge carry under month-by-month accrual.
+  check(g, 'total_project_cost', R.total_project_cost, 1020889.23);
   check(g, 'initial_loan_amt', R.initial_loan_amt, 728560);
+  // initial_monthly_ds (final-month full-balance DS) unchanged.
   check(g, 'initial_monthly_ds', R.initial_monthly_ds, 6678.47);
-  check(g, 'debt_service_pre_refi', R.debt_service_pre_refi, 60106.20);
+  // M0.2: debt_service_pre_refi is now sum of monthly DS across the
+  // 9-month bridge term, with construction tranche balance ramping
+  // 0 → $560,560 over months 1-6, then flat. Old flat-balance value
+  // was $60,106.20; corrected value is $47,260.03.
+  check(g, 'debt_service_pre_refi', R.debt_service_pre_refi, 47260.03);
 
   // Refinance Mechanics (10)
   check(g, 'refi_loan_amount', R.refi_loan_amount, 1043536);
@@ -239,10 +249,12 @@ function runM2() {
   check(g, 'refi_annual_ds', R.refi_annual_ds, 83312.05);
   check(g, 'refi_closing_costs', R.refi_closing_costs, 41741.44);
   check(g, 'net_cash_out', R.net_cash_out, 273234.56);
-  check(g, 'initial_investor_equity', R.initial_investor_equity, 255175.40);
-  check(g, 'capital_returned_at_refi', R.capital_returned_at_refi, 255175.40);
+  // M0.2: lower TPC → lower investor equity in.
+  check(g, 'initial_investor_equity', R.initial_investor_equity, 242329.23);
+  check(g, 'capital_returned_at_refi', R.capital_returned_at_refi, 242329.23);
   check(g, 'investor_equity_remaining', R.investor_equity_remaining, 0);
-  check(g, 'excess_refi_proceeds', R.excess_refi_proceeds, 18059.16);
+  // Higher excess proceeds because lower equity-in but same cash-out.
+  check(g, 'excess_refi_proceeds', R.excess_refi_proceeds, 30905.33);
   check(g, 'capital_recaptured_pct', R.capital_recaptured_pct, 1.0);
 
   // Cash Flow and Coverage (5)
@@ -259,8 +271,11 @@ function runM2() {
 
   // Distributions Y0..Y9 (10)
   const d = R.distribution || [];
-  check(g, 'Y0', d[0], -255175.40);
-  check(g, 'Y1', d[1], 287769.95);
+  // M0.2: Y0 is now lower in magnitude (smaller equity-in due to lower TPC).
+  check(g, 'Y0', d[0], -242329.23);
+  // M0.2: Y1 absorbs the equity-in reduction and the excess-proceeds
+  // increase via the refi distribution path.
+  check(g, 'Y1', d[1], 281346.87);
   check(g, 'Y2', d[2], 24271.92);
   check(g, 'Y3', d[3], 25000.08);
   check(g, 'Y4', d[4], 25750.08);
@@ -272,11 +287,110 @@ function runM2() {
 
   // Y10 + EM/IRR (3)
   check(g, 'Y10 (corrected)', d[10], 712165.01, 0.01);
-  check(g, 'equity_multiple (institutional)', R.equity_multiple, 4.7644, 0.01);
+  // M0.2: EM rises on a smaller equity denominator and a slightly larger
+  // total cash recovered.
+  check(g, 'equity_multiple (institutional)', R.equity_multiple, 4.9905, 0.01);
   // em_spreadsheet uses corrected Y10 (Y1..Y10 includes recovered cash flow),
-  // so it ships at 3.7644 vs the legacy spreadsheet's 3.6440. This is a
+  // so it ships at 3.9905 vs the legacy spreadsheet's 3.6440. This is a
   // pre-existing engine design choice; documented in regression-report-m5.md.
-  check(g, 'em_spreadsheet (Y0..Y10 sum / equity)', R.em_spreadsheet, 3.7644, 0.01);
+  check(g, 'em_spreadsheet (Y0..Y10 sum / equity)', R.em_spreadsheet, 3.9905, 0.01);
+
+  // ════════════════════════════════════════════════════════════════
+  // M0.2 - TWO-TRANCHE BRIDGE (10 tests)
+  // ════════════════════════════════════════════════════════════════
+  // Foundry-BRRRR-001: purchase $240K @ 70% LTV, capex $616K @ 91% LTC.
+  // Acquisition tranche = 240,000 × 0.70 = 168,000
+  // Construction tranche = 616,000 × 0.91 = 560,560
+  // Total = 728,560 (matches initial_loan_amt, preserves backward-compat)
+  // Sponsor mobilization (no override on seed) = 616,000 / 4.5 = 136,888.89
+  // Capex funding gap = 616,000 - 560,560 = 55,440
+  // Capex duration months (no override) = 6 (default)
+
+  check(g, 'M0.2 acquisition_tranche', R.acquisition_tranche, 168000);
+  check(g, 'M0.2 construction_tranche', R.construction_tranche, 560560);
+  check(g, 'M0.2 tranches sum to initial_loan_amt',
+    R.acquisition_tranche + R.construction_tranche, R.initial_loan_amt);
+  check(g, 'M0.2 sponsor_mobilization (auto = capex / 4.5)',
+    R.sponsor_mobilization, 616000 / 4.5);
+  check(g, 'M0.2 capex_funding_gap', R.capex_funding_gap, 55440);
+  check(g, 'M0.2 capex_duration_months_resolved (default 6)',
+    R.capex_duration_months_resolved, 6);
+  check(g, 'M0.2 construction_carry_schedule length = target_refi_months',
+    Array.isArray(R.construction_carry_schedule) && R.construction_carry_schedule.length, 9);
+  // Schedule month 1: construction balance = 560560 × 1/6 = 93,426.67
+  // Total balance month 1 = 168000 + 93426.67 = 261,426.67
+  // Monthly DS month 1 (IO at 11%) = 261,426.67 × 0.11 / 12 = 2,396.41
+  check(g, 'M0.2 schedule month 1 monthly_ds (IO ramp)',
+    R.construction_carry_schedule[0].monthly_ds, 2396.41, 0.01);
+  // Month 6 onward: construction balance = full 560,560
+  // Total balance = 728,560, monthly DS = 6,678.47 (matches initial_monthly_ds)
+  check(g, 'M0.2 schedule month 6 monthly_ds (full balance)',
+    R.construction_carry_schedule[5].monthly_ds, 6678.47, 0.01);
+  // Sum of monthly_ds across all 9 months equals debt_service_pre_refi
+  const _scheduleSum = R.construction_carry_schedule.reduce((a, s) => a + s.monthly_ds, 0);
+  check(g, 'M0.2 schedule sum = debt_service_pre_refi',
+    _scheduleSum, R.debt_service_pre_refi, 0.001);
+}
+
+// ════════════════════════════════════════════════════════════════
+// M0.2 - SPONSOR MOBILIZATION OVERRIDE + DURATION OVERRIDE (5 tests)
+// ════════════════════════════════════════════════════════════════
+// Verify the override path: explicit sponsor_mobilization_override and
+// explicit capex_duration_months both flow through correctly without
+// the auto-default kicking in.
+function runM02Overrides() {
+  const g = group('M0.2 Overrides');
+
+  // Override deal: same as BRRRR seed but with explicit overrides.
+  const overrideInputs = Object.assign({}, INPUTS_BRRRR, {
+    sponsor_mobilization_override: 200000,
+    capex_duration_months: 4
+  });
+  const R = vm.runInContext(`
+    currentDeal = ${JSON.stringify(SEED_BRRRR)};
+    inputs = ${JSON.stringify(overrideInputs)};
+    unitMix = ${JSON.stringify(UNITMIX_BRRRR)};
+    comps = [];
+    marketAnalysis = {};
+    R = {};
+    recompute();
+    R;
+  `, ctx);
+
+  check(g, 'sponsor_mobilization respects override (200,000)',
+    R.sponsor_mobilization, 200000);
+  check(g, 'capex_duration_months_resolved respects override (4)',
+    R.capex_duration_months_resolved, 4);
+  // With duration=4: ramp completes at month 4. Months 1-4 ramp, months 5-9
+  // are at full balance.
+  check(g, 'schedule length still = target_refi_months (9)',
+    R.construction_carry_schedule.length, 9);
+  // Month 4: full construction balance reached.
+  check(g, 'override duration: month 4 hits full balance',
+    R.construction_carry_schedule[3].total_balance, 728560, 0.01);
+  // Tranches unchanged by overrides (overrides only affect timing/float).
+  check(g, 'override does not change acquisition_tranche',
+    R.acquisition_tranche, 168000);
+}
+
+// ════════════════════════════════════════════════════════════════
+// M0.2 - F&F MODE ISOLATION (3 tests)
+// ════════════════════════════════════════════════════════════════
+// F&F mode must not be affected by the two-tranche split. The F&F
+// engine continues to compute initial_loan_amt as purchase × LTV +
+// capex (single-line, capex funded 100% via draws). The new tranche
+// fields should NOT appear on the F&F return.
+function runM02FFIsolation() {
+  const g = group('M0.2 F&F Isolation');
+
+  const R = loadFF();
+  // F&F engine should not surface the two-tranche fields.
+  check(g, 'F&F: acquisition_tranche not exposed',
+    R.acquisition_tranche === undefined ? 1 : 0, 1);
+  check(g, 'F&F: construction_tranche not exposed',
+    R.construction_tranche === undefined ? 1 : 0, 1);
+  check(g, 'F&F: sponsor_mobilization not exposed',
+    R.sponsor_mobilization === undefined ? 1 : 0, 1);
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -697,7 +811,7 @@ function runM6_2() {
   check(g, 'BRRRR snapshot: contains DSCR tile', brrrrHtml.includes('Refi DSCR') && brrrrHtml.includes('1.57x') ? 1 : 0, 1);
   check(g, 'BRRRR snapshot: contains stabilized ARV ($1.49M)', brrrrHtml.includes('$1.49M') ? 1 : 0, 1);
   check(g, 'BRRRR snapshot: contains capital recapture 100%', brrrrHtml.includes('100.0%') ? 1 : 0, 1);
-  check(g, 'BRRRR snapshot: contains EM 4.76x', brrrrHtml.includes('4.76x') ? 1 : 0, 1);
+  check(g, 'BRRRR snapshot: contains EM 4.99x', brrrrHtml.includes('4.99x') ? 1 : 0, 1);
   check(g, 'BRRRR snapshot: BRRRR mode pill present', brrrrHtml.includes('ds-mode-pill') && brrrrHtml.includes('BRRRR') ? 1 : 0, 1);
   check(g, 'BRRRR snapshot: market-empty fallback shown (no census)', brrrrHtml.includes('Market analysis not run') ? 1 : 0, 1);
   // 2048 trips one medium contingency risk (M5 documented behavior)
@@ -970,6 +1084,8 @@ function runM6_7() {
 // Run
 // ════════════════════════════════════════════════════════════════
 runM2();
+runM02Overrides();
+runM02FFIsolation();
 runM3();
 runM4();
 runM5();
