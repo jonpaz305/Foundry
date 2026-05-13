@@ -1146,3 +1146,41 @@ html, body {
 .lender-stress-warn { color: #6a4a00; background: rgba(184,138,26,0.12); font-weight: 700; }
 .lender-stress-bad  { color: #801010; background: rgba(160,24,24,0.10); font-weight: 700; }
 .lender-stress-neutral { color: #555; }
+
+
+/* ════════════════════════════════════════════════════════════════
+   M6.6.1 - Lender Package consolidated 5-page layout
+   ════════════════════════════════════════════════════════════════ */
+
+/* Two-column layout used across pages 2, 4, and 5 for paired blocks
+   (skin + initial debt, unit mix + KPIs, asset + market context). */
+.lender-twocol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12pt;
+  margin-bottom: 6pt;
+}
+.lender-twocol > div {
+  min-width: 0;
+}
+.lender-twocol .print-table,
+.lender-twocol .print-list {
+  margin-bottom: 0;
+}
+.lender-twocol .print-section {
+  margin-top: 0;
+}
+.lender-twocol .print-list .pl-row {
+  padding: 2pt 0;
+  font-size: 8.5pt;
+}
+
+/* Compact OpEx table used on the consolidated NOI page to fit the
+   GPR → EGI → OpEx → NOI build alongside the stress scenarios table */
+.lender-opex-compact {
+  font-size: 8pt;
+}
+.lender-opex-compact th,
+.lender-opex-compact td {
+  padding: 3pt 4pt;
+}

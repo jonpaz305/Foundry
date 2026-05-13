@@ -889,19 +889,21 @@ function runM6_6() {
   loadBRRRR();
   const brrrrHtml = vm.runInContext(`renderReport_lender_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
   check(g, 'BRRRR: renders without throwing', typeof brrrrHtml === 'string' && brrrrHtml.length > 0 ? 1 : 0, 1);
-  check(g, 'BRRRR: page count = 6', (brrrrHtml.match(/class="print-page print-page-compact"/g) || []).length, 6);
+  check(g, 'BRRRR: page count = 5', (brrrrHtml.match(/class="print-page print-page-compact"/g) || []).length, 5);
   check(g, 'BRRRR: header reads "Lender Package · BRRRR Bridge / Agency"', brrrrHtml.includes('BRRRR Bridge / Agency') ? 1 : 0, 1);
   check(g, 'BRRRR: 6 debt metric tiles on cover', (brrrrHtml.match(/pk-tile-lbl/g) || []).length >= 6 ? 1 : 0, 1);
   check(g, 'BRRRR: refi takeout section', brrrrHtml.includes('Refinance Takeout Sizing') ? 1 : 0, 1);
   check(g, 'BRRRR: NOI build with Stabilized NOI $130,442', brrrrHtml.includes('$130,442') ? 1 : 0, 1);
   check(g, 'BRRRR: stress scenarios table', brrrrHtml.includes('Refi Rate +50bp') && brrrrHtml.includes('Refi Rate +100bp') ? 1 : 0, 1);
   check(g, 'BRRRR: Sponsor + Asset + Disclosures page', brrrrHtml.includes('Sponsor Profile') && brrrrHtml.includes('Asset Summary') && brrrrHtml.includes('Disclosures') ? 1 : 0, 1);
+  check(g, 'BRRRR: Executive Summary on cover', brrrrHtml.includes('Executive Summary') ? 1 : 0, 1);
+  check(g, 'BRRRR: Initial Debt Terms on page 2 (consolidated)', brrrrHtml.includes('Initial Debt Terms') ? 1 : 0, 1);
 
   // ── F&F mode (2455 deal)
   loadFF();
   const ffHtml = vm.runInContext(`renderReport_lender_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
   check(g, 'F&F: renders without throwing', typeof ffHtml === 'string' && ffHtml.length > 0 ? 1 : 0, 1);
-  check(g, 'F&F: page count = 6', (ffHtml.match(/class="print-page print-page-compact"/g) || []).length, 6);
+  check(g, 'F&F: page count = 5', (ffHtml.match(/class="print-page print-page-compact"/g) || []).length, 5);
   check(g, 'F&F: header reads "Fix & Flip Bridge"', ffHtml.includes('Fix &amp; Flip Bridge') ? 1 : 0, 1);
   check(g, 'F&F: ARV Defense section', ffHtml.includes('ARV Defense') ? 1 : 0, 1);
   check(g, 'F&F: stress scenarios with sale price', ffHtml.includes('Sale Price -5%') && ffHtml.includes('Sale Price -10%') ? 1 : 0, 1);
