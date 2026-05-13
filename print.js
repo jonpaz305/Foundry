@@ -271,7 +271,7 @@ function _printPlaceholder(label, deal) {
       </div>
       <div class="print-footer">
         <div class="pf-conf">Confidential</div>
-        <div class="pf-page">Foundry by ASJP</div>
+        <div class="pf-page"></div>
       </div>
     </div>
   `;

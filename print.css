@@ -832,3 +832,86 @@ html, body {
   margin: 0 0 6pt 0;
   text-align: justify;
 }
+
+/* ════════════════════════════════════════════════════════════════
+   M6.3.1 - Stronger page-break protection
+   ════════════════════════════════════════════════════════════════ */
+
+/* Keep entire tables intact when possible. Most engine output tables
+   are small enough to fit on whichever page they land. */
+.print-page-compact .print-table {
+  page-break-inside: avoid;
+  break-inside: avoid;
+  margin-bottom: 6pt;
+}
+.print-page-compact .print-list {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+.print-page-compact .bp-narrative {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+.print-page-compact .bp-highlights {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+.print-page-compact .bp-su-grid {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+.print-page-compact .bp-capstack {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* Inline bullet glyph for highlights (replaces ::before pseudo) */
+.bp-bullet {
+  color: #C9A84C;
+  font-weight: 700;
+  margin-right: 3pt;
+  display: inline-block;
+}
+.bp-highlights li::before {
+  /* Suppress the pseudo-element fallback that was causing leakage */
+  content: none;
+}
+.bp-highlights li {
+  padding-left: 0;
+}
+
+/* Aggressive page-break protection for BRRRR Package pages: keep major
+   section + first table together so headings don't orphan at page bottom */
+.print-page-compact .print-section + table,
+.print-page-compact .print-section + .print-list,
+.print-page-compact .print-section + .bp-su-grid,
+.print-page-compact .print-section + .print-kpis,
+.print-page-compact .print-section + .bp-narrative,
+.print-page-compact .print-section + .bp-highlights,
+.print-page-compact .print-section + .bp-capstack,
+.print-page-compact .print-section + .ds-market-strip,
+.print-page-compact .print-section + .ds-risks-list,
+.print-page-compact .print-section + .bp-sponsor {
+  page-break-before: avoid;
+  break-before: avoid;
+}
+
+/* Two-column layout for market page: component scores left, demographics right */
+.bp-market-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 10pt;
+  margin-bottom: 6pt;
+}
+.bp-market-grid .print-table {
+  margin-bottom: 0;
+}
+.bp-market-grid .print-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+.bp-market-grid .print-list .pl-row {
+  padding: 2pt 0;
+  font-size: 8.5pt;
+}
