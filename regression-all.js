@@ -995,6 +995,36 @@ function runM6_3() {
   // Page 8 market - no fetch in regression, so should show empty fallback
   check(g, 'P8: market empty fallback (no data fetched)',
     html.includes('Market analysis was not run') ? 1 : 0, 1);
+
+  // M0.3: Equity Required Breakdown section
+  check(g, 'M0.3 P2: Equity Required Breakdown section present',
+    html.includes('Equity Required Breakdown') ? 1 : 0, 1);
+  check(g, 'M0.3 P2: Mortgage down payment row present',
+    html.includes('Mortgage down payment (acquisition)') ? 1 : 0, 1);
+  check(g, 'M0.3 P2: Sponsor capex above lender funding row present',
+    html.includes('Sponsor capex above lender funding') ? 1 : 0, 1);
+  check(g, 'M0.3 P2: Total Equity Required row present',
+    html.includes('Total Equity Required at Closing') ? 1 : 0, 1);
+
+  // M0.3: Closing Cost Detail expanded to 8 rows
+  check(g, 'M0.3 P2: CCD shows Title / Escrow baseline',
+    html.includes('Title / Escrow / Recording (Baseline)') ? 1 : 0, 1);
+  check(g, 'M0.3 P2: CCD shows Insurance row',
+    html.includes('Insurance (First-Year Premium)') ? 1 : 0, 1);
+  check(g, 'M0.3 P2: CCD shows Appraisal row',
+    html.includes('>Appraisal<') ? 1 : 0, 1);
+  check(g, 'M0.3 P2: CCD shows Origination Fee row',
+    html.includes('>Origination Fee<') ? 1 : 0, 1);
+  check(g, 'M0.3 P2: CCD shows Lender Points row',
+    html.includes('>Lender Points<') ? 1 : 0, 1);
+  check(g, 'M0.3 P2: CCD shows Broker Points row',
+    html.includes('>Broker Points<') ? 1 : 0, 1);
+  check(g, 'M0.3 P2: CCD shows Lender Flat Fees row',
+    html.includes('Lender Flat Fees') ? 1 : 0, 1);
+
+  // M0.3: Uses table relabeled
+  check(g, 'M0.3 P2: Uses table shows Sponsor Mobilization (not GC Contingency)',
+    html.includes('>Sponsor Mobilization<') && !html.includes('>GC Contingency<') ? 1 : 0, 1);
 }
 
 // ════════════════════════════════════════════════════════════════
