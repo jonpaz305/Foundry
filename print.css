@@ -491,17 +491,122 @@ html, body {
   letter-spacing: 0.02em;
 }
 
-/* M6.2.1 - KPI tile tone colors (good/warn/bad signal) */
-.pk-tile.pk-tone-good { border-left-color: #2e7a3c; }
-.pk-tile.pk-tone-good .pk-tile-val { color: #1f5a2a; }
-.pk-tile.pk-tone-warn { border-left-color: #C9A84C; }
-.pk-tile.pk-tone-warn .pk-tile-val { color: #806008; }
-.pk-tile.pk-tone-bad  { border-left-color: #c43030; }
-.pk-tile.pk-tone-bad  .pk-tile-val { color: #a02020; }
+/* M6.2.1 - KPI tile tone colors (good/warn/bad signal). Darker values
+   so they survive grayscale print. Glyphs (▲ ◆ ▼) on bad/warn/good
+   tiles guarantee the signal lands even with "Background graphics" off. */
+.pk-tile.pk-tone-good { border-left-color: #1a6630; }
+.pk-tile.pk-tone-good .pk-tile-val { color: #155028; }
+.pk-tile.pk-tone-warn { border-left-color: #b88a1a; }
+.pk-tile.pk-tone-warn .pk-tile-val { color: #6a4a00; }
+.pk-tile.pk-tone-bad  { border-left-color: #a01818; }
+.pk-tile.pk-tone-bad  .pk-tile-val { color: #801010; }
 .pk-tile.pk-tone-neutral { border-left-color: #C9A84C; }
+
+.pk-glyph {
+  font-size: 11pt;
+  font-weight: 700;
+  display: inline-block;
+  margin-right: 1pt;
+  vertical-align: 0.5pt;
+}
+.pk-glyph-good { color: #1a6630; }
+.pk-glyph-warn { color: #b88a1a; }
+.pk-glyph-bad  { color: #a01818; }
 
 /* Keep each risk row together with its meta + title + detail */
 .print-risk-row {
   page-break-inside: avoid;
   break-inside: avoid;
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+   M6.2.1 - Deal Snapshot single-page compression
+   ════════════════════════════════════════════════════════════════
+   The .print-page-compact modifier tightens all spacing so a typical
+   BRRRR snapshot (4 KPI tiles, 10 economics rows, 1 market strip, up
+   to 5 risks) fits on one Letter sheet. Other reports do not use this
+   modifier so they keep their natural breathing room. */
+
+.print-page-compact {
+  font-size: 9pt;
+  line-height: 1.42;
+}
+.print-page-compact .print-header {
+  padding-bottom: 7pt;
+  margin-bottom: 10pt;
+}
+.print-page-compact .print-title {
+  margin-bottom: 8pt;
+}
+.print-page-compact .print-title-h1 {
+  font-size: 15pt;
+}
+.print-page-compact .print-title-sub {
+  font-size: 9pt;
+}
+.print-page-compact .print-section {
+  margin: 8pt 0 4pt 0;
+  padding-bottom: 2.5pt;
+  font-size: 8.5pt;
+}
+.print-page-compact .print-kpis {
+  gap: 5pt;
+  margin-bottom: 6pt;
+}
+.print-page-compact .pk-tile {
+  padding: 5pt 7pt;
+}
+.print-page-compact .pk-tile-val {
+  font-size: 12pt;
+}
+.print-page-compact .pk-tile-sub {
+  font-size: 7pt;
+  margin-top: 1pt;
+}
+.print-page-compact .print-list {
+  gap: 1pt 18pt;
+  margin-bottom: 4pt;
+}
+.print-page-compact .print-list .pl-row {
+  padding: 2pt 0;
+}
+.print-page-compact .ds-market-strip {
+  padding: 6pt 9pt;
+  gap: 6pt;
+  margin-bottom: 6pt;
+}
+.print-page-compact .ds-market-val {
+  font-size: 11pt;
+}
+.print-page-compact .ds-market-val.ds-market-msa {
+  font-size: 9pt;
+}
+.print-page-compact .ds-risks-list {
+  gap: 3pt;
+}
+.print-page-compact .print-risk-row {
+  padding: 3pt 0 3pt 7pt;
+  font-size: 8pt;
+  line-height: 1.4;
+}
+.print-page-compact .print-risk-row-title {
+  font-size: 8.5pt;
+  margin-bottom: 0;
+}
+.print-page-compact .print-risk-row-meta {
+  font-size: 6.5pt;
+  margin-bottom: 1pt;
+}
+.print-page-compact .ds-risk-detail {
+  font-size: 7.5pt;
+  line-height: 1.4;
+}
+.print-page-compact .ds-risks-clear {
+  padding: 6pt 10pt;
+  font-size: 8.5pt;
+}
+.print-page-compact .print-footer {
+  padding-top: 5pt;
+  font-size: 7pt;
 }
