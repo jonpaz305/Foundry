@@ -83,6 +83,20 @@ function updateDashboard() {
   const st = $('dash-status');
   if (st) st.innerHTML = renderStatusBanners(mode);
 
+  // M0.3c: Deal Economics panel (mode-aware, mirrors Deal Snapshot report)
+  const ec = $('dash-economics');
+  if (ec) ec.innerHTML = renderDealEconomicsPanel(mode);
+
+  // M0.3c: Equity Required Breakdown panel (BRRRR only -- F&F has no
+  // refinance and no two-tranche structure, so the BRRRR-specific
+  // breakdown doesn't apply)
+  const eq = $('dash-equity-breakdown');
+  if (eq) eq.innerHTML = mode === 'brrrr' ? renderEquityBreakdownPanel() : '';
+
+  // M0.3c: Market Context strip (Market Grade, Composite Score, Rent-to-Income, MSA)
+  const ms = $('dash-market-strip');
+  if (ms) ms.innerHTML = renderMarketContextStrip();
+
   // Comp validation panel (mode-specific)
   const cv = $('dash-comp-validation');
   if (cv) {
@@ -418,6 +432,189 @@ function renderCompValidationPanelFF() {
       ${psfFootnote}
     </div>
   `;
+}
+
+
+// ════════════════════════════════════════════════════════════════
+// M0.3c - NEW DASHBOARD PANELS
+// ════════════════════════════════════════════════════════════════
+// Three panels added in M0.3c so the dashboard becomes a live snapshot
+// of the deal rather than just five KPI tiles. Mirrors the Deal Snapshot
+// report sections: Deal Economics, Equity Required Breakdown, Market
+// Context. All three reuse the .comp-validation-panel CSS container so
+// they inherit the existing dashboard panel visual treatment without
+// requiring new style rules.
+
+// Deal Economics panel -- mode-aware data list.
+function renderDealEconomicsPanel(mode) {
+  if (!R || typeof R !== 'object') return '';
+
+  let rows;
+  if (mode === 'brrrr') {
+    const refi_ltv = (R.refi_loan_amount > 0 && R.stabilized_arv > 0)
+      ? R.refi_loan_amount / R.stabilized_arv : null;
+    rows = [
+      ['Purchase Price',           inputs.purchase_price != null ? f$(inputs.purchase_price) : '-'],
+      ['Capex Budget',             inputs.capex_budget != null ? f$(inputs.capex_budget) : '-'],
+      ['Total Project Cost',       R.total_project_cost != null ? f$(R.total_project_cost) : '-'],
+      ['Acquisition Tranche',      R.acquisition_tranche != null ? f$(R.acquisition_tranche) : '-'],
+      ['Construction Tranche',     R.construction_tranche != null ? f$(R.construction_tranche) : '-'],
+      ['Total Bridge Loan',        R.initial_loan_amt != null ? f$(R.initial_loan_amt) : '-'],
+      ['Refi Loan',                R.refi_loan_amount != null ? f$(R.refi_loan_amount) : '-'],
+      ['Stabilized NOI',           R.stabilized_noi != null ? f$(R.stabilized_noi) : '-'],
+      ['Refi LTV',                 refi_ltv != null ? fP(refi_ltv) : '-'],
+      ['Post-Refi In-Basis',       R.post_refi_in_basis_pct != null ? fP(R.post_refi_in_basis_pct) : '-'],
+      ['Annual Cash Flow',         R.annual_cash_flow != null ? f$(R.annual_cash_flow) : '-'],
+      ['Breakeven Occupancy',      R.breakeven_occupancy != null ? fP(R.breakeven_occupancy) : '-']
+    ];
+  } else {
+    rows = [
+      ['Purchase Price',           inputs.purchase_price != null ? f$(inputs.purchase_price) : '-'],
+      ['Capex Budget',             inputs.capex_budget != null ? f$(inputs.capex_budget) : '-'],
+      ['Total Project Cost',       R.total_project_cost != null ? f$(R.total_project_cost) : '-'],
+      ['Initial Loan',             R.initial_loan_amt != null ? f$(R.initial_loan_amt) : '-'],
+      ['ARV',                      R.arv != null ? f$(R.arv) : '-'],
+      ['Sale Cost',                R.sale_cost != null ? f$(R.sale_cost) : '-'],
+      ['Net Investor Proceeds',    R.net_investor_proceeds != null ? f$(R.net_investor_proceeds) : '-'],
+      ['Investor Equity In',       R.investor_equity != null ? f$(R.investor_equity) : '-'],
+      ['Value Creation',           R.value_creation_pct != null ? fP(R.value_creation_pct) : '-'],
+      ['Hold Period',              inputs.target_hold_months ? inputs.target_hold_months + ' months' : '-']
+    ];
+  }
+
+  const rowsHtml = rows.map(([lbl, val]) =>
+    `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+       <span style="color:var(--text2)">${escapeHtml(lbl)}</span>
+       <span style="color:var(--text);font-family:var(--fm);font-weight:600">${escapeHtml(val)}</span>
+     </div>`).join('');
+
+  return `
+    <div class="comp-validation-panel">
+      <div class="comp-validation-header">
+        <div>
+          <div class="comp-validation-title">Deal Economics</div>
+          <div class="comp-validation-subtitle">${mode === 'brrrr' ? 'Acquisition through stabilized refi' : 'Acquisition through disposition'}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px">
+        <div>${rowsHtml.split('</div>').slice(0, Math.ceil(rows.length / 2)).join('</div>') + '</div>'}</div>
+        <div>${rowsHtml.split('</div>').slice(Math.ceil(rows.length / 2)).join('</div>')}</div>
+      </div>
+    </div>`;
+}
+
+
+// Equity Required Breakdown panel -- BRRRR only. Itemizes the components
+// of initial_investor_equity. Reads from the M0.3 R fields exposed by
+// the engine (equity_acq_down_payment, equity_capex_gap, etc.). Hides
+// zero-dollar lines for UX tightness; printed BRRRR Package shows all
+// lines including zeros (audit-grade).
+function renderEquityBreakdownPanel() {
+  if (!R || typeof R !== 'object') return '';
+  const total = R.equity_required_breakdown_total || 0;
+  if (total === 0) return '';  // no deal economics yet
+
+  const rows = [
+    ['Mortgage down payment (acquisition)',     R.equity_acq_down_payment || 0],
+    ['Sponsor capex above lender funding',      R.equity_capex_gap || 0],
+    ['Closing costs',                           R.equity_closing_costs || 0],
+    ['Consulting / project fee',                R.equity_consulting || 0],
+    ['Bridge debt service through refi',        R.equity_bridge_carry || 0],
+    ['Sponsor mobilization (counted as equity)', R.equity_gc_contingency_if_equity || 0]
+  ];
+
+  // Filter to nonzero rows for dashboard UX. Zero rows still appear in
+  // the printed BRRRR Package per the audit-grade rule.
+  const nonzero = rows.filter(([, v]) => v > 0);
+
+  const rowsHtml = nonzero.map(([lbl, val]) =>
+    `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
+       <span style="color:var(--text2)">${escapeHtml(lbl)}</span>
+       <span style="color:var(--text);font-family:var(--fm);font-weight:600">${f$(val)} <span style="color:var(--text3);font-weight:400;margin-left:6px">${fP(val / Math.max(1, total))}</span></span>
+     </div>`).join('');
+
+  const toggleNote = R.equity_gc_contingency_if_equity > 0
+    ? ''
+    : `<div style="font-size:10px;color:var(--text3);margin-top:8px;font-style:italic">Sponsor mobilization not counted as equity (reimbursed via draws before refi). Toggle in Capital panel to include.</div>`;
+
+  return `
+    <div class="comp-validation-panel">
+      <div class="comp-validation-header">
+        <div>
+          <div class="comp-validation-title">Equity Required Breakdown</div>
+          <div class="comp-validation-subtitle">Components of investor equity at closing</div>
+        </div>
+        <span style="font-family:var(--fm);font-size:14px;font-weight:700;color:var(--gold-lt)">${f$(total)}</span>
+      </div>
+      <div>${rowsHtml}</div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0 0 0;margin-top:4px;border-top:1px solid var(--gold-bd);font-size:12px;font-weight:700">
+        <span style="color:var(--text)">Total Equity Required at Closing</span>
+        <span style="color:var(--gold-lt);font-family:var(--fm)">${f$(total)}</span>
+      </div>
+      ${toggleNote}
+    </div>`;
+}
+
+
+// Market Context strip -- Market Grade, Composite Score, Rent-to-Income,
+// MSA. Mirrors Deal Snapshot's _marketStrip. Shows empty-state when no
+// market analysis has been fetched.
+function renderMarketContextStrip() {
+  const ma = (typeof marketAnalysis === 'object' && marketAnalysis) ? marketAnalysis : {};
+  const d  = ma.derived;
+
+  if (!d || d.market_strength_score == null) {
+    return `
+      <div class="comp-validation-panel">
+        <div class="comp-validation-header">
+          <div>
+            <div class="comp-validation-title">Market Context</div>
+            <div class="comp-validation-subtitle">Census and FMR composite</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);padding:8px 0">
+          Market analysis not run for this deal. Fetch census and FMR data on the Market panel for context.
+        </div>
+      </div>`;
+  }
+
+  const grade = d.market_strength_grade || '-';
+  const gradeColor = grade.startsWith('A') ? '#3fb950'
+                   : grade.startsWith('B') ? 'var(--gold-lt)'
+                   : grade.startsWith('C') ? 'var(--gold)'
+                   : '#f85e5e';
+
+  const score = d.market_strength_score != null ? Math.round(d.market_strength_score) : '-';
+  const rti   = d.rent_to_income_ratio != null ? fP(d.rent_to_income_ratio) : '-';
+  const msa   = ma.cbsa_name || 'Unknown';
+
+  return `
+    <div class="comp-validation-panel">
+      <div class="comp-validation-header">
+        <div>
+          <div class="comp-validation-title">Market Context</div>
+          <div class="comp-validation-subtitle">Census and FMR composite</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:16px;padding:8px 0">
+        <div>
+          <div style="font-size:10px;text-transform:uppercase;color:var(--text3);letter-spacing:0.05em;margin-bottom:4px">Grade</div>
+          <div style="font-size:22px;font-weight:700;color:${gradeColor};font-family:var(--fm)">${escapeHtml(grade)}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;text-transform:uppercase;color:var(--text3);letter-spacing:0.05em;margin-bottom:4px">Composite</div>
+          <div style="font-size:22px;font-weight:700;color:var(--text);font-family:var(--fm)">${escapeHtml(String(score))} <span style="font-size:11px;color:var(--text3);font-weight:400">/ 100</span></div>
+        </div>
+        <div>
+          <div style="font-size:10px;text-transform:uppercase;color:var(--text3);letter-spacing:0.05em;margin-bottom:4px">Rent-to-Income</div>
+          <div style="font-size:22px;font-weight:700;color:var(--text);font-family:var(--fm)">${escapeHtml(rti)}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;text-transform:uppercase;color:var(--text3);letter-spacing:0.05em;margin-bottom:4px">MSA</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text);line-height:1.3;padding-top:4px">${escapeHtml(msa)}</div>
+        </div>
+      </div>
+    </div>`;
 }
 
 

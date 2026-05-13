@@ -1219,6 +1219,103 @@ function runM6_7() {
 }
 
 // ════════════════════════════════════════════════════════════════
+// M6.8 - DASHBOARD PANELS (M0.3c) - 14 tests
+// ════════════════════════════════════════════════════════════════
+// Verify the three new dashboard render functions produce valid HTML
+// for the regression seed deal. The harness doesn't simulate a full
+// DOM, so we load shell-ui.js into the VM with minimal stubs and call
+// each render function directly.
+function runM6_8() {
+  const g = group('M6.8 Dashboard');
+
+  // Load shell-ui.js into a sandboxed VM context. Stub the helpers
+  // shell-ui depends on (the $() DOM lookup is replaced with a no-op
+  // since we're not testing the DOM-write side, just the HTML output).
+  const dashCtx = vm.createContext({
+    Math, Date, Number, String, Array, Object, JSON, isFinite, isNaN,
+    parseFloat, parseInt, console,
+    // DOM stub - $() returns null so updateDashboard() is a no-op,
+    // but the render functions don't depend on it.
+    $: () => null,
+    document: { getElementById: () => null },
+    window: {},
+    // State the render functions read
+    R: vm.runInContext(`
+      currentDeal = ${JSON.stringify(SEED_BRRRR)};
+      inputs = ${JSON.stringify(INPUTS_BRRRR)};
+      unitMix = ${JSON.stringify(UNITMIX_BRRRR)};
+      comps = [];
+      marketAnalysis = {};
+      R = {};
+      recompute();
+      R;
+    `, ctx),
+    inputs: INPUTS_BRRRR,
+    marketAnalysis: {},
+    currentDeal: SEED_BRRRR,
+    // Format helpers shell-ui needs
+    f$: (x) => x == null || !isFinite(x) ? '-' : '$' + Math.round(x).toLocaleString(),
+    fP: (x) => x == null || !isFinite(x) ? '-' : (x * 100).toFixed(1) + '%',
+    fX: (x) => x == null || !isFinite(x) ? '-' : x.toFixed(2) + 'x',
+    fN: (x) => x == null || !isFinite(x) ? '-' : Math.round(x).toLocaleString(),
+    escapeHtml: (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
+    formatAssetType: () => 'Commercial Multifamily',
+    getDealMode: () => 'brrrr',
+    renderRiskBannerHTML: () => '',
+    renderStatusBanners: () => '',
+    CP: { active: null, list: [] }
+  });
+
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'shell-ui.js'), 'utf8'), dashCtx, { filename: 'shell-ui.js' });
+
+  // ── BRRRR Deal Economics panel
+  const econHtml = vm.runInContext(`renderDealEconomicsPanel('brrrr')`, dashCtx);
+  check(g, 'BRRRR economics: renders without throwing',
+    typeof econHtml === 'string' && econHtml.length > 0 ? 1 : 0, 1);
+  check(g, 'BRRRR economics: contains panel title',
+    econHtml.includes('Deal Economics') ? 1 : 0, 1);
+  check(g, 'BRRRR economics: contains Acquisition Tranche row',
+    econHtml.includes('Acquisition Tranche') ? 1 : 0, 1);
+  check(g, 'BRRRR economics: contains Construction Tranche row',
+    econHtml.includes('Construction Tranche') ? 1 : 0, 1);
+  check(g, 'BRRRR economics: contains Total Bridge Loan row',
+    econHtml.includes('Total Bridge Loan') ? 1 : 0, 1);
+
+  // ── F&F Deal Economics panel
+  const econFFHtml = vm.runInContext(`renderDealEconomicsPanel('fix_and_flip')`, dashCtx);
+  check(g, 'F&F economics: renders without throwing',
+    typeof econFFHtml === 'string' && econFFHtml.length > 0 ? 1 : 0, 1);
+  check(g, 'F&F economics: subtitle reads disposition',
+    econFFHtml.includes('disposition') ? 1 : 0, 1);
+
+  // ── Equity Required Breakdown panel
+  const eqHtml = vm.runInContext(`renderEquityBreakdownPanel()`, dashCtx);
+  check(g, 'BRRRR equity: renders without throwing',
+    typeof eqHtml === 'string' && eqHtml.length > 0 ? 1 : 0, 1);
+  check(g, 'BRRRR equity: contains panel title',
+    eqHtml.includes('Equity Required Breakdown') ? 1 : 0, 1);
+  check(g, 'BRRRR equity: contains Mortgage down payment row',
+    eqHtml.includes('Mortgage down payment') ? 1 : 0, 1);
+  check(g, 'BRRRR equity: contains Sponsor capex above lender funding row',
+    eqHtml.includes('Sponsor capex above lender funding') ? 1 : 0, 1);
+  check(g, 'BRRRR equity: contains Total Equity Required',
+    eqHtml.includes('Total Equity Required at Closing') ? 1 : 0, 1);
+  check(g, 'BRRRR equity: toggle-off note shown when mobilization not in equity',
+    eqHtml.includes('not counted as equity') ? 1 : 0, 1);
+
+  // ── Market Context strip (empty state, since regression has no market fetch)
+  const mktHtml = vm.runInContext(`renderMarketContextStrip()`, dashCtx);
+  check(g, 'Market strip: renders without throwing',
+    typeof mktHtml === 'string' && mktHtml.length > 0 ? 1 : 0, 1);
+  check(g, 'Market strip: empty-state message shown without analysis',
+    mktHtml.includes('Market analysis not run') ? 1 : 0, 1);
+
+  // ── No em-dashes in any dashboard output
+  check(g, 'no em-dashes in any panel output',
+    (econHtml + econFFHtml + eqHtml + mktHtml).indexOf('\u2014') < 0 ? 1 : 0, 1);
+}
+
+// ════════════════════════════════════════════════════════════════
 // Run
 // ════════════════════════════════════════════════════════════════
 runM2();
@@ -1235,6 +1332,7 @@ runM6_4();
 runM6_5();
 runM6_6();
 runM6_7();
+runM6_8();
 
 // ── Report ────────────────────────────────────────────────────
 console.log('');
