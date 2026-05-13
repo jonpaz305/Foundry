@@ -786,9 +786,7 @@
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Disclosures</div>
         <div class="bp-disclaimer">
-          <p>This package is provided to facilitate the lender's underwriting review and does not constitute an offer of credit or a commitment to lend. All loan terms, including but not limited to amount, rate, term, and covenants, are subject to lender's independent diligence, third-party reports, and credit committee approval.</p>
-          <p>Financial projections, including stabilized rent, NOI, ARV, and disposition assumptions, reflect the sponsor's good-faith underwriting based on currently available market data. Actual outcomes may differ materially. Stress scenarios are illustrative and do not represent the full distribution of possible outcomes.</p>
-          <p>Sponsor represents that the information herein is accurate to the best of its knowledge as of the date stated. Material changes to deal economics or property condition discovered during diligence will be disclosed promptly.</p>
+          ${typeof disclaimersForLenderPackage === 'function' ? disclaimersForLenderPackage() : ''}
         </div>
 
         ${_footer(pageNum, totalPages)}
