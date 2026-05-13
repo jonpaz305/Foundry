@@ -178,6 +178,7 @@ async function startPrintMode() {
     const fn = window[meta.fn];
     let bodyHtml;
     if (typeof fn !== 'function') {
+      console.warn('[Foundry print] Report module not loaded: ' + meta.fn + '. Check that reports/' + route.reportType + '.js is uploaded and referenced from index.html.');
       bodyHtml = _printPlaceholder(meta.label, currentDeal);
     } else {
       bodyHtml = fn(currentDeal, R, inputs, marketAnalysis, helpers);

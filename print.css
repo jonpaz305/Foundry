@@ -345,3 +345,143 @@ html, body {
 .pb-before { page-break-before: always; break-before: page; }
 .pb-after  { page-break-after: always;  break-after: page; }
 .pb-avoid  { page-break-inside: avoid;  break-inside: avoid; }
+
+
+/* ════════════════════════════════════════════════════════════════
+   M6.2 - Deal Snapshot specifics
+   ════════════════════════════════════════════════════════════════ */
+
+.ds-mode-pill {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 7pt;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2pt 6pt;
+  border: 0.5pt solid #C9A84C;
+  background: rgba(201,168,76,0.08);
+  color: #806008;
+  border-radius: 2pt;
+  margin-left: 6pt;
+  vertical-align: 1pt;
+}
+
+/* Market strip */
+.ds-market-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8pt;
+  margin-bottom: 12pt;
+  padding: 9pt 12pt;
+  border: 0.5pt solid #e0e0e6;
+  background: #fafaf7;
+}
+.ds-market-cell {
+  display: flex;
+  flex-direction: column;
+}
+.ds-market-lbl {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 7pt;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #888;
+  margin-bottom: 2pt;
+}
+.ds-market-val {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12pt;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #0a0a0b;
+  line-height: 1.15;
+}
+.ds-market-val.ds-market-msa {
+  font-family: 'Manrope', sans-serif;
+  font-size: 9.5pt;
+  font-weight: 600;
+}
+.ds-out-of {
+  font-size: 8pt;
+  color: #888;
+  font-weight: 400;
+}
+.ds-market-empty {
+  font-size: 9pt;
+  color: #888;
+  font-style: italic;
+  grid-column: 1 / -1;
+  padding: 4pt 0;
+}
+.ds-grade-a { color: #2e7a3c; }
+.ds-grade-b { color: #4a7a2e; }
+.ds-grade-c { color: #806008; }
+.ds-grade-d { color: #a04020; }
+.ds-grade-f { color: #a00; }
+
+/* Risk rows on the snapshot */
+.ds-risks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5pt;
+}
+.ds-risk-detail {
+  color: #555;
+  font-size: 8.5pt;
+  line-height: 1.5;
+}
+.ds-risks-more {
+  font-size: 8pt;
+  color: #888;
+  font-style: italic;
+  padding: 4pt 0 0 8pt;
+}
+.ds-risks-clear {
+  border: 0.5pt solid #b8d6b8;
+  background: rgba(34,154,68,0.06);
+  padding: 8pt 12pt;
+  font-size: 9pt;
+  display: flex;
+  align-items: center;
+  gap: 8pt;
+  border-radius: 3pt;
+}
+.ds-risks-clear-icon {
+  font-size: 12pt;
+  color: #2e7a3c;
+  font-weight: 700;
+}
+.ds-risks-clear-text {
+  color: #2e5a35;
+  font-weight: 500;
+}
+
+/* Company-branded header (replaces Foundry mark) */
+.ph-co-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2pt;
+}
+.ph-co-logo {
+  max-height: 36pt;
+  max-width: 180pt;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+.ph-co-name {
+  font-family: 'Manrope', sans-serif;
+  font-size: 16pt;
+  font-weight: 700;
+  letter-spacing: -0.4pt;
+  color: #0a0a0b;
+  line-height: 1.1;
+}
+.ph-co-sub {
+  font-size: 8pt;
+  color: #888;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}

@@ -196,13 +196,25 @@
   }
 
   // ── Header + footer chrome ──
+  // Header shows the ACTIVE COMPANY's brand (logo + name) so the report
+  // presents as a deliverable from ASJP / KPI / whichever profile is
+  // selected. "Foundry" attribution lives in the small footer only.
   function _header(h) {
-    const logo = h.foundryLogo();
+    const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
+    const coName = co && co.name ? co.name : 'ASJP';
+    const coSub = co && co.subtitle ? co.subtitle : '';
+    const coLogo = co && co.logo_base64 ? co.logo_base64 : null;
+
+    const left = coLogo
+      ? `<img src="${coLogo}" class="ph-co-logo" alt="${_esc(coName)}"/>`
+      : `<div class="ph-co-name">${_esc(coName)}</div>`;
+
     return `
       <div class="print-header pb-avoid">
-        ${logo
-          ? `<img src="${logo}" class="ph-logo-img" alt="Foundry"/>`
-          : `<div class="ph-logo">FOUNDRY</div>`}
+        <div class="ph-co-block">
+          ${left}
+          ${coSub ? `<div class="ph-co-sub">${_esc(coSub)}</div>` : ''}
+        </div>
         <div class="ph-meta">
           <div><strong>Deal Snapshot</strong></div>
           <div>${_esc(h.todayLong())}</div>
@@ -211,11 +223,12 @@
   }
 
   function _footer(deal) {
-    const company = (typeof CP === 'object' && CP && CP.active && CP.active.name) ? CP.active.name : 'ASJP';
+    const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
+    const coName = co && co.name ? co.name : 'ASJP';
     return `
       <div class="print-footer pb-avoid">
-        <div class="pf-conf">Confidential · Internal Use Only</div>
-        <div class="pf-page">Foundry · ${_esc(company)}</div>
+        <div class="pf-conf">Confidential · Internal Use Only · ${_esc(coName)}</div>
+        <div class="pf-page">Generated in Foundry</div>
       </div>`;
   }
 
