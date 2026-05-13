@@ -109,9 +109,32 @@ function _valuationSection(R, inputs, mode) {
   const rows = [];
 
   if (mode === 'brrrr') {
-    rows.push(_maRow('Stabilized ARV', _maMoney(R.stabilized_arv), 'engine: NOI / exit cap'));
+    // Path C: disclose the ARV source so a counsel or LP reviewer can
+    // tell whether the displayed ARV came from the income approach
+    // (default institutional methodology), comp-derived ($/SF × subject SF),
+    // or sponsor manual override.
+    const src = R.arv_source_resolved || 'income_approach';
+    let arvSourceLabel, arvSourceFootnote;
+    if (src === 'manual_override') {
+      arvSourceLabel = 'sponsor manual override';
+      arvSourceFootnote = 'override; implied cap rate shown below';
+    } else if (src === 'comp_derived') {
+      arvSourceLabel = 'comp-derived ($/SF × subject SF)';
+      arvSourceFootnote = 'sales comp basis; implied cap rate shown below';
+    } else {
+      arvSourceLabel = 'income approach';
+      arvSourceFootnote = 'engine: NOI / exit cap';
+    }
+    rows.push(_maRow('Stabilized ARV', _maMoney(R.stabilized_arv), arvSourceFootnote));
+    rows.push(_maRow('ARV source', arvSourceLabel, 'sponsor input'));
+    if (src !== 'income_approach' && R.stabilized_arv_income_approach != null) {
+      rows.push(_maRow('ARV -- income approach (reference)', _maMoney(R.stabilized_arv_income_approach), 'shown for comparison'));
+    }
+    if (src !== 'income_approach' && R.implied_cap_rate != null) {
+      rows.push(_maRow('Implied cap rate at ARV in use', _maPct(R.implied_cap_rate), 'derived: NOI / ARV in use'));
+    }
     rows.push(_maRow('Stabilized NOI', _maMoney(R.stabilized_noi), 'engine: EGI - OPEX'));
-    rows.push(_maRow('Exit cap (refi valuation)', _maPct(inputs.exit_cap), 'sponsor input'));
+    rows.push(_maRow('Exit cap (refi valuation, input)', _maPct(inputs.exit_cap), 'sponsor input'));
     if (R.arv_per_unit) rows.push(_maRow('ARV per unit', _maMoney(R.arv_per_unit), 'derived'));
   } else {
     const arvSrc = R.arv_source || 'override';
