@@ -1184,3 +1184,223 @@ html, body {
 .lender-opex-compact td {
   padding: 3pt 4pt;
 }
+
+
+/* ════════════════════════════════════════════════════════════════
+   M6.6.2 - PDF text-layer space preservation
+   ════════════════════════════════════════════════════════════════
+   Chrome's print pipeline can collapse word-spacing on certain
+   letter-pair kerning boundaries when encoding the text layer of
+   the saved PDF, producing artifacts like "amber1.10" or
+   "scenariosare" in copy-paste. Adding word-spacing > 0 to
+   text-heavy elements forces the encoder to emit explicit space
+   glyphs in the text stream, preserving spaces in extracted text. */
+.print-table caption,
+.bp-disclaimer p,
+.bp-narrative p {
+  word-spacing: 0.04em;
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+   M6.7 - Valor HUD-VASH PBV Package specifics
+   ════════════════════════════════════════════════════════════════
+   Valor brand variation on the ASJP gold/black/white system. The
+   gold accent is sharpened with a deeper red-gold for the Valor
+   military reference. Black headers retained. */
+
+.valor-page {
+  /* Inherits .print-page-compact; adds Valor-specific accent tone */
+}
+
+.valor-brandmark {
+  font-family: 'Manrope', sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #0a0a0b;
+  font-size: 13pt;
+}
+
+.valor-eyebrow {
+  color: #806008;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.valor-accent {
+  /* Slightly deeper accent line for Valor sections */
+  background: #806008 !important;
+}
+
+/* Footprint pill in title sub */
+.valor-footprint-pill {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 7pt;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2pt 7pt;
+  border-radius: 2pt;
+  vertical-align: 1pt;
+  margin-left: 6pt;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.valor-footprint-swing { background: #0a0a0b; color: #C9A84C; }
+.valor-footprint-expanded { background: #806008; color: #fff; }
+.valor-footprint-anchor { background: #C9A84C; color: #0a0a0b; }
+.valor-footprint-outside { background: #888; color: #fff; }
+
+/* Footprint classification box on Page 4 */
+.valor-footprint-box {
+  padding: 12pt 16pt;
+  border-radius: 4pt;
+  border-left: 4pt solid;
+  margin-bottom: 8pt;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.valor-footprint-box-swing {
+  background: rgba(10,10,11,0.04);
+  border-left-color: #0a0a0b;
+}
+.valor-footprint-box-expanded {
+  background: rgba(128,96,8,0.06);
+  border-left-color: #806008;
+}
+.valor-footprint-box-anchor {
+  background: rgba(201,168,76,0.10);
+  border-left-color: #C9A84C;
+}
+.valor-footprint-box-outside {
+  background: rgba(136,136,136,0.06);
+  border-left-color: #888;
+}
+.valor-footprint-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 7.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #806008;
+  margin-bottom: 3pt;
+}
+.valor-footprint-tier {
+  font-size: 12pt;
+  font-weight: 700;
+  margin-bottom: 5pt;
+  color: #0a0a0b;
+}
+.valor-footprint-context {
+  font-size: 9pt;
+  line-height: 1.55;
+  color: #1a1a1f;
+}
+
+/* Highlighted row in the footprint tiers table on Page 4 */
+.valor-row-active {
+  background: rgba(201,168,76,0.10);
+  font-weight: 700;
+}
+.valor-row-active td:first-child {
+  border-left: 2pt solid #C9A84C;
+}
+
+/* Robert Cullen contact card on Page 2 */
+.valor-contact-card {
+  padding: 10pt 14pt;
+  background: #fafaf7;
+  border-left: 2pt solid #806008;
+  margin-bottom: 6pt;
+}
+.valor-contact-name {
+  font-size: 11pt;
+  font-weight: 700;
+  color: #0a0a0b;
+  margin-bottom: 1pt;
+}
+.valor-contact-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8pt;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #806008;
+  margin-bottom: 5pt;
+}
+.valor-contact-desc {
+  font-size: 8.5pt;
+  line-height: 1.55;
+  color: #333;
+}
+
+/* Rent stack table styling - slightly tighter than default */
+.valor-rent-stack {
+  font-size: 8.5pt;
+}
+.valor-rent-stack td:first-child {
+  font-weight: 600;
+  color: #0a0a0b;
+}
+
+/* Leadership table - Page 6 */
+.valor-leadership-table {
+  font-size: 8.5pt;
+}
+.valor-leadership-table td:first-child {
+  font-weight: 600;
+  color: #806008;
+  width: 30%;
+}
+.valor-leadership-table td:nth-child(2) {
+  font-weight: 700;
+  color: #0a0a0b;
+  width: 22%;
+}
+
+/* Capital pathway cards - Page 6 */
+.valor-pathway-card {
+  padding: 10pt 14pt;
+  border-radius: 4pt;
+  border-left: 3pt solid;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.valor-pathway-base {
+  background: rgba(201,168,76,0.08);
+  border-left-color: #C9A84C;
+}
+.valor-pathway-parallel {
+  background: rgba(10,10,11,0.04);
+  border-left-color: #0a0a0b;
+}
+.valor-pathway-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 7pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #806008;
+  margin-bottom: 2pt;
+}
+.valor-pathway-title {
+  font-size: 11pt;
+  font-weight: 700;
+  margin-bottom: 4pt;
+  color: #0a0a0b;
+}
+.valor-pathway-desc {
+  font-size: 8pt;
+  line-height: 1.55;
+  color: #333;
+}
+
+/* Valor sponsor block: same as bp-sponsor but with deeper accent */
+.valor-sponsor {
+  border-left: 3pt solid #806008;
+}
+
+/* Two-column KPI layout used on Page 1 (4 tiles vs default 3) */
+.print-kpis.cols-2 {
+  grid-template-columns: 1fr 1fr;
+}

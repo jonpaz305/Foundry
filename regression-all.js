@@ -911,6 +911,57 @@ function runM6_6() {
 }
 
 // ════════════════════════════════════════════════════════════════
+// M6.7 - VALOR HUD-VASH PBV PACKAGE (16 tests)
+// ════════════════════════════════════════════════════════════════
+function runM6_7() {
+  const g = group('M6.7 Valor');
+
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/valor-pbv-package.js'), 'utf8'), ctx, { filename: 'reports/valor-pbv-package.js' });
+
+  const HELPERS_SRC = `({
+    fmtMoney: (x, dec) => x == null || !isFinite(x) ? '-' : '$' + Number(x).toLocaleString(undefined, { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 }),
+    fmtMoneyK: (x) => x == null || !isFinite(x) ? '-' : (Math.abs(x) >= 1e6 ? '$' + (x/1e6).toFixed(2) + 'M' : (Math.abs(x) >= 1e3 ? '$' + (x/1e3).toFixed(0) + 'K' : '$' + Math.round(x))),
+    fmtPct: (x, dec) => x == null || !isFinite(x) ? '-' : (x*100).toFixed(dec == null ? 1 : dec) + '%',
+    fmtX: (x, dec) => x == null || !isFinite(x) ? '-' : Number(x).toFixed(dec == null ? 2 : dec) + 'x',
+    fmtInt: (x) => x == null || !isFinite(x) ? '-' : Math.round(x).toLocaleString(),
+    todayLong: () => 'May 13, 2026',
+    foundryLogo: () => ''
+  })`;
+
+  // Load BRRRR regression deal (Cleveland → operational anchor tier)
+  loadBRRRR();
+  const html = vm.runInContext(`renderReport_valor_pbv(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
+
+  check(g, 'renders without throwing', typeof html === 'string' && html.length > 0 ? 1 : 0, 1);
+  check(g, 'page count = 6', (html.match(/class="print-page print-page-compact valor-page"/g) || []).length, 6);
+  check(g, 'Valor brandmark in header', html.includes('VALOR HOUSING PARTNERS') ? 1 : 0, 1);
+  check(g, 'HUD-VASH PBV eyebrow', html.includes('HUD-VASH Project-Based Voucher Package') ? 1 : 0, 1);
+  check(g, 'page 1: voucher uplift KPI', html.includes('Voucher Uplift') ? 1 : 0, 1);
+  check(g, 'page 1: PBV Eligible Units tile', html.includes('PBV Eligible Units') ? 1 : 0, 1);
+  check(g, 'page 2: mission section', html.includes("Valor's Mission") ? 1 : 0, 1);
+  check(g, 'page 2: Robert Cullen contact', html.includes('Robert Cullen') && html.includes('SVP Federal Relations') ? 1 : 0, 1);
+  check(g, 'page 3: FMR vs ACS rent stack section', html.includes('FMR vs ACS Market Rent by Bedroom') ? 1 : 0, 1);
+  check(g, 'page 4: footprint classification box', html.includes('valor-footprint-box') ? 1 : 0, 1);
+  // 2048 is in Cleveland → should be anchor tier
+  check(g, 'page 4: Cleveland anchor exception identified',
+    html.includes('valor-footprint-box-anchor') ? 1 : 0, 1);
+  check(g, 'page 5: ASJP-KPI 15% cooperation reference in disclosures',
+    html.includes('15% allocation floor') ? 1 : 0, 1);
+  check(g, 'page 5: Compass/QIA pathway flagged as parallel workstream',
+    html.includes('Compass Capital Management') && html.includes('Qatar Investment Authority') ? 1 : 0, 1);
+  check(g, 'page 6: Jonathan Paz CEO/CIO role',
+    html.includes('Jonathan Paz') && html.includes('Chief Investment Officer') ? 1 : 0, 1);
+  check(g, 'page 6: Alexei Semenov COO/Chief Asset Officer role',
+    html.includes('Alexei Semenov') && html.includes('Chief Asset Officer') ? 1 : 0, 1);
+  check(g, 'page 6: Tiffany Loo role',
+    html.includes('Tiffany Loo') ? 1 : 0, 1);
+
+  // ── Confirm em-dash never appears in generated HTML
+  check(g, 'no em-dashes in generated HTML',
+    html.indexOf('\u2014') < 0 ? 1 : 0, 1);
+}
+
+// ════════════════════════════════════════════════════════════════
 // Run
 // ════════════════════════════════════════════════════════════════
 runM2();
@@ -923,6 +974,7 @@ runM6_3();
 runM6_4();
 runM6_5();
 runM6_6();
+runM6_7();
 
 // ── Report ────────────────────────────────────────────────────
 console.log('');
