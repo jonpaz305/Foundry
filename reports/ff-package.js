@@ -13,7 +13,7 @@
 //   1  Cover + Executive Summary + Narrative + Highlights
 //   2  Sources & Uses + Capital Stack + Initial Debt
 //   3  Comp Grid (the most important page)
-//   4  ARV Derivation + Renovation Budget
+//   4  ARV Derivation + Capex Budget
 //   5  Returns + Disposition + Timeline (visual bar)
 //   6  Risk Register
 //   7  Market Strength (if data fetched)
@@ -153,7 +153,7 @@
   function _narrative(deal, R, inputs, market, h) {
     const sqft = R.subject_area_sf || 0;
     const purchase = inputs.purchase_price || 0;
-    const reno = inputs.reno_budget || 0;
+    const reno = inputs.capex_budget || 0;
     const tpc = R.total_project_cost || 0;
     const arv = R.arv || 0;
     const roi = R.investor_roi;
@@ -196,7 +196,7 @@
     const sqft = R.subject_area_sf || 0;
     const ppsf_target = (sqft > 0 && R.arv > 0) ? (R.arv / sqft) : null;
     filler.push(`<strong>Acquisition basis.</strong> ${h.fmtMoney(inputs.purchase_price)} purchase${sqft ? ' on ' + Number(sqft).toLocaleString() + ' SF' : ''}.`);
-    filler.push(`<strong>Renovation scope.</strong> ${h.fmtMoney(inputs.reno_budget)} renovation budget.`);
+    filler.push(`<strong>Renovation scope.</strong> ${h.fmtMoney(inputs.capex_budget)} renovation budget.`);
     if (ppsf_target) filler.push(`<strong>Target $/SF.</strong> Underwritten exit at ${h.fmtMoney(ppsf_target)}/SF${R.comp_avg_psf ? ' vs ' + h.fmtMoney(R.comp_avg_psf) + '/SF comp average' : ''}.`);
     if (market && market.derived && market.derived.market_strength_grade) {
       filler.push(`<strong>Submarket grade.</strong> Grade ${market.derived.market_strength_grade} composite in the ${market.cbsa_name || 'subject MSA'}.`);
@@ -223,11 +223,11 @@
     const totalSources = initialLoan + investorEquity;
 
     const purchase = inputs.purchase_price || 0;
-    const reno = inputs.reno_budget || 0;
+    const reno = inputs.capex_budget || 0;
     const closing = R.closing_costs || 0;
     const consulting = R.consulting || 0;
     const carry = R.debt_service_pre_sale || 0;
-    const contingency = inputs.mobilization_contingency || 0;
+    const contingency = inputs.gc_contingency || 0;
     const totalUses = purchase + reno + closing + consulting + carry + contingency;
 
     const ccBaseline = inputs.closing_cost_baseline || 0;
@@ -256,7 +256,7 @@
               <tr><td>Closing Costs</td><td class="num">${h.fmtMoney(closing)}</td><td class="num">${h.fmtPct(closing / Math.max(1, totalUses))}</td></tr>
               <tr><td>Consulting</td><td class="num">${h.fmtMoney(consulting)}</td><td class="num">${h.fmtPct(consulting / Math.max(1, totalUses))}</td></tr>
               <tr><td>Carry (DS to Sale)</td><td class="num">${h.fmtMoney(carry)}</td><td class="num">${h.fmtPct(carry / Math.max(1, totalUses))}</td></tr>
-              <tr><td>Mobilization Contingency</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, totalUses))}</td></tr>
+              <tr><td>GC Contingency</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, totalUses))}</td></tr>
               <tr class="totals"><td>Total Uses</td><td class="num">${h.fmtMoney(totalUses)}</td><td class="num">100.0%</td></tr>
             </tbody>
           </table>
@@ -439,10 +439,10 @@
         <table class="print-table pb-avoid">
           <thead><tr><th>Line</th><th class="num">Amount</th><th class="num">$/SF</th></tr></thead>
           <tbody>
-            <tr><td>Renovation Budget</td><td class="num">${h.fmtMoney(inputs.reno_budget)}</td><td class="num">${(sqft > 0 && inputs.reno_budget > 0) ? h.fmtMoney(inputs.reno_budget / sqft) : '-'}</td></tr>
-            <tr><td>Mobilization Contingency</td><td class="num">${h.fmtMoney(inputs.mobilization_contingency)}</td><td class="num">${(sqft > 0 && inputs.mobilization_contingency > 0) ? h.fmtMoney(inputs.mobilization_contingency / sqft) : '-'}</td></tr>
+            <tr><td>Capex Budget</td><td class="num">${h.fmtMoney(inputs.capex_budget)}</td><td class="num">${(sqft > 0 && inputs.capex_budget > 0) ? h.fmtMoney(inputs.capex_budget / sqft) : '-'}</td></tr>
+            <tr><td>GC Contingency</td><td class="num">${h.fmtMoney(inputs.gc_contingency)}</td><td class="num">${(sqft > 0 && inputs.gc_contingency > 0) ? h.fmtMoney(inputs.gc_contingency / sqft) : '-'}</td></tr>
             <tr><td>Consulting</td><td class="num">${h.fmtMoney(R.consulting)}</td><td class="num">${(sqft > 0 && R.consulting > 0) ? h.fmtMoney(R.consulting / sqft) : '-'}</td></tr>
-            <tr class="totals"><td>Total Renovation Envelope</td><td class="num">${h.fmtMoney((inputs.reno_budget || 0) + (inputs.mobilization_contingency || 0) + (R.consulting || 0))}</td><td class="num">${(sqft > 0) ? h.fmtMoney(((inputs.reno_budget || 0) + (inputs.mobilization_contingency || 0) + (R.consulting || 0)) / sqft) : '-'}</td></tr>
+            <tr class="totals"><td>Total Renovation Envelope</td><td class="num">${h.fmtMoney((inputs.capex_budget || 0) + (inputs.gc_contingency || 0) + (R.consulting || 0))}</td><td class="num">${(sqft > 0) ? h.fmtMoney(((inputs.capex_budget || 0) + (inputs.gc_contingency || 0) + (R.consulting || 0)) / sqft) : '-'}</td></tr>
           </tbody>
         </table>
 
