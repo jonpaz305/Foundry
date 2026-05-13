@@ -1068,6 +1068,25 @@ function onInputChange(field, value) {
       typeof R === 'object' && R) {
     _refreshArvReferencePanel();
   }
+
+  // Operating page dollar-amount hints: when any operating % or
+  // reserves field changes, refresh the inline dollar hints without
+  // re-rendering the form. Same surgical-update pattern as Unit Mix
+  // and the ARV reference panel - protects mobile keyboard focus.
+  const operatingHintFields = new Set([
+    'vacancy_pct','pm_pct','maint_pct_of_egi','insurance_pct_of_egi',
+    'utilities_pct_of_egi','reserves_per_unit_year'
+  ]);
+  if (operatingHintFields.has(field) && typeof _refreshOperatingHints === 'function') {
+    _refreshOperatingHints();
+  }
+
+  // Per-door hints on Capital acquisition fields: refresh inline as
+  // the user types so /door updates live without losing keyboard focus.
+  if ((field === 'asking_price' || field === 'purchase_price' || field === 'capex_budget')
+      && typeof _refreshPerDoorHints === 'function') {
+    _refreshPerDoorHints();
+  }
 }
 
 // Helper for Path C: refresh the ARV reference panel cells in-place

@@ -100,11 +100,102 @@ function _renderArvSourceSection(i, R, compsArr) {
 }
 
 
+// Inline refresh of Operating page dollar-amount hints. Called from
+// onInputChange when any of the operating % fields or rent inputs
+// change. Updates only the hint text via data-op-hint selectors;
+// does NOT re-render the form inputs (which would kill focus and
+// dismiss the mobile keyboard, same antipattern fixed on Unit Mix).
+function _refreshOperatingHints() {
+  const i = inputs;
+  const totalUnits = (typeof unitMix !== 'undefined' && unitMix)
+    ? unitMix.reduce((a, u) => a + (Number(u.count) || 0), 0)
+    : 0;
+  const gprMonthly = (typeof unitMix !== 'undefined' && unitMix)
+    ? unitMix.reduce((a, u) => a + (Number(u.count) || 0) * (Number(u.rent) || 0), 0)
+    : 0;
+  const gprAnnual = gprMonthly * 12;
+  const vacancyPct = Number(i.vacancy_pct) || 0;
+  const egi = gprAnnual * (1 - vacancyPct);
+  const f$ = (x) => x == null || !isFinite(x) ? '-' : '$' + Math.round(Number(x)).toLocaleString();
+  const hasGpr = gprAnnual > 0;
+  const hasUnits = totalUnits > 0;
+
+  const setHint = (key, text) => {
+    const el = document.querySelector(`[data-op-hint="${key}"]`);
+    if (el) el.innerHTML = text;
+  };
+
+  setHint('vacancy', hasGpr
+    ? '= ' + f$(gprAnnual * vacancyPct) + ' vacancy loss on ' + f$(gprAnnual) + ' GPR'
+    : 'Default 0.05 (5%). Enter unit mix to see dollar amount.');
+  setHint('opex-header', hasGpr
+    ? 'Operating Expenses <span style="color:var(--text3);font-weight:400;font-size:11px;margin-left:8px">at EGI of ' + f$(egi) + '</span>'
+    : 'Operating Expenses');
+  setHint('pm', hasGpr
+    ? '= ' + f$(egi * (Number(i.pm_pct) || 0)) + '/year'
+    : 'Default 7% of EGI.');
+  setHint('maint', hasGpr
+    ? '= ' + f$(egi * (Number(i.maint_pct_of_egi) || 0)) + '/year'
+    : 'Default 5.5% of EGI.');
+  setHint('ins', hasGpr
+    ? '= ' + f$(egi * (Number(i.insurance_pct_of_egi) || 0)) + '/year'
+    : 'Default 8% of EGI.');
+  setHint('util', hasGpr
+    ? '= ' + f$(egi * (Number(i.utilities_pct_of_egi) || 0)) + '/year'
+    : 'Default 2% of EGI.');
+  setHint('reserves', hasUnits
+    ? '= ' + f$((Number(i.reserves_per_unit_year) || 0) * totalUnits) + '/year (' + totalUnits + ' units)'
+    : 'Default $1,000/unit/year.');
+}
+
+
 // A-smart consulting fee helper: returns the engine's auto-computed
 // consulting value for a given inputs object. Mirrors the engine's
 // fallback formula (max $10K, 3% of purchase + capex). Used by the
 // Capital form to pre-fill the consulting field when the user has
 // not locked the value.
+// Per-door (per-unit) hint helper. Returns a small muted hint
+// showing the value divided by total unit count, like "$25,000/door".
+// Returns empty string when there are no units, so the field shows
+// nothing extra (no clutter, no "$0/unit" placeholder). The data-
+// perdoor attribute lets the inline refresher target each field
+// without re-rendering the input.
+function _renderPerDoor(value, key) {
+  const units = (typeof unitMix !== 'undefined' && unitMix)
+    ? unitMix.reduce((a, u) => a + (Number(u.count) || 0), 0)
+    : 0;
+  if (units <= 0) return '';
+  const v = Number(value);
+  if (!isFinite(v) || v === 0) {
+    return `<div class="hint" data-perdoor="${key}" style="color:var(--text3)"></div>`;
+  }
+  const perUnit = v / units;
+  return `<div class="hint" data-perdoor="${key}" style="color:var(--text3)">$${Math.round(perUnit).toLocaleString()}/door</div>`;
+}
+
+// Inline refresh of per-door hints. Called from onInputChange when
+// purchase_price, asking_price, or capex_budget changes (so the
+// /door figure stays current as the user types). Surgical update
+// of the hint elements; does NOT re-render the form.
+function _refreshPerDoorHints() {
+  const units = (typeof unitMix !== 'undefined' && unitMix)
+    ? unitMix.reduce((a, u) => a + (Number(u.count) || 0), 0)
+    : 0;
+  const fields = [
+    { key: 'asking',   value: inputs.asking_price },
+    { key: 'purchase', value: inputs.purchase_price },
+    { key: 'capex',    value: inputs.capex_budget }
+  ];
+  for (const { key, value } of fields) {
+    const el = document.querySelector(`[data-perdoor="${key}"]`);
+    if (!el) continue;
+    if (units <= 0) { el.textContent = ''; continue; }
+    const v = Number(value);
+    if (!isFinite(v) || v === 0) { el.textContent = ''; continue; }
+    el.textContent = '$' + Math.round(v / units).toLocaleString() + '/door';
+  }
+}
+
 function _autoConsulting(i) {
   const purchase = Number(i && i.purchase_price) || 0;
   const capex = Number(i && i.capex_budget) || 0;
@@ -742,6 +833,33 @@ function renderOperatingBlock() {
   }
 
   const i = inputs;
+
+  // Compute dollar-amount previews so the user can see what each %
+  // translates to in real dollars at the current EGI / unit count.
+  // These mirror the engine's math (engine.js computeBRRRR) but use
+  // safe fallbacks when GPR/EGI are zero. Live numbers come from R
+  // when present; otherwise compute from inputs + unit mix directly.
+  const totalUnits = (typeof unitMix !== 'undefined' && unitMix)
+    ? unitMix.reduce((a, u) => a + (Number(u.count) || 0), 0)
+    : 0;
+  const gprMonthly = (typeof unitMix !== 'undefined' && unitMix)
+    ? unitMix.reduce((a, u) => a + (Number(u.count) || 0) * (Number(u.rent) || 0), 0)
+    : 0;
+  const gprAnnual = gprMonthly * 12;
+  const vacancyPct = Number(i.vacancy_pct) || 0;
+  const egi = gprAnnual * (1 - vacancyPct);
+
+  const vacancyLoss = gprAnnual * vacancyPct;
+  const pmDollars = egi * (Number(i.pm_pct) || 0);
+  const maintDollars = egi * (Number(i.maint_pct_of_egi) || 0);
+  const insDollars = egi * (Number(i.insurance_pct_of_egi) || 0);
+  const utilDollars = egi * (Number(i.utilities_pct_of_egi) || 0);
+  const reservesDollars = (Number(i.reserves_per_unit_year) || 0) * totalUnits;
+
+  const f$ = (x) => x == null || !isFinite(x) ? '-' : '$' + Math.round(Number(x)).toLocaleString();
+  const hasGpr = gprAnnual > 0;
+  const hasUnits = totalUnits > 0;
+
   wrap.innerHTML = `
     <div class="panel">
       <div class="panel-title">Operating Assumptions
@@ -751,33 +869,33 @@ function renderOperatingBlock() {
       <div class="ssub">Income</div>
       <div class="g3" style="margin-bottom:1rem">
         <div class="field"><label>Vacancy %</label>
-          <input type="number" step="0.001" class="num" value="${i.vacancy_pct ?? 0.05}" oninput="onInputChange('vacancy_pct', this.value)"/>
-          <div class="hint">Default 0.05 (5%).</div></div>
+          <input type="number" step="0.001" class="num" value="${i.vacancy_pct ?? 0.05}" inputmode="decimal" oninput="onInputChange('vacancy_pct', this.value)"/>
+          <div class="hint" data-op-hint="vacancy">${hasGpr ? '= ' + f$(vacancyLoss) + ' vacancy loss on ' + f$(gprAnnual) + ' GPR' : 'Default 0.05 (5%). Enter unit mix to see dollar amount.'}</div></div>
         <div class="field"><label>Annual rent growth</label>
-          <input type="number" step="0.001" class="num" value="${i.rent_growth_pct ?? 0.03}" oninput="onInputChange('rent_growth_pct', this.value)"/>
+          <input type="number" step="0.001" class="num" value="${i.rent_growth_pct ?? 0.03}" inputmode="decimal" oninput="onInputChange('rent_growth_pct', this.value)"/>
           <div class="hint">Default 3% - applied Y2 through hold.</div></div>
         <div></div>
       </div>
 
-      <div class="ssub">Operating Expenses</div>
+      <div class="ssub" data-op-hint="opex-header">Operating Expenses ${hasGpr ? '<span style="color:var(--text3);font-weight:400;font-size:11px;margin-left:8px">at EGI of ' + f$(egi) + '</span>' : ''}</div>
       <div class="g3" style="margin-bottom:1rem">
         <div class="field"><label>Property management %</label>
-          <input type="number" step="0.001" class="num" value="${i.pm_pct ?? 0.07}" oninput="onInputChange('pm_pct', this.value)"/>
-          <div class="hint">Default 7% of EGI.</div></div>
+          <input type="number" step="0.001" class="num" value="${i.pm_pct ?? 0.07}" inputmode="decimal" oninput="onInputChange('pm_pct', this.value)"/>
+          <div class="hint" data-op-hint="pm">${hasGpr ? '= ' + f$(pmDollars) + '/year' : 'Default 7% of EGI.'}</div></div>
         <div class="field"><label>Maintenance &amp; turnover %</label>
-          <input type="number" step="0.001" class="num" value="${i.maint_pct_of_egi ?? 0.055}" oninput="onInputChange('maint_pct_of_egi', this.value)"/>
-          <div class="hint">Default 5.5% of EGI.</div></div>
+          <input type="number" step="0.001" class="num" value="${i.maint_pct_of_egi ?? 0.055}" inputmode="decimal" oninput="onInputChange('maint_pct_of_egi', this.value)"/>
+          <div class="hint" data-op-hint="maint">${hasGpr ? '= ' + f$(maintDollars) + '/year' : 'Default 5.5% of EGI.'}</div></div>
         <div class="field"><label>Insurance %</label>
-          <input type="number" step="0.001" class="num" value="${i.insurance_pct_of_egi ?? 0.08}" oninput="onInputChange('insurance_pct_of_egi', this.value)"/>
-          <div class="hint">Default 8% of EGI.</div></div>
+          <input type="number" step="0.001" class="num" value="${i.insurance_pct_of_egi ?? 0.08}" inputmode="decimal" oninput="onInputChange('insurance_pct_of_egi', this.value)"/>
+          <div class="hint" data-op-hint="ins">${hasGpr ? '= ' + f$(insDollars) + '/year' : 'Default 8% of EGI.'}</div></div>
       </div>
       <div class="g3" style="margin-bottom:1rem">
         <div class="field"><label>Utilities %</label>
-          <input type="number" step="0.001" class="num" value="${i.utilities_pct_of_egi ?? 0.02}" oninput="onInputChange('utilities_pct_of_egi', this.value)"/>
-          <div class="hint">Default 2% of EGI.</div></div>
+          <input type="number" step="0.001" class="num" value="${i.utilities_pct_of_egi ?? 0.02}" inputmode="decimal" oninput="onInputChange('utilities_pct_of_egi', this.value)"/>
+          <div class="hint" data-op-hint="util">${hasGpr ? '= ' + f$(utilDollars) + '/year' : 'Default 2% of EGI.'}</div></div>
         <div class="field"><label>Reserves ($/unit/year)</label>
-          <input type="number" class="num" value="${i.reserves_per_unit_year ?? 1000}" oninput="onInputChange('reserves_per_unit_year', this.value)"/>
-          <div class="hint">Default $1,000/unit/year.</div></div>
+          <input type="number" class="num" value="${i.reserves_per_unit_year ?? 1000}" inputmode="numeric" oninput="onInputChange('reserves_per_unit_year', this.value)"/>
+          <div class="hint" data-op-hint="reserves">${hasUnits ? '= ' + f$(reservesDollars) + '/year (' + totalUnits + ' units)' : 'Default $1,000/unit/year.'}</div></div>
         <div></div>
       </div>
     </div>
@@ -802,15 +920,18 @@ function renderCapitalBlock() {
         <span class="panel-sub">Acquisition, initial debt${mode === 'brrrr' ? ', refinance terms, exit' : ', disposition'}.</span>
       </div>
 
-      <div class="ssub">Acquisition</div>
+      <div class="ssub">Acquisition${(typeof unitMix !== 'undefined' && unitMix && unitMix.reduce((a,u)=>a+(Number(u.count)||0),0) > 0) ? ' <span style="color:var(--text3);font-weight:400;font-size:11px;margin-left:8px">' + unitMix.reduce((a,u)=>a+(Number(u.count)||0),0) + ' units</span>' : ''}</div>
       <div class="g3" style="margin-bottom:1rem">
         <div class="field"><label>Asking price</label>
           <input type="number" class="num" value="${i.asking_price ?? ''}" placeholder="Seller's ask (not used in math)" oninput="onInputChange('asking_price', this.value)"/>
-          <div class="hint" id="asking-vs-purchase-hint">${_renderNegotiationHint(i.asking_price, i.purchase_price)}</div></div>
+          <div class="hint" id="asking-vs-purchase-hint">${_renderNegotiationHint(i.asking_price, i.purchase_price)}</div>
+          ${_renderPerDoor(i.asking_price, 'asking')}</div>
         <div class="field"><label>Purchase price</label>
-          <input type="number" class="num" value="${i.purchase_price ?? 0}" oninput="onInputChange('purchase_price', this.value)"/></div>
+          <input type="number" class="num" value="${i.purchase_price ?? 0}" oninput="onInputChange('purchase_price', this.value)"/>
+          ${_renderPerDoor(i.purchase_price, 'purchase')}</div>
         <div class="field"><label>Capex budget</label>
-          <input type="number" class="num" value="${i.capex_budget ?? 0}" oninput="onInputChange('capex_budget', this.value)"/></div>
+          <input type="number" class="num" value="${i.capex_budget ?? 0}" oninput="onInputChange('capex_budget', this.value)"/>
+          ${_renderPerDoor(i.capex_budget, 'capex')}</div>
       </div>
       <div class="g3" style="margin-bottom:1rem">
         <div class="field"><label>Sponsor mobilization</label>

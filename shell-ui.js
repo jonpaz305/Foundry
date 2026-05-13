@@ -125,16 +125,31 @@ function renderBRRRRKpis() {
     : dscr >= 1.15 ? 'var(--gold-lt)'
     : 'var(--bad)';
 
+  // Per-door helper for KPI subtitle context
+  const totalUnits = R.total_unit_count || 0;
+  const perDoor = (v) => (!totalUnits || v == null || !isFinite(v))
+    ? null
+    : '$' + Math.round(v / totalUnits).toLocaleString() + '/door';
+  const vcSub = vcP != null
+    ? fP(vcP) + ' of total cost' + (perDoor(vc) ? ' · ' + perDoor(vc) : '')
+    : 'Pending stabilized ARV';
+  const arvSub = arv != null
+    ? ((perDoor(arv) ? perDoor(arv) : '') + (tpc != null ? (perDoor(arv) ? ' · ' : '') + 'Total cost: ' + f$(tpc) : ''))
+    : 'Pending project cost';
+  const eqSub = eq != null
+    ? 'Equity in: ' + f$(eq) + (perDoor(eq) ? ' (' + perDoor(eq) + ')' : '')
+    : 'Pending equity';
+
   return `
     <div class="kpi-card kpi-gold">
       <div class="kpi-label">Value Creation</div>
       <div class="kpi-val">${vc != null ? f$(vc) : '-'}</div>
-      <div class="kpi-sub">${vcP != null ? fP(vcP) + ' of total cost' : 'Pending stabilized ARV'}</div>
+      <div class="kpi-sub">${vcSub}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Stabilized ARV</div>
       <div class="kpi-val">${arv != null ? f$(arv) : '-'}</div>
-      <div class="kpi-sub">${tpc != null ? 'Total cost: ' + f$(tpc) : 'Pending project cost'}</div>
+      <div class="kpi-sub">${arvSub}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Investor IRR (Yr ${inputs.target_hold_years || 10})</div>
@@ -144,7 +159,7 @@ function renderBRRRRKpis() {
     <div class="kpi-card">
       <div class="kpi-label">Post-Refi DSCR</div>
       <div class="kpi-val" style="color:${dscrColor}">${dscr != null && isFinite(dscr) ? fX(dscr) : '-'}</div>
-      <div class="kpi-sub">${eq != null ? 'Equity in: ' + f$(eq) : 'Pending equity'}</div>
+      <div class="kpi-sub">${eqSub}</div>
     </div>
     ${renderMarketKpiTile()}`;
 }
@@ -483,19 +498,34 @@ function renderDealEconomicsPanel(mode) {
     const recapDollars = R.capital_returned_at_refi != null ? f$(R.capital_returned_at_refi) : '-';
     const recapPctStr = recapPctNorm != null ? fP(recapPctNorm) : null;
     // HTML-shaped value: dollar primary in tone color + percentage muted
+    // Per-door suffix helper: append "$X/door" in muted text after
+    // the headline figure. Returns the raw HTML to feed the row
+    // renderer with isRawHtml=true. Only suffixes when units > 0.
+    const totalUnits = R.total_unit_count || 0;
+    const perDoor = (value) => {
+      if (!totalUnits || value == null || !isFinite(value)) return null;
+      return Math.round(value / totalUnits);
+    };
+    const f$pd = (value) => {
+      const main = value != null ? f$(value) : '-';
+      const pd = perDoor(value);
+      if (pd == null) return escapeHtml(main);
+      return `${escapeHtml(main)} <span style="color:var(--text3);font-weight:400;font-size:11px;margin-left:8px">$${pd.toLocaleString()}/door</span>`;
+    };
+
     // suffix. Stored as a raw HTML string and passed through the row
     // renderer unescaped (renderer accepts a fourth flag to skip escape).
     const recapVal = recapPctStr
       ? `${escapeHtml(recapDollars)} <span style="color:var(--text3);font-weight:400;font-size:11px;margin-left:8px">${escapeHtml(recapPctStr)}</span>`
       : escapeHtml(recapDollars);
     rows = [
-      ['Purchase Price',           inputs.purchase_price != null ? f$(inputs.purchase_price) : '-'],
-      ['Capex Budget',             inputs.capex_budget != null ? f$(inputs.capex_budget) : '-'],
-      ['Total Project Cost',       R.total_project_cost != null ? f$(R.total_project_cost) : '-'],
-      ['Acquisition Tranche',      R.acquisition_tranche != null ? f$(R.acquisition_tranche) : '-'],
-      ['Construction Tranche',     R.construction_tranche != null ? f$(R.construction_tranche) : '-'],
-      ['Total Bridge Loan',        R.initial_loan_amt != null ? f$(R.initial_loan_amt) : '-'],
-      ['Refi Loan',                R.refi_loan_amount != null ? f$(R.refi_loan_amount) : '-'],
+      ['Purchase Price',           f$pd(inputs.purchase_price),  null, true],
+      ['Capex Budget',             f$pd(inputs.capex_budget),    null, true],
+      ['Total Project Cost',       f$pd(R.total_project_cost),   null, true],
+      ['Acquisition Tranche',      f$pd(R.acquisition_tranche),  null, true],
+      ['Construction Tranche',     f$pd(R.construction_tranche), null, true],
+      ['Total Bridge Loan',        f$pd(R.initial_loan_amt),     null, true],
+      ['Refi Loan',                f$pd(R.refi_loan_amount),     null, true],
       ['Stabilized NOI',           R.stabilized_noi != null ? f$(R.stabilized_noi) : '-'],
       ['Refi LTV',                 refi_ltv != null ? fP(refi_ltv) : '-'],
       ['Capital Recapture',        recapVal, recapTone, true],
