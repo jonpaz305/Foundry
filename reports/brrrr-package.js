@@ -121,7 +121,7 @@
     ];
 
     return `
-      <div class="print-page">
+      <div class="print-page print-page-compact">
         ${_header(h, 'Cover · Executive Summary')}
 
         <div class="print-title pb-avoid">
@@ -146,7 +146,7 @@
         ${_narrative(deal, R, inputs, market, h)}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Investment Highlights</div>
-        ${_highlights(R, inputs, h)}
+        ${_highlights(R, inputs, h, market)}
 
         ${_footer(pageNum, totalPages)}
       </div>`;
@@ -188,29 +188,47 @@
   }
 
 
-  // ── HIGHLIGHTS (3-4 strongest bullets, auto-selected) ─────────
-  function _highlights(R, inputs, h) {
-    const bullets = [];
+  // ── HIGHLIGHTS (3-4 bullets, always emit) ─────────────────────
+  // Two-tier selection: first collect any "strong signal" bullets that
+  // meet institutional thresholds. Then pad with descriptive bullets
+  // (asset class, hold timing, exit cap, location) so the section never
+  // looks empty on a stressed deal. Glyph rendered inline so it always
+  // prints (CSS pseudo-elements don't always survive browser print).
+  function _highlights(R, inputs, h, market) {
+    const strong = [];
+    const filler = [];
     const recap = _pctNorm(R.capital_recaptured_pct);
     const vc = _pctNorm(R.value_creation_pct);
+    const ib = _pctNorm(R.post_refi_in_basis_pct);
 
-    if (recap >= 0.80) bullets.push(`<strong>Full capital recapture.</strong> Refi proceeds return ${h.fmtPct(recap)} of initial equity, enabling recycle of sponsor capital into the next acquisition.`);
-    if (R.dscr >= 1.20) bullets.push(`<strong>Coverage cushion at refi.</strong> ${h.fmtX(R.dscr, 2)} DSCR provides ${(R.dscr - 1.20).toFixed(2)}x of headroom above the agency 1.20x minimum.`);
-    if (vc >= 0.20) bullets.push(`<strong>Strong value creation.</strong> ${h.fmtPct(vc)} value creation (ARV minus TPC over TPC) reflects deep acquisition basis relative to stabilized valuation.`);
-    if (R.equity_multiple >= 2.0) bullets.push(`<strong>Institutional return profile.</strong> ${h.fmtX(R.equity_multiple, 2)} 10-year equity multiple at ${h.fmtPct(R.investor_irr)} IRR.`);
-    if (R.post_refi_in_basis_pct != null && _pctNorm(R.post_refi_in_basis_pct) <= 0.75) bullets.push(`<strong>Conservative post-refi basis.</strong> ${h.fmtPct(_pctNorm(R.post_refi_in_basis_pct))} in-basis leaves ample valuation cushion against exit cap softening.`);
+    // Strong-signal bullets (institutional thresholds met)
+    if (recap >= 0.80) strong.push(`<strong>Full capital recapture.</strong> Refi proceeds return ${h.fmtPct(recap)} of initial equity, enabling recycle into the next acquisition.`);
+    if (R.dscr >= 1.20) strong.push(`<strong>Coverage cushion at refi.</strong> ${h.fmtX(R.dscr, 2)} DSCR provides ${(R.dscr - 1.20).toFixed(2)}x of headroom above the agency 1.20x minimum.`);
+    if (vc >= 0.20) strong.push(`<strong>Strong value creation.</strong> ${h.fmtPct(vc)} value creation reflects deep acquisition basis relative to stabilized valuation.`);
+    if (R.equity_multiple >= 2.0) strong.push(`<strong>Institutional return profile.</strong> ${h.fmtX(R.equity_multiple, 2)} 10-year equity multiple at ${h.fmtPct(R.investor_irr)} IRR.`);
+    if (ib != null && ib <= 0.75) strong.push(`<strong>Conservative post-refi basis.</strong> ${h.fmtPct(ib)} in-basis leaves ample valuation cushion against exit cap softening.`);
 
-    // Always at least one fallback (the deal still needs to be described
-    // even if no automatic threshold is met)
-    if (bullets.length === 0) {
-      bullets.push(`<strong>Value-add execution opportunity.</strong> ${h.fmtMoney(inputs.reno_budget || 0)} renovation budget against ${h.fmtMoney(inputs.purchase_price || 0)} acquisition.`);
+    // Descriptive filler bullets (always available)
+    const units = R.total_unit_count || 0;
+    const ppu = units > 0 ? (inputs.purchase_price || 0) / units : 0;
+    filler.push(`<strong>Acquisition basis.</strong> ${h.fmtMoney(inputs.purchase_price)} purchase price (${h.fmtMoney(ppu)} per unit) on a ${units}-unit asset.`);
+    filler.push(`<strong>Renovation scope.</strong> ${h.fmtMoney(inputs.reno_budget)} renovation budget over ${inputs.target_refi_months || 9}-month value-add hold.`);
+    filler.push(`<strong>Exit assumptions.</strong> ${h.fmtPct(inputs.exit_cap, 2)} exit cap supports ${h.fmtMoneyK(R.stabilized_arv)} stabilized valuation.`);
+    if (market && market.derived && market.derived.market_strength_grade) {
+      filler.push(`<strong>Submarket grade.</strong> Grade ${market.derived.market_strength_grade} composite score in the ${market.cbsa_name || 'subject MSA'}.`);
+    }
+    filler.push(`<strong>Hold profile.</strong> ${inputs.target_hold_years || 10}-year hold at ${h.fmtPct(inputs.rent_growth_pct, 1)} rent growth and ${h.fmtPct(inputs.appreciation_pct, 1)} appreciation.`);
+
+    // Combine: strong bullets first, fill to 4 with filler.
+    const out = strong.slice(0, 4);
+    for (const f of filler) {
+      if (out.length >= 4) break;
+      out.push(f);
     }
 
-    // Cap at 4
-    const top = bullets.slice(0, 4);
     return `
       <ul class="bp-highlights pb-avoid">
-        ${top.map(b => `<li>${b}</li>`).join('')}
+        ${out.map(b => `<li><span class="bp-bullet">▸</span> ${b}</li>`).join('')}
       </ul>`;
   }
 
@@ -236,7 +254,7 @@
     const ccTransfer = inputs.closing_cost_transfer_addon || 0;
 
     return `
-      <div class="print-page">
+      <div class="print-page print-page-compact">
         ${_header(h, 'Sources & Uses · Capital Stack')}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Sources & Uses</div>
@@ -327,7 +345,7 @@
     ];
 
     return `
-      <div class="print-page">
+      <div class="print-page print-page-compact">
         ${_header(h, 'Income & Operating Expenses')}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Unit Mix & Stabilized Rents</div>
@@ -403,7 +421,7 @@
       ? R.refi_loan_amount / R.stabilized_arv : null;
 
     return `
-      <div class="print-page">
+      <div class="print-page print-page-compact">
         ${_header(h, 'Stabilized Valuation · Refinance')}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Stabilized Valuation</div>
@@ -429,6 +447,10 @@
           <div class="pl-row"><span class="pl-lbl">Monthly DS</span><span class="pl-val">${h.fmtMoney(R.refi_monthly_ds)}</span></div>
           <div class="pl-row"><span class="pl-lbl">Annual DS</span><span class="pl-val">${h.fmtMoney(R.refi_annual_ds)}</span></div>
           <div class="pl-row"><span class="pl-lbl">DSCR</span><span class="pl-val">${h.fmtX(R.dscr, 2)}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Post-Refi In-Basis</span><span class="pl-val">${h.fmtPct(_pctNorm(R.post_refi_in_basis_pct))}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Breakeven Occupancy</span><span class="pl-val">${h.fmtPct(R.breakeven_occupancy)}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Refi Price per Unit</span><span class="pl-val">${h.fmtMoney(R.refi_price_per_unit)}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Investor Equity Remaining</span><span class="pl-val">${h.fmtMoney(R.investor_equity_remaining)}</span></div>
         </div>
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Refi Proceeds Waterfall</div>
@@ -445,14 +467,6 @@
             <tr><td>Excess Distribution (if any)</td><td class="num">${h.fmtMoney(R.excess_refi_proceeds)}</td></tr>
           </tbody>
         </table>
-
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Post-Refi Position</div>
-        <div class="print-list pb-avoid">
-          <div class="pl-row"><span class="pl-lbl">Post-Refi In-Basis</span><span class="pl-val">${h.fmtPct(_pctNorm(R.post_refi_in_basis_pct))}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Investor Equity Remaining</span><span class="pl-val">${h.fmtMoney(R.investor_equity_remaining)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Breakeven Occupancy</span><span class="pl-val">${h.fmtPct(R.breakeven_occupancy)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Refi Price per Unit</span><span class="pl-val">${h.fmtMoney(R.refi_price_per_unit)}</span></div>
-        </div>
 
         ${_footer(pageNum, totalPages)}
       </div>`;
@@ -496,7 +510,7 @@
     }
 
     return `
-      <div class="print-page">
+      <div class="print-page print-page-compact">
         ${_header(h, '10-Year Cash Flow Projection')}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Annual Cash Flow Build</div>
@@ -559,14 +573,14 @@
     const sens = _buildSensitivityGrid(R, inputs);
 
     return `
-      <div class="print-page">
+      <div class="print-page print-page-compact">
         ${_header(h, 'Returns · Disposition · Sensitivity')}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Returns Summary</div>
         <div class="print-kpis cols-3">
           <div class="pk-tile pb-avoid"><div class="pk-tile-lbl">Investor IRR</div><div class="pk-tile-val">${h.fmtPct(R.investor_irr)}</div><div class="pk-tile-sub">10-year levered</div></div>
           <div class="pk-tile pb-avoid"><div class="pk-tile-lbl">Equity Multiple</div><div class="pk-tile-val">${h.fmtX(R.equity_multiple, 2)}</div><div class="pk-tile-sub">Institutional (Y1-Y10)</div></div>
-          <div class="pk-tile pb-avoid"><div class="pk-tile-lbl">EM (Spreadsheet)</div><div class="pk-tile-val">${h.fmtX(R.em_spreadsheet, 2)}</div><div class="pk-tile-sub">Y0-Y10 reference</div></div>
+          <div class="pk-tile pb-avoid"><div class="pk-tile-lbl">Total Distributions</div><div class="pk-tile-val">${h.fmtMoneyK(_sumDistributions(R))}</div><div class="pk-tile-sub">Y1 through Y${inputs.target_hold_years || 10}</div></div>
         </div>
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Disposition Mechanics (Year ${inputs.target_hold_years || 10})</div>
@@ -714,7 +728,7 @@
       </div>`;
 
     return `
-      <div class="print-page">
+      <div class="print-page print-page-compact">
         ${_header(h, 'Risk Register')}
 
         ${high.length > 0 ? `
@@ -756,7 +770,7 @@
 
     if (!d || d.market_strength_score == null) {
       return `
-        <div class="print-page">
+        <div class="print-page print-page-compact">
           ${_header(h, 'Market Strength')}
           <div class="print-section pb-avoid"><span class="ps-accent"></span>Market Analysis</div>
           <div class="print-callout pb-avoid">
@@ -770,7 +784,7 @@
     const cs = d.component_scores || {};
 
     return `
-      <div class="print-page">
+      <div class="print-page print-page-compact">
         ${_header(h, 'Market Strength')}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Composite Score</div>
@@ -793,45 +807,48 @@
           </div>
         </div>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Component Scores</div>
-        <table class="print-table pb-avoid">
-          <thead><tr><th>Component</th><th>Weight</th><th class="num">Score</th><th class="num">Contribution</th></tr></thead>
-          <tbody>
-            <tr><td>Vacancy</td><td>20%</td><td class="num">${Math.round(cs.vacancy || 0)}</td><td class="num">${((cs.vacancy || 0) * 0.20).toFixed(1)}</td></tr>
-            <tr><td>Unemployment</td><td>18%</td><td class="num">${Math.round(cs.unemployment || 0)}</td><td class="num">${((cs.unemployment || 0) * 0.18).toFixed(1)}</td></tr>
-            <tr><td>Median Income</td><td>15%</td><td class="num">${Math.round(cs.income || 0)}</td><td class="num">${((cs.income || 0) * 0.15).toFixed(1)}</td></tr>
-            <tr><td>Rent-to-Income</td><td>15%</td><td class="num">${Math.round(cs.rent_to_income || 0)}</td><td class="num">${((cs.rent_to_income || 0) * 0.15).toFixed(1)}</td></tr>
-            <tr><td>Education</td><td>12%</td><td class="num">${Math.round(cs.education || 0)}</td><td class="num">${((cs.education || 0) * 0.12).toFixed(1)}</td></tr>
-            <tr><td>Poverty</td><td>10%</td><td class="num">${Math.round(cs.poverty || 0)}</td><td class="num">${((cs.poverty || 0) * 0.10).toFixed(1)}</td></tr>
-            <tr><td>Owner Balance</td><td>10%</td><td class="num">${Math.round(cs.owner_balance || 0)}</td><td class="num">${((cs.owner_balance || 0) * 0.10).toFixed(1)}</td></tr>
-            <tr class="totals"><td>Composite</td><td>100%</td><td></td><td class="num">${Math.round(d.market_strength_score)}</td></tr>
-          </tbody>
-        </table>
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Component Scores & Demographics</div>
+        <div class="bp-market-grid pb-avoid">
+          <table class="print-table">
+            <thead><tr><th>Component</th><th>Wt.</th><th class="num">Score</th></tr></thead>
+            <tbody>
+              <tr><td>Vacancy</td><td>20%</td><td class="num">${Math.round(cs.vacancy || 0)}</td></tr>
+              <tr><td>Unemployment</td><td>18%</td><td class="num">${Math.round(cs.unemployment || 0)}</td></tr>
+              <tr><td>Median Income</td><td>15%</td><td class="num">${Math.round(cs.income || 0)}</td></tr>
+              <tr><td>Rent-to-Income</td><td>15%</td><td class="num">${Math.round(cs.rent_to_income || 0)}</td></tr>
+              <tr><td>Education</td><td>12%</td><td class="num">${Math.round(cs.education || 0)}</td></tr>
+              <tr><td>Poverty</td><td>10%</td><td class="num">${Math.round(cs.poverty || 0)}</td></tr>
+              <tr><td>Owner Balance</td><td>10%</td><td class="num">${Math.round(cs.owner_balance || 0)}</td></tr>
+              <tr class="totals"><td>Composite</td><td>100%</td><td class="num">${Math.round(d.market_strength_score)}</td></tr>
+            </tbody>
+          </table>
 
-        ${c ? `
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>ACS Demographics</div>
-        <div class="print-list pb-avoid">
-          <div class="pl-row"><span class="pl-lbl">Median Household Income</span><span class="pl-val">${h.fmtMoney(c.median_household_income)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Median Rent (monthly)</span><span class="pl-val">${h.fmtMoney(c.median_rent)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Rental Vacancy Rate</span><span class="pl-val">${h.fmtPct(c.rental_vacancy_rate)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Unemployment Rate</span><span class="pl-val">${h.fmtPct(c.unemployment_rate)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Poverty Rate</span><span class="pl-val">${h.fmtPct(c.poverty_rate)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Bachelors or Higher</span><span class="pl-val">${h.fmtPct(c.bachelors_or_higher_pct)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Owner-Occupied</span><span class="pl-val">${h.fmtPct(c.owner_occupied_pct)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Median Home Value</span><span class="pl-val">${h.fmtMoney(c.median_home_value)}</span></div>
+          ${c ? `
+          <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
+            <div class="pl-row"><span class="pl-lbl">Median HH Income</span><span class="pl-val">${h.fmtMoney(c.median_household_income)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">Median Rent</span><span class="pl-val">${h.fmtMoney(c.median_rent)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">Rental Vacancy</span><span class="pl-val">${h.fmtPct(c.rental_vacancy_rate)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">Unemployment</span><span class="pl-val">${h.fmtPct(c.unemployment_rate)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">Poverty Rate</span><span class="pl-val">${h.fmtPct(c.poverty_rate)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">Bachelors+</span><span class="pl-val">${h.fmtPct(c.bachelors_or_higher_pct)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">Owner-Occupied</span><span class="pl-val">${h.fmtPct(c.owner_occupied_pct)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">Median Home Value</span><span class="pl-val">${h.fmtMoney(c.median_home_value)}</span></div>
+          </div>
+          ` : ''}
         </div>
-        ` : ''}
 
         ${fmr ? `
         <div class="print-section pb-avoid"><span class="ps-accent"></span>HUD Fair Market Rents</div>
         <table class="print-table pb-avoid">
-          <thead><tr><th>Bedroom Type</th><th class="num">FMR (Monthly)</th></tr></thead>
+          <thead><tr><th>Studio</th><th class="num">1BR</th><th class="num">2BR</th><th class="num">3BR</th><th class="num">4BR</th></tr></thead>
           <tbody>
-            <tr><td>Studio / Efficiency</td><td class="num">${h.fmtMoney(fmr.studio)}</td></tr>
-            <tr><td>1-Bedroom</td><td class="num">${h.fmtMoney(fmr.br1)}</td></tr>
-            <tr><td>2-Bedroom</td><td class="num">${h.fmtMoney(fmr.br2)}</td></tr>
-            <tr><td>3-Bedroom</td><td class="num">${h.fmtMoney(fmr.br3)}</td></tr>
-            <tr><td>4-Bedroom</td><td class="num">${h.fmtMoney(fmr.br4)}</td></tr>
+            <tr>
+              <td class="num">${h.fmtMoney(fmr.studio)}</td>
+              <td class="num">${h.fmtMoney(fmr.br1)}</td>
+              <td class="num">${h.fmtMoney(fmr.br2)}</td>
+              <td class="num">${h.fmtMoney(fmr.br3)}</td>
+              <td class="num">${h.fmtMoney(fmr.br4)}</td>
+            </tr>
           </tbody>
         </table>
         ` : ''}
@@ -855,7 +872,7 @@
     if (!hasSub && !hasContact) return null;
 
     return `
-      <div class="print-page">
+      <div class="print-page print-page-compact">
         ${_header(h, 'Sponsor')}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Sponsor</div>
@@ -885,6 +902,12 @@
 
 
   // ── TONE HELPERS (shared with Deal Snapshot pattern) ──────────
+  function _sumDistributions(R) {
+    if (!R || !Array.isArray(R.distribution)) return null;
+    let sum = 0;
+    for (let i = 1; i < R.distribution.length; i++) sum += R.distribution[i] || 0;
+    return sum;
+  }
   function _toneAbove(v, highWarn, goodFloor) {
     if (v == null || !isFinite(v)) return 'neutral';
     if (v >= goodFloor) return 'good';
