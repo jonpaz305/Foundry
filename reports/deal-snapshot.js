@@ -47,7 +47,9 @@
   // Each tile carries a 'tone' (good/warn/bad/neutral) so the value renders
   // in a color that matches the threshold (M5-aligned). Tone is computed
   // against the same thresholds the Risk Register uses, so the snapshot
-  // and the register agree on what counts as a flag.
+  // and the register agree on what counts as a flag. A small glyph (▼ ◆ ✓)
+  // is added to bad/warn/good tiles so the signal survives grayscale
+  // print and PDFs saved with "Background graphics" toggled off.
   function _kpiTiles(mode, R, h) {
     let tiles;
     if (mode === 'brrrr') {
@@ -78,10 +80,17 @@
         ${tiles.map(t => `
           <div class="pk-tile pb-avoid pk-tone-${t.tone}">
             <div class="pk-tile-lbl">${_esc(t.lbl)}</div>
-            <div class="pk-tile-val">${_esc(t.val)}</div>
+            <div class="pk-tile-val">${_toneGlyph(t.tone)}${_esc(t.val)}</div>
             <div class="pk-tile-sub">${_esc(t.sub)}</div>
           </div>`).join('')}
       </div>`;
+  }
+
+  function _toneGlyph(tone) {
+    if (tone === 'bad')  return '<span class="pk-glyph pk-glyph-bad">▼ </span>';
+    if (tone === 'warn') return '<span class="pk-glyph pk-glyph-warn">◆ </span>';
+    if (tone === 'good') return '<span class="pk-glyph pk-glyph-good">▲ </span>';
+    return '';
   }
 
   // Tone helpers: classify a value against a (high-warn, good-floor) pair.
@@ -255,7 +264,7 @@
     return `
       <div class="print-footer pb-avoid">
         <div class="pf-conf">Confidential · Internal Use Only · ${_esc(coName)}</div>
-        <div class="pf-page">Generated in Foundry</div>
+        <div class="pf-page"></div>
       </div>`;
   }
 
