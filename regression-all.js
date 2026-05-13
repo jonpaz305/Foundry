@@ -68,11 +68,12 @@ vm.runInContext(`
 loadJS('market.js');
 loadJS('engine.js');
 loadJS('risk.js');
-// Path A: Load disclaimers module before any report file. Reports
-// reference disclaimer functions defensively (typeof check), so
-// reports work in either presence or absence, but production loads
-// disclaimers first.
+// Path A: Load disclaimers + model-assumptions modules before any
+// report file. Reports reference these defensively (typeof check),
+// so reports work in either presence or absence, but production loads
+// them first.
 loadJS('disclaimers.js');
+loadJS('model-assumptions.js');
 
 // ── Test counters ─────────────────────────────────────────────
 const results = { pass: 0, fail: 0, byGroup: {} };
@@ -967,10 +968,10 @@ function runM6_3() {
 
   check(g, 'renders without throwing', typeof html === 'string' && html.length > 0 ? 1 : 0, 1);
 
-  // Page count: 9 pages baseline (no sponsor extras on ASJP default,
-  // plus Path A dedicated Notices and Disclaimers page that always renders)
+  // Page count: 10 pages baseline (no sponsor extras on ASJP default,
+  // plus Path A Model Assumptions + Notices and Disclaimers pages)
   const pageCount = (html.match(/class="print-page print-page-compact"/g) || []).length;
-  check(g, 'page count: 9 pages (8 content + disclaimers)', pageCount, 9);
+  check(g, 'page count: 10 pages (8 content + model assumptions + disclaimers)', pageCount, 10);
 
   // Page 1 elements
   check(g, 'P1: BRRRR Underwriting Package eyebrow', html.includes('BRRRR Underwriting Package') ? 1 : 0, 1);
@@ -1060,7 +1061,7 @@ function runM6_4() {
   check(g, 'renders without throwing', typeof html === 'string' && html.length > 0 ? 1 : 0, 1);
 
   const pageCount = (html.match(/class="print-page print-page-compact"/g) || []).length;
-  check(g, 'page count: 8 pages (7 content + disclaimers)', pageCount, 8);
+  check(g, 'page count: 9 pages (7 content + model assumptions + disclaimers)', pageCount, 9);
 
   // P1: Cover
   check(g, 'P1: Fix & Flip eyebrow', html.includes('Fix &amp; Flip Investment Package') ? 1 : 0, 1);
@@ -1147,7 +1148,7 @@ function runM6_6() {
   loadBRRRR();
   const brrrrHtml = vm.runInContext(`renderReport_lender_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
   check(g, 'BRRRR: renders without throwing', typeof brrrrHtml === 'string' && brrrrHtml.length > 0 ? 1 : 0, 1);
-  check(g, 'BRRRR: page count = 5', (brrrrHtml.match(/class="print-page print-page-compact"/g) || []).length, 5);
+  check(g, 'BRRRR: page count = 6', (brrrrHtml.match(/class="print-page print-page-compact"/g) || []).length, 6);
   check(g, 'BRRRR: header reads "Lender Package · BRRRR Bridge / Agency"', brrrrHtml.includes('BRRRR Bridge / Agency') ? 1 : 0, 1);
   check(g, 'BRRRR: 6 debt metric tiles on cover', (brrrrHtml.match(/pk-tile-lbl/g) || []).length >= 6 ? 1 : 0, 1);
   check(g, 'BRRRR: refi takeout section', brrrrHtml.includes('Refinance Takeout Sizing') ? 1 : 0, 1);
@@ -1161,7 +1162,7 @@ function runM6_6() {
   loadFF();
   const ffHtml = vm.runInContext(`renderReport_lender_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
   check(g, 'F&F: renders without throwing', typeof ffHtml === 'string' && ffHtml.length > 0 ? 1 : 0, 1);
-  check(g, 'F&F: page count = 5', (ffHtml.match(/class="print-page print-page-compact"/g) || []).length, 5);
+  check(g, 'F&F: page count = 6', (ffHtml.match(/class="print-page print-page-compact"/g) || []).length, 6);
   check(g, 'F&F: header reads "Fix & Flip Bridge"', ffHtml.includes('Fix &amp; Flip Bridge') ? 1 : 0, 1);
   check(g, 'F&F: ARV Defense section', ffHtml.includes('ARV Defense') ? 1 : 0, 1);
   check(g, 'F&F: stress scenarios with sale price', ffHtml.includes('Sale Price -5%') && ffHtml.includes('Sale Price -10%') ? 1 : 0, 1);
@@ -1191,7 +1192,7 @@ function runM6_7() {
   const html = vm.runInContext(`renderReport_valor_pbv(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
 
   check(g, 'renders without throwing', typeof html === 'string' && html.length > 0 ? 1 : 0, 1);
-  check(g, 'page count = 6', (html.match(/class="print-page print-page-compact valor-page"/g) || []).length, 6);
+  check(g, 'page count = 7', (html.match(/class="print-page print-page-compact valor-page"/g) || []).length, 7);
   check(g, 'Valor brandmark in header', html.includes('VALOR HOUSING PARTNERS') ? 1 : 0, 1);
   check(g, 'HUD-VASH PBV eyebrow', html.includes('HUD-VASH Project-Based Voucher Package') ? 1 : 0, 1);
   check(g, 'page 1: voucher uplift KPI', html.includes('Voucher Uplift') ? 1 : 0, 1);
@@ -1441,6 +1442,110 @@ function runM6_9() {
 }
 
 // ════════════════════════════════════════════════════════════════
+// M6.10 - MODEL ASSUMPTIONS (Path A Pass 3 integration)
+// ════════════════════════════════════════════════════════════════
+// Verifies the central model-assumptions.js module produces the
+// required disclosure block across all external reports. These
+// assertions LOCK the key methodology disclosures so engine changes
+// do not accidentally remove tax basis treatment, exit cap source,
+// or other audit-grade items.
+function runM6_10() {
+  const g = group('M6.10 Model Assumptions');
+
+  const HELPERS_SRC = `({
+    fmtMoney: (x, dec) => x == null || !isFinite(x) ? '-' : '$' + Number(x).toLocaleString(undefined, { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 }),
+    fmtMoneyK: (x) => x == null || !isFinite(x) ? '-' : (Math.abs(x) >= 1e6 ? '$' + (x/1e6).toFixed(2) + 'M' : (Math.abs(x) >= 1e3 ? '$' + (x/1e3).toFixed(0) + 'K' : '$' + Math.round(x))),
+    fmtPct: (x, dec) => x == null || !isFinite(x) ? '-' : (x*100).toFixed(dec == null ? 1 : dec) + '%',
+    fmtX: (x, dec) => x == null || !isFinite(x) ? '-' : Number(x).toFixed(dec == null ? 2 : dec) + 'x',
+    fmtInt: (x) => x == null || !isFinite(x) ? '-' : Math.round(x).toLocaleString(),
+    todayLong: () => 'May 13, 2026',
+    foundryLogo: () => ''
+  })`;
+
+  // Reports loaded by prior groups; safe to reload defensively.
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/brrrr-package.js'), 'utf8'), ctx, { filename: 'reports/brrrr-package.js' });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/ff-package.js'), 'utf8'), ctx, { filename: 'reports/ff-package.js' });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/lender-package.js'), 'utf8'), ctx, { filename: 'reports/lender-package.js' });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/valor-pbv-package.js'), 'utf8'), ctx, { filename: 'reports/valor-pbv-package.js' });
+
+  // ── BRRRR Package -- Model Assumptions disclosure
+  loadBRRRR();
+  const brrrrHtml = vm.runInContext(`renderReport_brrrr_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
+  check(g, 'BRRRR: Model Assumptions section header present',
+    brrrrHtml.includes('Model Assumptions and Methodology') ? 1 : 0, 1);
+  check(g, 'BRRRR: Valuation Methodology section present',
+    brrrrHtml.includes('Valuation Methodology') ? 1 : 0, 1);
+  check(g, 'BRRRR: Revenue and Disposition Assumptions present',
+    brrrrHtml.includes('Revenue and Disposition Assumptions') ? 1 : 0, 1);
+  check(g, 'BRRRR: Operating Expense Assumptions present',
+    brrrrHtml.includes('Operating Expense Assumptions') ? 1 : 0, 1);
+  check(g, 'BRRRR: Capital Structure Assumptions present',
+    brrrrHtml.includes('Capital Structure Assumptions') ? 1 : 0, 1);
+  check(g, 'BRRRR: Investment Return Assumptions present',
+    brrrrHtml.includes('Investment Return Assumptions') ? 1 : 0, 1);
+  check(g, 'BRRRR: Methodological Disclosures section present',
+    brrrrHtml.includes('Methodological Disclosures') ? 1 : 0, 1);
+  check(g, 'BRRRR: tax basis mode disclosed',
+    brrrrHtml.includes('Tax basis mode') ? 1 : 0, 1);
+  check(g, 'BRRRR: tax basis footnote present',
+    brrrrHtml.includes('Tax basis treatment:') ? 1 : 0, 1);
+  check(g, 'BRRRR: exit cap labeled as sponsor input',
+    brrrrHtml.includes('Exit cap') && brrrrHtml.includes('sponsor input') ? 1 : 0, 1);
+  check(g, 'BRRRR: bridge DS method disclosed (month-by-month)',
+    brrrrHtml.includes('Month-by-month draw accrual') ? 1 : 0, 1);
+  check(g, 'BRRRR: equity multiple method disclosed',
+    brrrrHtml.includes('Equity Multiple method') && brrrrHtml.includes('Institutional') ? 1 : 0, 1);
+  check(g, 'BRRRR: engine version stamp present',
+    brrrrHtml.includes('Engine version') && brrrrHtml.includes('M0.3c+PathA-Pass-3') ? 1 : 0, 1);
+  check(g, 'BRRRR: closing cost decomposition present (8 components)',
+    brrrrHtml.includes('Origination fee') && brrrrHtml.includes('Lender points') ? 1 : 0, 1);
+
+  // ── F&F Package -- Model Assumptions
+  loadFF();
+  const ffHtml = vm.runInContext(`renderReport_ff_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
+  check(g, 'F&F: Model Assumptions section header present',
+    ffHtml.includes('Model Assumptions and Methodology') ? 1 : 0, 1);
+  check(g, 'F&F: Valuation section discloses ARV source',
+    ffHtml.includes('ARV (after-repair value)') ? 1 : 0, 1);
+  check(g, 'F&F: Capital Structure Assumptions present',
+    ffHtml.includes('Capital Structure Assumptions') ? 1 : 0, 1);
+  check(g, 'F&F: LP/GP split disclosed',
+    ffHtml.includes('LP / GP split') ? 1 : 0, 1);
+
+  // ── Lender Package -- Model Assumptions
+  loadBRRRR();
+  const lenderHtml = vm.runInContext(`renderReport_lender_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
+  check(g, 'Lender: Model Assumptions section header present',
+    lenderHtml.includes('Model Assumptions and Methodology') ? 1 : 0, 1);
+  check(g, 'Lender: lender variant note present (no investor-return disclosure)',
+    lenderHtml.includes('Lender-facing variant') ? 1 : 0, 1);
+  check(g, 'Lender: tax basis disclosed',
+    lenderHtml.includes('Tax basis mode') ? 1 : 0, 1);
+  check(g, 'Lender: capital structure disclosed',
+    lenderHtml.includes('Capital Structure Assumptions') ? 1 : 0, 1);
+  check(g, 'Lender: no Investment Return Assumptions section (lender variant)',
+    lenderHtml.indexOf('Investment Return Assumptions') < 0 ? 1 : 0, 1);
+
+  // ── Valor PBV Package -- Model Assumptions with Valor-specific block
+  loadBRRRR();
+  const valorHtml = vm.runInContext(`renderReport_valor_pbv(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
+  check(g, 'Valor: Model Assumptions section header present',
+    valorHtml.includes('Model Assumptions and Methodology') ? 1 : 0, 1);
+  check(g, 'Valor: Valor PBV Program Assumptions block present',
+    valorHtml.includes('Valor PBV Program Assumptions') ? 1 : 0, 1);
+  check(g, 'Valor: voucher uplift basis disclosed',
+    valorHtml.includes('Voucher uplift basis') ? 1 : 0, 1);
+  check(g, 'Valor: HAP renewal assumption disclosed',
+    valorHtml.includes('HAP renewal assumption') ? 1 : 0, 1);
+  check(g, 'Valor: federal appropriations risk flagged',
+    valorHtml.includes('federal appropriations') ? 1 : 0, 1);
+
+  // ── No em-dashes
+  check(g, 'no em-dashes across all model assumptions blocks',
+    (brrrrHtml + ffHtml + lenderHtml + valorHtml).indexOf('\u2014') < 0 ? 1 : 0, 1);
+}
+
+// ════════════════════════════════════════════════════════════════
 // Run
 // ════════════════════════════════════════════════════════════════
 runM2();
@@ -1459,6 +1564,7 @@ runM6_6();
 runM6_7();
 runM6_8();
 runM6_9();
+runM6_10();
 
 // ── Report ────────────────────────────────────────────────────
 console.log('');
