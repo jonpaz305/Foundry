@@ -20,7 +20,20 @@
 // constant, this module reads it).
 // ════════════════════════════════════════════════════════════════
 
-const ENGINE_VERSION_STAMP = 'M0.3c+PathA-Pass-3 (2026-05-13)';
+// Engine version is read dynamically from the global
+// FOUNDRY_ENGINE_VERSION constant exported by engine.js. Pairs with
+// CHANGELOG.md entries. The function form (vs a captured constant)
+// ensures the value reflects the live engine version even if reports
+// are regenerated after an engine update without a page reload.
+function _engineVersionStamp() {
+  if (typeof FOUNDRY_ENGINE_VERSION === 'string' && FOUNDRY_ENGINE_VERSION) {
+    const dateStr = (typeof FOUNDRY_ENGINE_VERSION_DATE === 'string' && FOUNDRY_ENGINE_VERSION_DATE)
+      ? ` (${FOUNDRY_ENGINE_VERSION_DATE})`
+      : '';
+    return FOUNDRY_ENGINE_VERSION + dateStr;
+  }
+  return 'unversioned';
+}
 
 
 // ── HELPERS ───────────────────────────────────────────────────
@@ -203,7 +216,7 @@ function _returnsSection(R, inputs, mode) {
 function _methodologySection(R, inputs, mode, market) {
   const rows = [];
 
-  rows.push(_maRow('Engine version', ENGINE_VERSION_STAMP, 'static stamp; dynamic capture in roadmap'));
+  rows.push(_maRow('Engine version', _engineVersionStamp(), 'see CHANGELOG.md'));
   rows.push(_maRow('Report generated', new Date().toISOString().slice(0, 10), 'system date'));
 
   if (mode === 'brrrr') {
