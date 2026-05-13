@@ -848,7 +848,7 @@ function runM6_5() {
   loadBRRRR();
   const brrrrHtml = vm.runInContext(`renderReport_internal_memo(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
   check(g, 'BRRRR memo: renders without throwing', typeof brrrrHtml === 'string' && brrrrHtml.length > 0 ? 1 : 0, 1);
-  check(g, 'BRRRR memo: page count = 4 (no market/sponsor)', (brrrrHtml.match(/class="print-page print-page-compact"/g) || []).length, 4);
+  check(g, 'BRRRR memo: page count = 3 (consolidated)', (brrrrHtml.match(/class="print-page print-page-compact"/g) || []).length, 3);
   check(g, 'BRRRR memo: Internal Deal Memo eyebrow', brrrrHtml.includes('Internal Deal Memo') ? 1 : 0, 1);
   check(g, 'BRRRR memo: recommendation banner present', brrrrHtml.includes('im-rec') ? 1 : 0, 1);
   // 2048 fires 1 medium (contingency) - should be CONDITIONAL or PROCEED
