@@ -610,3 +610,225 @@ html, body {
   padding-top: 5pt;
   font-size: 7pt;
 }
+
+
+/* ════════════════════════════════════════════════════════════════
+   M6.3 - BRRRR Package specifics
+   ════════════════════════════════════════════════════════════════ */
+
+/* DRAFT tag for narrative section */
+.bp-draft-tag {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 7pt;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  padding: 1pt 5pt;
+  border: 0.5pt solid #b88a1a;
+  background: rgba(184,138,26,0.10);
+  color: #6a4a00;
+  border-radius: 2pt;
+  margin-left: 8pt;
+  vertical-align: 1pt;
+}
+
+/* Narrative paragraphs */
+.bp-narrative {
+  font-size: 9pt;
+  line-height: 1.55;
+  color: #1a1a1f;
+  margin-bottom: 4pt;
+}
+.bp-narrative p {
+  margin: 0 0 6pt 0;
+  text-align: justify;
+}
+.bp-narrative p:last-child {
+  margin-bottom: 0;
+}
+
+/* Investment highlights bullets */
+.bp-highlights {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5pt 14pt;
+}
+.bp-highlights li {
+  font-size: 8.5pt;
+  line-height: 1.5;
+  padding-left: 12pt;
+  position: relative;
+  color: #333;
+}
+.bp-highlights li::before {
+  content: '▸';
+  position: absolute;
+  left: 0;
+  color: #C9A84C;
+  font-weight: 700;
+}
+.bp-highlights li strong {
+  color: #0a0a0b;
+  font-weight: 700;
+}
+
+/* Sources & Uses dual-table grid */
+.bp-su-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8pt;
+  margin-bottom: 8pt;
+}
+.bp-su-grid .print-table {
+  margin-bottom: 0;
+}
+
+/* Capital stack horizontal bar */
+.bp-capstack {
+  margin-bottom: 8pt;
+}
+.bp-capstack-bar {
+  display: flex;
+  height: 28pt;
+  width: 100%;
+  border: 0.5pt solid #d0d0d6;
+  overflow: hidden;
+  border-radius: 2pt;
+}
+.bp-capstack-seg {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-size: 7.5pt;
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #fff;
+  text-align: center;
+  overflow: hidden;
+  padding: 0 4pt;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.bp-seg-debt    { background: #0a0a0b; }
+.bp-seg-sponsor { background: #C9A84C; color: #0a0a0b; }
+.bp-seg-lp      { background: #806008; }
+.bp-seg-lbl { font-size: 6.5pt; text-transform: uppercase; opacity: 0.9; }
+.bp-seg-val { font-size: 8.5pt; font-weight: 700; line-height: 1.1; }
+
+/* 10-year cash flow table - compact horizontal layout */
+.bp-cf-table {
+  font-size: 8pt;
+}
+.bp-cf-table th, .bp-cf-table td {
+  padding: 3pt 4pt;
+}
+.bp-cf-table td:first-child {
+  font-weight: 700;
+  color: #806008;
+}
+
+/* Sensitivity grid */
+.bp-sens-table th {
+  text-align: center;
+}
+.bp-sens-table td {
+  text-align: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.bp-sens-table .bp-sens-lbl {
+  text-align: left;
+  font-weight: 600;
+  color: #806008;
+}
+.bp-sens-table .bp-sens-head {
+  text-align: center;
+  font-style: italic;
+  color: #888;
+  font-size: 7pt;
+  border-bottom: 0.5pt solid #d0d0d6;
+}
+.bp-sens-good { color: #155028; background: rgba(26,102,48,0.08); }
+.bp-sens-warn { color: #6a4a00; background: rgba(184,138,26,0.10); }
+.bp-sens-bad  { color: #801010; background: rgba(160,24,24,0.08); }
+.bp-sens-base { outline: 1.5pt solid #C9A84C; font-weight: 800; }
+
+/* Risk register mitigation */
+.bp-mit {
+  margin-top: 3pt;
+  font-size: 7.5pt;
+  color: #555;
+  padding: 4pt 6pt;
+  background: rgba(201,168,76,0.06);
+  border-left: 1.5pt solid #C9A84C;
+}
+.bp-mit-lbl {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 6.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #806008;
+  margin-right: 4pt;
+}
+
+/* Source footnote on market page */
+.bp-source-footnote {
+  margin-top: 12pt;
+  font-size: 7pt;
+  color: #999;
+  font-style: italic;
+  font-family: 'IBM Plex Mono', monospace;
+  text-align: right;
+}
+
+/* Sponsor block */
+.bp-sponsor {
+  padding: 14pt 18pt;
+  border: 0.5pt solid #e0e0e6;
+  background: #fafaf7;
+  margin-bottom: 12pt;
+}
+.bp-sponsor-name {
+  font-size: 16pt;
+  font-weight: 700;
+  letter-spacing: -0.3pt;
+  margin-bottom: 4pt;
+}
+.bp-sponsor-sub {
+  font-size: 10pt;
+  color: #555;
+  margin-bottom: 12pt;
+}
+.bp-sponsor-contact {
+  font-size: 9pt;
+  line-height: 1.7;
+  color: #333;
+}
+.bp-sponsor-lbl {
+  display: inline-block;
+  width: 60pt;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 7.5pt;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #888;
+}
+
+/* Disclaimers */
+.bp-disclaimer {
+  font-size: 7.5pt;
+  line-height: 1.6;
+  color: #666;
+}
+.bp-disclaimer p {
+  margin: 0 0 6pt 0;
+  text-align: justify;
+}

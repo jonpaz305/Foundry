@@ -714,6 +714,68 @@ function runM6_2() {
 }
 
 // ════════════════════════════════════════════════════════════════
+// M6.3 - BRRRR PACKAGE (14 tests)
+// ════════════════════════════════════════════════════════════════
+function runM6_3() {
+  const g = group('M6.3 BRRRR Pkg');
+
+  // Load BRRRR Package module into the same sandbox.
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/brrrr-package.js'), 'utf8'), ctx, { filename: 'reports/brrrr-package.js' });
+
+  const HELPERS_SRC = `({
+    fmtMoney: (x, dec) => x == null || !isFinite(x) ? '-' : '$' + Number(x).toLocaleString(undefined, { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 }),
+    fmtMoneyK: (x) => x == null || !isFinite(x) ? '-' : (Math.abs(x) >= 1e6 ? '$' + (x/1e6).toFixed(2) + 'M' : (Math.abs(x) >= 1e3 ? '$' + (x/1e3).toFixed(0) + 'K' : '$' + Math.round(x))),
+    fmtPct: (x, dec) => x == null || !isFinite(x) ? '-' : (x*100).toFixed(dec == null ? 1 : dec) + '%',
+    fmtX: (x, dec) => x == null || !isFinite(x) ? '-' : Number(x).toFixed(dec == null ? 2 : dec) + 'x',
+    fmtInt: (x) => x == null || !isFinite(x) ? '-' : Math.round(x).toLocaleString(),
+    todayLong: () => 'May 13, 2026',
+    foundryLogo: () => ''
+  })`;
+
+  // Load BRRRR regression deal
+  loadBRRRR();
+  const html = vm.runInContext(`
+    renderReport_brrrr_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});
+  `, ctx);
+
+  check(g, 'renders without throwing', typeof html === 'string' && html.length > 0 ? 1 : 0, 1);
+
+  // Page count: 8 pages baseline (no sponsor extras on ASJP default)
+  const pageCount = (html.match(/class="print-page"/g) || []).length;
+  check(g, 'page count: 8 pages (no sponsor extras)', pageCount, 8);
+
+  // Page 1 elements
+  check(g, 'P1: BRRRR Underwriting Package eyebrow', html.includes('BRRRR Underwriting Package') ? 1 : 0, 1);
+  check(g, 'P1: 6 KPI tiles present', (html.match(/pk-tile-lbl/g) || []).length >= 6 ? 1 : 0, 1);
+  check(g, 'P1: DRAFT tag on narrative', html.includes('bp-draft-tag') && html.includes('DRAFT') ? 1 : 0, 1);
+  check(g, 'P1: highlights section', html.includes('bp-highlights') ? 1 : 0, 1);
+
+  // Page 2 elements
+  check(g, 'P2: Sources & Uses tables present', (html.match(/Sources<\/th>/g) || []).length >= 1 ? 1 : 0, 1);
+  check(g, 'P2: capital stack bar', html.includes('bp-capstack-bar') ? 1 : 0, 1);
+
+  // Page 3 elements
+  check(g, 'P3: unit mix table with GPR total ($206,400)', html.includes('$206,400') ? 1 : 0, 1);
+  check(g, 'P3: stabilized NOI ($130,442) present', html.includes('$130,442') ? 1 : 0, 1);
+
+  // Page 4 elements
+  check(g, 'P4: refi loan amount ($1,043,536) present', html.includes('$1,043,536') ? 1 : 0, 1);
+  check(g, 'P4: DSCR 1.57x present', html.includes('1.57x') ? 1 : 0, 1);
+
+  // Page 5 (10-year cash flow)
+  check(g, 'P5: 10-year cash flow table rows (Y1..Y10)',
+    ((html.match(/<td>Y\d+<\/td>/g) || []).length >= 10) ? 1 : 0, 1);
+
+  // Page 6 sensitivity grid
+  check(g, 'P6: sensitivity grid (5x5 = 25 cells)',
+    (html.match(/bp-sens-(good|warn|bad)/g) || []).length >= 25 ? 1 : 0, 1);
+
+  // Page 8 market - no fetch in regression, so should show empty fallback
+  check(g, 'P8: market empty fallback (no data fetched)',
+    html.includes('Market analysis was not run') ? 1 : 0, 1);
+}
+
+// ════════════════════════════════════════════════════════════════
 // Run
 // ════════════════════════════════════════════════════════════════
 runM2();
@@ -722,6 +784,7 @@ runM4();
 runM5();
 runM6();
 runM6_2();
+runM6_3();
 
 // ── Report ────────────────────────────────────────────────────
 console.log('');
