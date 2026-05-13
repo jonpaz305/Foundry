@@ -91,9 +91,9 @@ function _renderArvSourceSection(i, R, compsArr) {
 
     ${showImplied ? `
       <div style="background:rgba(201,168,76,0.06);border-left:3px solid var(--gold);border-radius:4px;padding:0.5rem 0.85rem;margin-bottom:1rem;font-size:12px;color:var(--text2)">
-        <div><strong style="color:var(--text)">ARV in use:</strong> <span style="color:var(--gold-lt)">${f$(arvInUse)}</span></div>
+        <div><strong style="color:var(--text)">ARV in use:</strong> <span style="color:var(--gold-lt)" data-arv-cell="arv-in-use">${f$(arvInUse)}</span></div>
         <div style="margin-top:2px"><strong style="color:var(--text)">Income-approach ARV:</strong> ${f$(incomeArv)} (at ${fPct(i.exit_cap, 2)} input cap)</div>
-        <div style="margin-top:2px"><strong style="color:var(--text)">Implied cap rate at this ARV:</strong> <span style="color:var(--gold-lt)">${fPct(impliedCap, 2)}</span></div>
+        <div style="margin-top:2px"><strong style="color:var(--text)">Implied cap rate at this ARV:</strong> <span style="color:var(--gold-lt)" data-arv-cell="implied-cap">${fPct(impliedCap, 2)}</span></div>
       </div>
     ` : ''}
   `;

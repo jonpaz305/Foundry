@@ -1047,6 +1047,39 @@ function onInputChange(field, value) {
       hint.innerHTML = _renderNegotiationHint(inputs.asking_price, inputs.purchase_price);
     }
   }
+  // Path C: when ARV source changes, re-render the Capital block so the
+  // manual override input appears/disappears and the implied cap rate
+  // reference panel updates. Also re-render the Deal Setup block so the
+  // Exit Cap field's disabled state stays in sync.
+  // (Safe to full re-render here because the trigger is a <select> change,
+  // not a text input keystroke - no focus to lose.)
+  if (field === 'arv_source') {
+    if (typeof renderCapitalBlock === 'function') renderCapitalBlock();
+    if (typeof renderDealSetupForm === 'function') renderDealSetupForm();
+  }
+  // Path C: when the manual ARV value changes mid-typing, update the
+  // implied cap rate reference panel inline WITHOUT re-rendering the
+  // whole Capital block (which would destroy the input the user is
+  // typing into and kill mobile keyboard focus - same pattern as the
+  // Unit Mix fix). The reference panel cells are flagged with
+  // data-arv-cell attributes for surgical updates.
+  if (field === 'arv_override_brrrr' &&
+      inputs.arv_source === 'manual_override' &&
+      typeof R === 'object' && R) {
+    _refreshArvReferencePanel();
+  }
+}
+
+// Helper for Path C: refresh the ARV reference panel cells in-place
+// without re-rendering the form. Called by onInputChange when the
+// manual ARV value changes mid-typing.
+function _refreshArvReferencePanel() {
+  const f$ = (x) => x == null || !isFinite(x) ? '-' : '$' + Math.round(Number(x)).toLocaleString();
+  const fPct = (x, d) => x == null || !isFinite(x) ? '-' : (Number(x) * 100).toFixed(d == null ? 2 : d) + '%';
+  const arvUse = document.querySelector('[data-arv-cell="arv-in-use"]');
+  if (arvUse && R) arvUse.textContent = f$(R.stabilized_arv);
+  const implied = document.querySelector('[data-arv-cell="implied-cap"]');
+  if (implied && R) implied.textContent = fPct(R.implied_cap_rate, 2);
 }
 
 
