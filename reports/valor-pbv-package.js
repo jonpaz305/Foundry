@@ -229,7 +229,7 @@
           <div class="print-title-eyebrow valor-eyebrow">HUD-VASH Project-Based Voucher Package</div>
           <h1 class="print-title-h1">${_esc(dealName)}</h1>
           <div class="print-title-sub">
-            ${showAddrSub ? _esc(addrLine) + ' · ' : ''}${_esc(_assetTypeLabel(inputs.asset_type))}${units > 0 ? ' · ' + units + ' units' : ''} · <span class="valor-footprint-pill valor-footprint-${footprint.tier}">${_esc(footprint.label)}</span>
+            ${showAddrSub ? _esc(addrLine) + ' · ' : ''}${_esc(_assetTypeLabel(inputs.asset_type))}${units > 0 ? ' · ' + units + ' units' : ''}
           </div>
         </div>
 
@@ -315,13 +315,6 @@
           <p><strong>HUD payment standard.</strong> PBV rents are set at the HUD-published Fair Market Rent (FMR) for the relevant bedroom type and metropolitan area, subject to PHA-specific payment standards (typically 90-110% of FMR). HUD pays the Housing Assistance Payment (HAP) directly to the property owner. Tenant contribution is capped at 30% of adjusted gross income, with HUD funding the gap.</p>
           <p><strong>Voucher portability and continuity.</strong> Under the PBV structure, the voucher attaches to the unit, not the tenant. If a tenant vacates, the unit remains voucher-eligible and the next eligible veteran tenant resumes the HAP stream. This eliminates the unit-by-unit re-lease friction characteristic of tenant-based vouchers and produces a stable, occupancy-resilient revenue floor.</p>
           <p><strong>Subsidy floor protection.</strong> HAP contracts are typically structured for an initial 15-year term with renewal options through year 20. Annual rent adjustments follow the published HUD AAF (Annual Adjustment Factor) for the metropolitan area, providing inflation-linked revenue growth. Contract default risk is limited to legislative authorization, with the program operating continuously since 2008.</p>
-        </div>
-
-        <div class="print-section pb-avoid"><span class="ps-accent valor-accent"></span>Federal Relations Contact</div>
-        <div class="valor-contact-card pb-avoid">
-          <div class="valor-contact-name">Robert Cullen</div>
-          <div class="valor-contact-title">SVP Federal Relations · Valor Housing Partners</div>
-          <div class="valor-contact-desc">Robert leads Valor's engagement with HUD, the VA, and Public Housing Authority counterparties across the swing-state footprint. He coordinates federal pathway diligence, PHA introductions, and HAP contract negotiation support.</div>
         </div>
 
         ${_footer(pageNum, totalPages)}
@@ -612,16 +605,6 @@
               <td>COO &amp; Chief Asset Officer</td>
               <td>Alexei Semenov</td>
               <td>Portfolio operations, asset management, renovation execution oversight</td>
-            </tr>
-            <tr>
-              <td>SVP Federal Relations</td>
-              <td>Robert Cullen</td>
-              <td>HUD/VA engagement, Public Housing Authority counterparty relationships, HAP contract negotiation support</td>
-            </tr>
-            <tr>
-              <td>Operations &amp; Acquisitions Coordinator</td>
-              <td>Tiffany Loo</td>
-              <td>Hybrid platform operations and acquisitions pipeline coordination across Valor and ASJP entities</td>
             </tr>
           </tbody>
         </table>
