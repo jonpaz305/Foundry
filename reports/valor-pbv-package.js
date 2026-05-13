@@ -281,7 +281,7 @@
             <div class="pl-row"><span class="pl-lbl">Total Units</span><span class="pl-val">${R.total_unit_count || 0}</span></div>
             <div class="pl-row"><span class="pl-lbl">Asset Type</span><span class="pl-val">${_esc(_assetTypeLabel(inputs.asset_type))}</span></div>
             <div class="pl-row"><span class="pl-lbl">Purchase Price</span><span class="pl-val">${h.fmtMoney(inputs.purchase_price)}</span></div>
-            <div class="pl-row"><span class="pl-lbl">Renovation Budget</span><span class="pl-val">${h.fmtMoney(inputs.reno_budget)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">Capex Budget</span><span class="pl-val">${h.fmtMoney(inputs.capex_budget)}</span></div>
             <div class="pl-row"><span class="pl-lbl">Total Project Cost</span><span class="pl-val">${h.fmtMoney(R.total_project_cost)}</span></div>
           </div>
         </div>
@@ -546,7 +546,7 @@
               ${R.total_unit_count > 0 ? `<div class="pl-row"><span class="pl-lbl">Unit Count</span><span class="pl-val">${R.total_unit_count}</span></div>` : ''}
               ${R.subject_area_sf > 0 ? `<div class="pl-row"><span class="pl-lbl">Building Area</span><span class="pl-val">${Number(R.subject_area_sf).toLocaleString()} SF</span></div>` : ''}
               <div class="pl-row"><span class="pl-lbl">Purchase Price</span><span class="pl-val">${h.fmtMoney(inputs.purchase_price)}</span></div>
-              <div class="pl-row"><span class="pl-lbl">Renovation Budget</span><span class="pl-val">${h.fmtMoney(inputs.reno_budget)}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Capex Budget</span><span class="pl-val">${h.fmtMoney(inputs.capex_budget)}</span></div>
               <div class="pl-row"><span class="pl-lbl">Total Project Cost</span><span class="pl-val">${h.fmtMoney(R.total_project_cost)}</span></div>
             </div>
           </div>
