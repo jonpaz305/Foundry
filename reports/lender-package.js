@@ -1,5 +1,5 @@
 // ════════════════════════════════════════════════════════════════
-// FOUNDRY M6.6 - Lender Package Report
+// FOUNDRY M6.6.1 - Lender Package Report (5-page consolidated)
 // ════════════════════════════════════════════════════════════════
 // Mode-aware debt-sizing-focused deliverable for bridge or agency
 // lenders. BRRRR mode emphasizes refi takeout + stabilized DSCR;
@@ -14,13 +14,14 @@
 //   window.renderReport_lender_package(deal, R, inputs, market, helpers)
 //     -> HTML string (multiple .print-page elements)
 //
-// PAGES (mode-aware)
-//   1  Cover + Loan Request + Debt Metrics
-//   2  Sources & Uses + Capital Stack + Sponsor Skin-in-the-Game
-//   3  BRRRR: Initial Debt + Refi Takeout · F&F: Initial Debt + ARV Defense
-//   4  BRRRR: NOI Build + Stabilized CF · F&F: Renovation Scope + Comp Summary
-//   5  Stress Scenarios (mode-specific)
-//   6  Sponsor Profile + Asset Summary + Disclosures
+// PAGES (mode-aware, 5 pages)
+//   1  Cover + Executive Summary + Loan Request + Debt Metrics
+//   2  S&U + Capital Stack + Sponsor Skin + Initial Debt Terms
+//   3  BRRRR: Refi Takeout + Bridge Payoff + Refi Position
+//      F&F:   ARV Defense + Disposition + Exit Velocity
+//   4  BRRRR: Unit Mix + Operating Build + Stress Scenarios
+//      F&F:   Reno Scope + Comp Set + Stress Scenarios
+//   5  Sponsor + Asset + Market + Disclosures
 // ════════════════════════════════════════════════════════════════
 
 (function () {
@@ -96,14 +97,13 @@
   }
 
 
-  // ── PAGE 1: COVER + LOAN REQUEST + DEBT METRICS ───────────────
+  // ── PAGE 1: COVER + EXEC SUMMARY + LOAN REQUEST + DEBT METRICS
   function _page1(deal, R, inputs, market, h, mode, pageNum, totalPages) {
     const dealName = (deal && deal.name) ? deal.name : 'Untitled Deal';
     const addrLine = _addressLine(deal, inputs);
     const showAddrSub = addrLine && !_normForCmp(dealName).includes(_normForCmp(addrLine));
     const modeLbl = _modeLabel(mode);
 
-    // Mode-aware debt tile selection
     const tiles = [];
     if (mode === 'brrrr') {
       const refi_ltv = (R.refi_loan_amount > 0 && R.stabilized_arv > 0) ? R.refi_loan_amount / R.stabilized_arv : null;
@@ -142,7 +142,10 @@
           </div>
         </div>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Loan Request Summary</div>
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Executive Summary</div>
+        ${_execSummary(deal, R, inputs, mode, market, h)}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Loan Request</div>
         ${_loanRequest(R, inputs, mode, h)}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Debt Metrics</div>
@@ -157,6 +160,24 @@
 
         ${_footer(pageNum, totalPages)}
       </div>`;
+  }
+
+
+  function _execSummary(deal, R, inputs, mode, market, h) {
+    const units = R.total_unit_count || 0;
+    const city = inputs.city || '';
+    const state = inputs.state || '';
+    const grade = market && market.derived ? market.derived.market_strength_grade : null;
+
+    let para;
+    if (mode === 'brrrr') {
+      para = `${h.fmtMoneyK(R.initial_loan_amt)} bridge facility against a ${units}-unit ${_assetTypeLabel(inputs.asset_type).toLowerCase()} acquisition in ${_esc(city)}${state ? ', ' + _esc(state) : ''} (${h.fmtMoneyK(R.total_project_cost)} TPC). Takeout strategy: agency refinance in month ${inputs.target_refi_months || 9} at ${h.fmtPct(inputs.target_refi_ltv, 0)} LTV (${h.fmtMoneyK(R.refi_loan_amount)} sized to ${h.fmtX(R.dscr, 2)} DSCR), retiring the bridge in full${R.dscr >= 1.20 ? ' with coverage cushion above the agency 1.20x floor' : '; coverage runs thin and may require a rate buydown or extended IO period at the bridge level'}.${grade ? ' Submarket grades ' + _esc(grade) + '.' : ''}`;
+    } else {
+      const ltv = (R.initial_loan_amt > 0 && R.arv > 0) ? R.initial_loan_amt / R.arv : null;
+      para = `${h.fmtMoneyK(R.initial_loan_amt)} acquisition + reno bridge against a ${_assetTypeLabel(inputs.asset_type).toLowerCase()} in ${_esc(city)}${state ? ', ' + _esc(state) : ''}${R.subject_area_sf > 0 ? ' (' + Number(R.subject_area_sf).toLocaleString() + ' SF)' : ''}. Exit strategy: sale at ${h.fmtMoneyK(R.arv)} ARV${R.arv_source === 'override' ? ' (manual override)' : ' (' + (R.comp_count_sales || 0) + '-comp set)'} over a ${inputs.target_hold_months || 0}-month hold, generating ${h.fmtMoneyK(R.gross_proceeds)} in gross proceeds against ${h.fmtPct(ltv)} LTV at origination.${grade ? ' Submarket grades ' + _esc(grade) + '.' : ''}`;
+    }
+
+    return `<div class="bp-narrative pb-avoid"><p>${para}</p></div>`;
   }
 
 
@@ -189,7 +210,7 @@
   }
 
 
-  // ── PAGE 2: SOURCES & USES + SPONSOR SKIN ─────────────────────
+  // ── PAGE 2: S&U + CAP STACK + SKIN + INITIAL DEBT TERMS ───────
   function _page2(deal, R, inputs, market, h, mode, pageNum, totalPages) {
     const initialLoan = R.initial_loan_amt || 0;
     const investorEquity = mode === 'brrrr' ? (R.initial_investor_equity || 0) : (R.investor_equity || 0);
@@ -208,7 +229,7 @@
 
     return `
       <div class="print-page print-page-compact">
-        ${_header(h, 'Sources & Uses · Capital Stack', mode)}
+        ${_header(h, 'Sources & Uses · Capital Stack · Initial Debt', mode)}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Sources & Uses</div>
         <div class="bp-su-grid">
@@ -249,82 +270,95 @@
           </div>
         </div>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Sponsor Skin-in-the-Game</div>
-        <table class="print-table pb-avoid">
-          <thead><tr><th>Component</th><th class="num">Amount</th><th class="num">% of TPC</th></tr></thead>
-          <tbody>
-            <tr><td>Cash Equity at Closing</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${h.fmtPct(investorEquity / Math.max(1, R.total_project_cost))}</td></tr>
-            <tr><td>Mobilization Contingency (sponsor-funded)</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, R.total_project_cost))}</td></tr>
-            <tr class="totals"><td>Total Sponsor Capital at Risk</td><td class="num">${h.fmtMoney(investorEquity + contingency)}</td><td class="num">${h.fmtPct((investorEquity + contingency) / Math.max(1, R.total_project_cost))}</td></tr>
-          </tbody>
-        </table>
+        <div class="lender-twocol pb-avoid">
+          <div>
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Sponsor Skin-in-the-Game</div>
+            <table class="print-table">
+              <thead><tr><th>Component</th><th class="num">Amount</th><th class="num">% TPC</th></tr></thead>
+              <tbody>
+                <tr><td>Cash Equity at Closing</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${h.fmtPct(investorEquity / Math.max(1, R.total_project_cost))}</td></tr>
+                <tr><td>Mobilization Contingency</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, R.total_project_cost))}</td></tr>
+                <tr class="totals"><td>Total Capital at Risk</td><td class="num">${h.fmtMoney(investorEquity + contingency)}</td><td class="num">${h.fmtPct((investorEquity + contingency) / Math.max(1, R.total_project_cost))}</td></tr>
+              </tbody>
+            </table>
+          </div>
 
-        ${_footer(pageNum, totalPages)}
-      </div>`;
-  }
-
-
-  // ── PAGE 3: INITIAL DEBT + (BRRRR: Refi Takeout · F&F: ARV Defense)
-  function _page3(deal, R, inputs, market, h, mode, pageNum, totalPages) {
-    return `
-      <div class="print-page print-page-compact">
-        ${_header(h, mode === 'brrrr' ? 'Initial Debt · Refi Takeout' : 'Initial Debt · ARV Defense', mode)}
-
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Initial Debt Terms</div>
-        <div class="print-list pb-avoid">
-          <div class="pl-row"><span class="pl-lbl">Loan Amount</span><span class="pl-val">${h.fmtMoney(R.initial_loan_amt)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Rate</span><span class="pl-val">${h.fmtPct(inputs.initial_rate, 2)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Interest Type</span><span class="pl-val">${_esc(inputs.initial_interest_type || 'IO')}</span></div>
-          <div class="pl-row"><span class="pl-lbl">LTV (Purchase)</span><span class="pl-val">${h.fmtPct(inputs.initial_loan_ltv)}</span></div>
-          ${mode === 'brrrr' ? `<div class="pl-row"><span class="pl-lbl">LTC + Reno</span><span class="pl-val">${h.fmtPct(inputs.initial_loan_ltc_reno)}</span></div>` : ''}
-          <div class="pl-row"><span class="pl-lbl">Monthly Debt Service</span><span class="pl-val">${h.fmtMoney(R.initial_monthly_ds)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Term</span><span class="pl-val">${mode === 'brrrr' ? (inputs.target_refi_months || 9) + ' months to refi' : (inputs.target_hold_months || 0) + ' months to sale'}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Total DS Through ${mode === 'brrrr' ? 'Refi' : 'Sale'}</span><span class="pl-val">${h.fmtMoney(mode === 'brrrr' ? R.debt_service_pre_refi : R.debt_service_pre_sale)}</span></div>
+          <div>
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Initial Debt Terms</div>
+            <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
+              <div class="pl-row"><span class="pl-lbl">Loan Amount</span><span class="pl-val">${h.fmtMoney(R.initial_loan_amt)}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Rate / Type</span><span class="pl-val">${h.fmtPct(inputs.initial_rate, 2)} ${_esc(inputs.initial_interest_type || 'IO')}</span></div>
+              <div class="pl-row"><span class="pl-lbl">LTV (Purchase)</span><span class="pl-val">${h.fmtPct(inputs.initial_loan_ltv)}</span></div>
+              ${mode === 'brrrr' ? `<div class="pl-row"><span class="pl-lbl">LTC + Reno</span><span class="pl-val">${h.fmtPct(inputs.initial_loan_ltc_reno)}</span></div>` : ''}
+              <div class="pl-row"><span class="pl-lbl">Monthly DS</span><span class="pl-val">${h.fmtMoney(R.initial_monthly_ds)}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Term</span><span class="pl-val">${mode === 'brrrr' ? (inputs.target_refi_months || 9) + ' mo to refi' : (inputs.target_hold_months || 0) + ' mo to sale'}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Total DS Through ${mode === 'brrrr' ? 'Refi' : 'Sale'}</span><span class="pl-val">${h.fmtMoney(mode === 'brrrr' ? R.debt_service_pre_refi : R.debt_service_pre_sale)}</span></div>
+            </div>
+          </div>
         </div>
 
-        ${mode === 'brrrr' ? _brrrrRefiTakeout(R, inputs, h) : _ffArvDefense(R, inputs, h)}
-
         ${_footer(pageNum, totalPages)}
       </div>`;
   }
 
 
-  function _brrrrRefiTakeout(R, inputs, h) {
+  // ── PAGE 3: REFI TAKEOUT (BRRRR) or ARV DEFENSE (F&F) ─────────
+  function _page3(deal, R, inputs, market, h, mode, pageNum, totalPages) {
+    if (mode === 'brrrr') return _page3Brrrr(deal, R, inputs, market, h, pageNum, totalPages);
+    return _page3Ff(deal, R, inputs, market, h, pageNum, totalPages);
+  }
+
+
+  function _page3Brrrr(deal, R, inputs, market, h, pageNum, totalPages) {
     const refi_ltv = (R.refi_loan_amount > 0 && R.stabilized_arv > 0) ? R.refi_loan_amount / R.stabilized_arv : null;
     const debt_yield = (R.stabilized_noi > 0 && R.refi_loan_amount > 0) ? R.stabilized_noi / R.refi_loan_amount : null;
     return `
-      <div class="print-section pb-avoid"><span class="ps-accent"></span>Refinance Takeout Sizing</div>
-      <table class="print-table pb-avoid">
-        <thead><tr><th>Component</th><th class="num">Value</th></tr></thead>
-        <tbody>
-          <tr><td>Stabilized NOI</td><td class="num">${h.fmtMoney(R.stabilized_noi)}</td></tr>
-          <tr><td>Exit Cap Rate</td><td class="num">${h.fmtPct(inputs.exit_cap, 2)}</td></tr>
-          <tr class="totals"><td>Stabilized ARV</td><td class="num">${h.fmtMoney(R.stabilized_arv)}</td></tr>
-          <tr><td>Target Refi LTV</td><td class="num">${h.fmtPct(inputs.target_refi_ltv)}</td></tr>
-          <tr class="totals"><td>Refi Loan Amount (Target LTV × ARV)</td><td class="num">${h.fmtMoney(R.refi_loan_amount)}</td></tr>
-          <tr><td>Effective Refi LTV</td><td class="num">${h.fmtPct(refi_ltv)}</td></tr>
-          <tr><td>Refi Rate</td><td class="num">${h.fmtPct(inputs.refi_rate, 2)} ${_esc(inputs.refi_interest_type || 'PI')}</td></tr>
-          <tr><td>Refi Monthly DS</td><td class="num">${h.fmtMoney(R.refi_monthly_ds)}</td></tr>
-          <tr><td>Refi Annual DS</td><td class="num">${h.fmtMoney(R.refi_annual_ds)}</td></tr>
-          <tr class="totals"><td>DSCR (NOI / Refi DS)</td><td class="num">${h.fmtX(R.dscr, 2)}</td></tr>
-          <tr class="totals"><td>Debt Yield (NOI / Refi Loan)</td><td class="num">${h.fmtPct(debt_yield)}</td></tr>
-        </tbody>
-      </table>
+      <div class="print-page print-page-compact">
+        ${_header(h, 'Refinance Takeout', 'brrrr')}
 
-      <div class="print-section pb-avoid"><span class="ps-accent"></span>Bridge Payoff at Refi</div>
-      <table class="print-table pb-avoid">
-        <thead><tr><th>Step</th><th class="num">Amount</th></tr></thead>
-        <tbody>
-          <tr><td>New Refi Loan Proceeds</td><td class="num">${h.fmtMoney(R.refi_loan_amount)}</td></tr>
-          <tr><td>Less: Bridge Loan Payoff</td><td class="num">(${h.fmtMoney(R.payoff_existing_debt || R.initial_loan_amt)})</td></tr>
-          <tr><td>Less: Refi Closing Costs (${h.fmtPct(inputs.refi_closing_cost_pct || 0, 1)})</td><td class="num">(${h.fmtMoney(R.refi_closing_costs)})</td></tr>
-          <tr class="totals"><td>Net Cash Out to Sponsor</td><td class="num">${h.fmtMoney(R.net_cash_out)}</td></tr>
-        </tbody>
-      </table>`;
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Refinance Takeout Sizing</div>
+        <table class="print-table pb-avoid">
+          <thead><tr><th>Component</th><th class="num">Value</th></tr></thead>
+          <tbody>
+            <tr><td>Stabilized NOI</td><td class="num">${h.fmtMoney(R.stabilized_noi)}</td></tr>
+            <tr><td>Exit Cap Rate</td><td class="num">${h.fmtPct(inputs.exit_cap, 2)}</td></tr>
+            <tr class="totals"><td>Stabilized ARV (NOI / Exit Cap)</td><td class="num">${h.fmtMoney(R.stabilized_arv)}</td></tr>
+            <tr><td>Target Refi LTV</td><td class="num">${h.fmtPct(inputs.target_refi_ltv)}</td></tr>
+            <tr class="totals"><td>Refi Loan Amount</td><td class="num">${h.fmtMoney(R.refi_loan_amount)}</td></tr>
+            <tr><td>Effective Refi LTV</td><td class="num">${h.fmtPct(refi_ltv)}</td></tr>
+            <tr><td>Refi Rate / Type</td><td class="num">${h.fmtPct(inputs.refi_rate, 2)} ${_esc(inputs.refi_interest_type || 'PI')}</td></tr>
+            <tr><td>Refi Monthly DS</td><td class="num">${h.fmtMoney(R.refi_monthly_ds)}</td></tr>
+            <tr><td>Refi Annual DS</td><td class="num">${h.fmtMoney(R.refi_annual_ds)}</td></tr>
+            <tr class="totals"><td>DSCR (NOI / Refi DS)</td><td class="num">${h.fmtX(R.dscr, 2)}</td></tr>
+            <tr class="totals"><td>Debt Yield (NOI / Refi Loan)</td><td class="num">${h.fmtPct(debt_yield)}</td></tr>
+          </tbody>
+        </table>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Bridge Payoff at Refi</div>
+        <table class="print-table pb-avoid">
+          <thead><tr><th>Step</th><th class="num">Amount</th></tr></thead>
+          <tbody>
+            <tr><td>New Refi Loan Proceeds</td><td class="num">${h.fmtMoney(R.refi_loan_amount)}</td></tr>
+            <tr><td>Less: Bridge Loan Payoff</td><td class="num">(${h.fmtMoney(R.payoff_existing_debt || R.initial_loan_amt)})</td></tr>
+            <tr><td>Less: Refi Closing Costs (${h.fmtPct(inputs.refi_closing_cost_pct || 0, 1)})</td><td class="num">(${h.fmtMoney(R.refi_closing_costs)})</td></tr>
+            <tr class="totals"><td>Net Cash Out to Sponsor</td><td class="num">${h.fmtMoney(R.net_cash_out)}</td></tr>
+          </tbody>
+        </table>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Refi Position Indicators</div>
+        <div class="print-list pb-avoid">
+          <div class="pl-row"><span class="pl-lbl">Post-Refi In-Basis</span><span class="pl-val">${h.fmtPct(_pctNorm(R.post_refi_in_basis_pct))}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Capital Recapture</span><span class="pl-val">${h.fmtPct(_pctNorm(R.capital_recaptured_pct))}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Refi Price per Unit</span><span class="pl-val">${h.fmtMoney(R.refi_price_per_unit)}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Investor Equity Remaining</span><span class="pl-val">${h.fmtMoney(R.investor_equity_remaining)}</span></div>
+        </div>
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
   }
 
 
-  function _ffArvDefense(R, inputs, h) {
+  function _page3Ff(deal, R, inputs, market, h, pageNum, totalPages) {
     const sqft = R.subject_area_sf || 0;
     const compARV = R.comp_derived_arv || 0;
     const finalARV = R.arv || 0;
@@ -332,47 +366,59 @@
       ? (finalARV - compARV) / compARV : null;
 
     return `
-      <div class="print-section pb-avoid"><span class="ps-accent"></span>ARV Defense</div>
-      <table class="print-table pb-avoid">
-        <thead><tr><th>Component</th><th class="num">Value</th></tr></thead>
-        <tbody>
-          <tr><td>Subject Area</td><td class="num">${sqft ? Number(sqft).toLocaleString() + ' SF' : '-'}</td></tr>
-          <tr><td>Sales Comp Count</td><td class="num">${R.comp_count_sales || 0}</td></tr>
-          <tr><td>Renovated-Only Comps</td><td class="num">${R.comp_count_sales_renovated || 0}</td></tr>
-          <tr><td>Comp Avg $/SF (Institutional)</td><td class="num">${R.comp_avg_psf ? h.fmtMoney(R.comp_avg_psf) : '-'}</td></tr>
-          <tr><td>Comp Avg DOM</td><td class="num">${R.comp_avg_dom != null ? Math.round(R.comp_avg_dom) + ' days' : '-'}</td></tr>
-          <tr class="totals"><td>Comp-Derived ARV</td><td class="num">${h.fmtMoney(compARV)}</td></tr>
-          <tr><td>ARV Source</td><td class="num">${_esc((R.arv_source || 'comps').charAt(0).toUpperCase() + (R.arv_source || 'comps').slice(1))}</td></tr>
-          <tr class="totals"><td>Final ARV (Used in Loan Sizing)</td><td class="num">${h.fmtMoney(finalARV)}</td></tr>
-          ${override_diff != null ? `<tr><td>Override Premium vs Comp-Derived</td><td class="num">${override_diff >= 0 ? '+' : ''}${h.fmtPct(override_diff)}</td></tr>` : ''}
-          <tr><td>Target $/SF</td><td class="num">${(sqft > 0 && finalARV > 0) ? h.fmtMoney(finalARV / sqft) : '-'}</td></tr>
-        </tbody>
-      </table>
+      <div class="print-page print-page-compact">
+        ${_header(h, 'ARV Defense · Disposition', 'fix_and_flip')}
 
-      ${override_diff != null && Math.abs(override_diff) > 0.10 ? `
-        <div class="print-callout pb-avoid">
-          <div class="pc-title">ARV Override Above Comp-Derived</div>
-          Manual ARV is ${h.fmtPct(override_diff)} above the comp-derived value. Lender appraiser may default to the comp-derived figure; sponsor should be prepared to accept loan sizing against the lower of the two.
-        </div>` : ''}
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>ARV Defense</div>
+        <table class="print-table pb-avoid">
+          <thead><tr><th>Component</th><th class="num">Value</th></tr></thead>
+          <tbody>
+            <tr><td>Subject Area</td><td class="num">${sqft ? Number(sqft).toLocaleString() + ' SF' : '-'}</td></tr>
+            <tr><td>Sales Comp Count</td><td class="num">${R.comp_count_sales || 0}</td></tr>
+            <tr><td>Renovated-Only Comps</td><td class="num">${R.comp_count_sales_renovated || 0}</td></tr>
+            <tr><td>Comp Avg $/SF (Institutional)</td><td class="num">${R.comp_avg_psf ? h.fmtMoney(R.comp_avg_psf) : '-'}</td></tr>
+            <tr><td>Comp Avg DOM</td><td class="num">${R.comp_avg_dom != null ? Math.round(R.comp_avg_dom) + ' days' : '-'}</td></tr>
+            <tr class="totals"><td>Comp-Derived ARV</td><td class="num">${h.fmtMoney(compARV)}</td></tr>
+            <tr><td>ARV Source</td><td class="num">${_esc((R.arv_source || 'comps').charAt(0).toUpperCase() + (R.arv_source || 'comps').slice(1))}</td></tr>
+            <tr class="totals"><td>Final ARV (Used in Loan Sizing)</td><td class="num">${h.fmtMoney(finalARV)}</td></tr>
+            ${override_diff != null ? `<tr><td>Override Premium vs Comp-Derived</td><td class="num">${override_diff >= 0 ? '+' : ''}${h.fmtPct(override_diff)}</td></tr>` : ''}
+            <tr><td>Target $/SF</td><td class="num">${(sqft > 0 && finalARV > 0) ? h.fmtMoney(finalARV / sqft) : '-'}</td></tr>
+          </tbody>
+        </table>
 
-      <div class="print-section pb-avoid"><span class="ps-accent"></span>Disposition Mechanics</div>
-      <table class="print-table pb-avoid">
-        <thead><tr><th>Step</th><th class="num">Amount</th></tr></thead>
-        <tbody>
-          <tr><td>Disposition Value (Final ARV)</td><td class="num">${h.fmtMoney(R.disposition_value)}</td></tr>
-          <tr><td>Less: Sale Cost (${h.fmtPct(inputs.sale_cost_pct)})</td><td class="num">(${h.fmtMoney(R.sale_cost)})</td></tr>
-          <tr><td>Less: Loan Payoff</td><td class="num">(${h.fmtMoney(R.remaining_loan_balance)})</td></tr>
-          <tr class="totals"><td>Gross Proceeds to Sponsor</td><td class="num">${h.fmtMoney(R.gross_proceeds)}</td></tr>
-        </tbody>
-      </table>`;
+        ${override_diff != null && Math.abs(override_diff) > 0.10 ? `
+          <div class="print-callout pb-avoid">
+            <div class="pc-title">ARV Override Above Comp-Derived</div>
+            Manual ARV is ${h.fmtPct(override_diff)} above the comp-derived value. Lender appraiser may default to the comp-derived figure; sponsor should be prepared to accept loan sizing against the lower of the two.
+          </div>` : ''}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Disposition Mechanics</div>
+        <table class="print-table pb-avoid">
+          <thead><tr><th>Step</th><th class="num">Amount</th></tr></thead>
+          <tbody>
+            <tr><td>Disposition Value (Final ARV)</td><td class="num">${h.fmtMoney(R.disposition_value)}</td></tr>
+            <tr><td>Less: Sale Cost (${h.fmtPct(inputs.sale_cost_pct)})</td><td class="num">(${h.fmtMoney(R.sale_cost)})</td></tr>
+            <tr><td>Less: Loan Payoff</td><td class="num">(${h.fmtMoney(R.remaining_loan_balance)})</td></tr>
+            <tr class="totals"><td>Gross Proceeds to Sponsor</td><td class="num">${h.fmtMoney(R.gross_proceeds)}</td></tr>
+          </tbody>
+        </table>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Exit Velocity Indicators</div>
+        <div class="print-list pb-avoid">
+          <div class="pl-row"><span class="pl-lbl">Average Comp DOM</span><span class="pl-val">${R.comp_avg_dom != null ? Math.round(R.comp_avg_dom) + ' days' : '-'}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Planned Sale Window</span><span class="pl-val">${Math.max(1, (inputs.target_hold_months || 7) - Math.round((inputs.target_hold_months || 7) * 0.7))} months</span></div>
+          <div class="pl-row"><span class="pl-lbl">Sale Cost %</span><span class="pl-val">${h.fmtPct(inputs.sale_cost_pct)}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Subject $/SF Target</span><span class="pl-val">${(sqft > 0 && R.arv > 0) ? h.fmtMoney(R.arv / sqft) : '-'}</span></div>
+        </div>
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
   }
 
 
-  // ── PAGE 4: NOI BUILD (BRRRR) or RENOVATION + COMP SUMMARY (F&F)
+  // ── PAGE 4: OPERATING + STRESS (BRRRR) or RENO + COMPS + STRESS (F&F)
   function _page4(deal, R, inputs, market, h, mode, pageNum, totalPages) {
-    if (mode === 'brrrr') {
-      return _page4Brrrr(deal, R, inputs, market, h, pageNum, totalPages);
-    }
+    if (mode === 'brrrr') return _page4Brrrr(deal, R, inputs, market, h, pageNum, totalPages);
     return _page4Ff(deal, R, inputs, market, h, pageNum, totalPages);
   }
 
@@ -391,33 +437,92 @@
       ['Reserves', R.reserves, null, `$${inputs.reserves_per_unit_year || 0}/unit/yr`]
     ];
 
+    const baseNOI = R.stabilized_noi || 0;
+    const baseRefiLoan = R.refi_loan_amount || 0;
+    const baseRate = inputs.refi_rate || 0;
+    const baseExitCap = inputs.exit_cap || 0;
+    const refiIsPI = (inputs.refi_interest_type || 'PI') === 'PI';
+    const baseEGI = R.egi || 0;
+    const baseVac = inputs.vacancy_pct || 0;
+    const baseExpRatio = (baseEGI > 0) ? (R.total_operating_expenses / baseEGI) : 0;
+    const baseGpr = R.gpr_annual || 0;
+
+    function _amortDS(loan, annualRate, months) {
+      if (!refiIsPI || annualRate <= 0 || months <= 0) return loan * annualRate;
+      const m = annualRate / 12;
+      const monthly = loan * (m * Math.pow(1 + m, months)) / (Math.pow(1 + m, months) - 1);
+      return monthly * 12;
+    }
+
+    const baseDS = R.refi_annual_ds || _amortDS(baseRefiLoan, baseRate, 360);
+    const baseDY = baseRefiLoan > 0 ? baseNOI / baseRefiLoan : null;
+    const baseDSCR = baseDS > 0 ? baseNOI / baseDS : null;
+
+    const scenarios = [];
+    scenarios.push((function() {
+      const ds = _amortDS(baseRefiLoan, baseRate + 0.005, 360);
+      return { label: 'Refi Rate +50bp', noi: baseNOI, ds, dscr: ds > 0 ? baseNOI / ds : null, dy: baseDY };
+    })());
+    scenarios.push((function() {
+      const ds = _amortDS(baseRefiLoan, baseRate + 0.01, 360);
+      return { label: 'Refi Rate +100bp', noi: baseNOI, ds, dscr: ds > 0 ? baseNOI / ds : null, dy: baseDY };
+    })());
+    scenarios.push((function() {
+      const vacRate = Math.min(0.95, baseVac + 0.05);
+      const egi2 = baseGpr * (1 - vacRate);
+      const noi = egi2 - egi2 * baseExpRatio;
+      return { label: 'Vacancy +5pp', noi, ds: baseDS, dscr: baseDS > 0 ? noi / baseDS : null, dy: baseRefiLoan > 0 ? noi / baseRefiLoan : null };
+    })());
+    scenarios.push((function() {
+      const noi = baseNOI * 0.9;
+      return { label: 'NOI -10%', noi, ds: baseDS, dscr: baseDS > 0 ? noi / baseDS : null, dy: baseRefiLoan > 0 ? noi / baseRefiLoan : null };
+    })());
+    scenarios.push((function() {
+      const newArv = baseNOI / (baseExitCap + 0.005);
+      const newLoan = newArv * (inputs.target_refi_ltv || 0.7);
+      const ds = _amortDS(newLoan, baseRate, 360);
+      return { label: `Exit Cap +50bp (Loan→${h.fmtMoneyK(newLoan)})`, noi: baseNOI, ds, dscr: ds > 0 ? baseNOI / ds : null, dy: newLoan > 0 ? baseNOI / newLoan : null };
+    })());
+
+    function _toneDSCR(d) { if (d == null) return 'neutral'; if (d >= 1.25) return 'good'; if (d >= 1.10) return 'warn'; return 'bad'; }
+    function _toneDY(d)   { if (d == null) return 'neutral'; if (d >= 0.10) return 'good'; if (d >= 0.085) return 'warn'; return 'bad'; }
+
     return `
       <div class="print-page print-page-compact">
-        ${_header(h, 'Stabilized NOI · Cash Flow', 'brrrr')}
+        ${_header(h, 'NOI Build · Stress Scenarios', 'brrrr')}
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Unit Mix & Stabilized Rents</div>
-        <table class="print-table pb-avoid">
-          <thead><tr><th>Bed Type</th><th class="num">Units</th><th class="num">Mo. Rent</th><th class="num">Monthly GPR</th><th class="num">Annual GPR</th></tr></thead>
-          <tbody>
-            ${um.map(u => `
-              <tr>
-                <td>${_esc((u.bed_type || '').toUpperCase())}</td>
-                <td class="num">${u.count || 0}</td>
-                <td class="num">${h.fmtMoney(u.rent)}</td>
-                <td class="num">${h.fmtMoney((u.count || 0) * (u.rent || 0))}</td>
-                <td class="num">${h.fmtMoney((u.count || 0) * (u.rent || 0) * 12)}</td>
-              </tr>`).join('')}
-            <tr class="totals"><td>Total</td><td class="num">${units}</td><td></td><td class="num">${h.fmtMoney(R.gpr_monthly)}</td><td class="num">${h.fmtMoney(R.gpr_annual)}</td></tr>
-          </tbody>
-        </table>
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Unit Mix & Stabilized Operations</div>
+        <div class="lender-twocol pb-avoid">
+          <table class="print-table">
+            <thead><tr><th>Bed</th><th class="num">Units</th><th class="num">Rent</th><th class="num">Annual GPR</th></tr></thead>
+            <tbody>
+              ${um.map(u => `
+                <tr>
+                  <td>${_esc((u.bed_type || '').toUpperCase())}</td>
+                  <td class="num">${u.count || 0}</td>
+                  <td class="num">${h.fmtMoney(u.rent)}</td>
+                  <td class="num">${h.fmtMoney((u.count || 0) * (u.rent || 0) * 12)}</td>
+                </tr>`).join('')}
+              <tr class="totals"><td>Total</td><td class="num">${units}</td><td></td><td class="num">${h.fmtMoney(R.gpr_annual)}</td></tr>
+            </tbody>
+          </table>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Operating Build</div>
-        <table class="print-table pb-avoid">
+          <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
+            <div class="pl-row"><span class="pl-lbl">Stabilized NOI</span><span class="pl-val">${h.fmtMoney(R.stabilized_noi)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">NOI Margin</span><span class="pl-val">${h.fmtPct(R.noi_margin)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">Expense Ratio</span><span class="pl-val">${h.fmtPct(R.expense_ratio)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">Breakeven Occupancy</span><span class="pl-val">${h.fmtPct(R.breakeven_occupancy)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">NOI per Unit</span><span class="pl-val">${h.fmtMoney(R.stabilized_noi / Math.max(1, units))}</span></div>
+          </div>
+        </div>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Operating Expense Detail</div>
+        <table class="print-table pb-avoid lender-opex-compact">
           <thead><tr><th>Line Item</th><th>Basis</th><th class="num">Amount</th><th class="num">% of EGI</th></tr></thead>
           <tbody>
-            <tr><td>Gross Potential Rent</td><td>-</td><td class="num">${h.fmtMoney(R.gpr_annual)}</td><td class="num">${h.fmtPct(R.gpr_annual / Math.max(1, egi))}</td></tr>
-            <tr><td>Vacancy Loss</td><td>${h.fmtPct(inputs.vacancy_pct)}</td><td class="num">(${h.fmtMoney(R.vacancy_loss)})</td><td class="num">${h.fmtPct(-R.vacancy_loss / Math.max(1, egi))}</td></tr>
-            <tr class="totals"><td>Effective Gross Income</td><td></td><td class="num">${h.fmtMoney(egi)}</td><td class="num">100.0%</td></tr>
+            <tr><td>GPR</td><td>-</td><td class="num">${h.fmtMoney(R.gpr_annual)}</td><td class="num">${h.fmtPct(R.gpr_annual / Math.max(1, egi))}</td></tr>
+            <tr><td>Vacancy Loss</td><td>${h.fmtPct(inputs.vacancy_pct)}</td><td class="num">(${h.fmtMoney(R.vacancy_loss)})</td><td class="num">-${h.fmtPct(R.vacancy_loss / Math.max(1, egi))}</td></tr>
+            <tr class="totals"><td>EGI</td><td></td><td class="num">${h.fmtMoney(egi)}</td><td class="num">100.0%</td></tr>
             ${opex.map(([lbl, amt, pct, note]) => `
               <tr>
                 <td>${_esc(lbl)}</td>
@@ -425,18 +530,26 @@
                 <td class="num">(${h.fmtMoney(amt)})</td>
                 <td class="num">${h.fmtPct((amt || 0) / Math.max(1, egi))}</td>
               </tr>`).join('')}
-            <tr class="totals"><td>Total Operating Expenses</td><td></td><td class="num">(${h.fmtMoney(R.total_operating_expenses)})</td><td class="num">${h.fmtPct(R.expense_ratio)}</td></tr>
-            <tr class="totals"><td>Net Operating Income</td><td></td><td class="num">${h.fmtMoney(R.stabilized_noi)}</td><td class="num">${h.fmtPct(R.noi_margin)}</td></tr>
+            <tr class="totals"><td>Total OpEx</td><td></td><td class="num">(${h.fmtMoney(R.total_operating_expenses)})</td><td class="num">${h.fmtPct(R.expense_ratio)}</td></tr>
+            <tr class="totals"><td>NOI</td><td></td><td class="num">${h.fmtMoney(R.stabilized_noi)}</td><td class="num">${h.fmtPct(R.noi_margin)}</td></tr>
           </tbody>
         </table>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>NOI Cushion Indicators</div>
-        <div class="print-list pb-avoid">
-          <div class="pl-row"><span class="pl-lbl">Breakeven Occupancy</span><span class="pl-val">${h.fmtPct(R.breakeven_occupancy)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">NOI per Unit</span><span class="pl-val">${h.fmtMoney(R.stabilized_noi / Math.max(1, units))}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Expense Ratio</span><span class="pl-val">${h.fmtPct(R.expense_ratio)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">NOI Margin</span><span class="pl-val">${h.fmtPct(R.noi_margin)}</span></div>
-        </div>
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Stress Scenarios (Base: ${h.fmtX(baseDSCR, 2)} DSCR · ${h.fmtPct(baseDY)} DY)</div>
+        <table class="print-table pb-avoid">
+          <thead><tr><th>Scenario</th><th class="num">NOI</th><th class="num">Annual DS</th><th class="num">DSCR</th><th class="num">Debt Yield</th></tr></thead>
+          <tbody>
+            ${scenarios.map(s => `
+              <tr>
+                <td>${_esc(s.label)}</td>
+                <td class="num">${h.fmtMoney(s.noi)}</td>
+                <td class="num">${h.fmtMoney(s.ds)}</td>
+                <td class="num lender-stress-${_toneDSCR(s.dscr)}">${h.fmtX(s.dscr, 2)}</td>
+                <td class="num lender-stress-${_toneDY(s.dy)}">${h.fmtPct(s.dy)}</td>
+              </tr>`).join('')}
+          </tbody>
+          <caption>Red &lt; 1.10x DSCR or &lt; 8.5% DY · amber 1.10-1.25x or 8.5-10% · green ≥ 1.25x or ≥ 10%.</caption>
+        </table>
 
         ${_footer(pageNum, totalPages)}
       </div>`;
@@ -448,26 +561,77 @@
     const sales = cs.filter(c => c && (c.comp_type || 'sales') === 'sales');
     const sqft = R.subject_area_sf || 0;
 
+    const baseARV = R.arv || 0;
+    const saleCostPct = inputs.sale_cost_pct || 0;
+    const remLoan = R.remaining_loan_balance || 0;
+    const initEq = R.investor_equity || 1;
+    const baseHold = inputs.target_hold_months || 7;
+    const annualRate = inputs.initial_rate || 0;
+    const baseLoan = R.initial_loan_amt || 0;
+    const baseMonthlyCarry = (baseLoan * annualRate) / 12;
+
+    function _scenario(label, arvAdj, holdAdj, renoAdj) {
+      const adjARV = baseARV * (1 + arvAdj);
+      const adjReno = (inputs.reno_budget || 0) * (1 + renoAdj);
+      const adjSaleCost = adjARV * saleCostPct;
+      const extraReno = adjReno - (inputs.reno_budget || 0);
+      const extraCarry = baseMonthlyCarry * holdAdj;
+      const adjGross = adjARV - adjSaleCost - remLoan - extraReno - extraCarry;
+      const adjROI = initEq > 0 ? (adjGross - initEq) / initEq : null;
+      return { label, arv: adjARV, gross: adjGross, roi: adjROI };
+    }
+
+    const scenarios = [
+      _scenario('Sale Price -5%', -0.05, 0, 0),
+      _scenario('Sale Price -10%', -0.10, 0, 0),
+      _scenario('DOM +60 days', 0, 2, 0),
+      _scenario('DOM +90 days', 0, 3, 0),
+      _scenario('Reno Overrun +10%', 0, 0, 0.10),
+      _scenario('Combined: Sale -5% + DOM +60', -0.05, 2, 0)
+    ];
+
+    function _toneROI(r) { if (r == null) return 'neutral'; if (r >= 0.15) return 'good'; if (r >= 0.05) return 'warn'; return 'bad'; }
+    function _toneCoverage(g) {
+      if (g == null) return 'neutral';
+      if (g >= initEq) return 'good';
+      if (g >= 0) return 'warn';
+      return 'bad';
+    }
+
     return `
       <div class="print-page print-page-compact">
-        ${_header(h, 'Renovation Scope · Comp Summary', 'fix_and_flip')}
+        ${_header(h, 'Renovation · Comps · Stress', 'fix_and_flip')}
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Renovation Scope</div>
-        <table class="print-table pb-avoid">
-          <thead><tr><th>Line</th><th class="num">Amount</th><th class="num">$/SF</th></tr></thead>
-          <tbody>
-            <tr><td>Renovation Budget</td><td class="num">${h.fmtMoney(inputs.reno_budget)}</td><td class="num">${(sqft > 0 && inputs.reno_budget > 0) ? h.fmtMoney(inputs.reno_budget / sqft) : '-'}</td></tr>
-            <tr><td>Mobilization Contingency</td><td class="num">${h.fmtMoney(inputs.mobilization_contingency)}</td><td class="num">${(sqft > 0 && inputs.mobilization_contingency > 0) ? h.fmtMoney(inputs.mobilization_contingency / sqft) : '-'}</td></tr>
-            <tr><td>Consulting</td><td class="num">${h.fmtMoney(R.consulting)}</td><td class="num">${(sqft > 0 && R.consulting > 0) ? h.fmtMoney(R.consulting / sqft) : '-'}</td></tr>
-            <tr class="totals"><td>Total Renovation Envelope</td><td class="num">${h.fmtMoney((inputs.reno_budget || 0) + (inputs.mobilization_contingency || 0) + (R.consulting || 0))}</td><td class="num">${(sqft > 0) ? h.fmtMoney(((inputs.reno_budget || 0) + (inputs.mobilization_contingency || 0) + (R.consulting || 0)) / sqft) : '-'}</td></tr>
-          </tbody>
-        </table>
+        <div class="lender-twocol pb-avoid">
+          <div>
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Renovation Scope</div>
+            <table class="print-table">
+              <thead><tr><th>Line</th><th class="num">Amount</th><th class="num">$/SF</th></tr></thead>
+              <tbody>
+                <tr><td>Renovation Budget</td><td class="num">${h.fmtMoney(inputs.reno_budget)}</td><td class="num">${(sqft > 0 && inputs.reno_budget > 0) ? h.fmtMoney(inputs.reno_budget / sqft) : '-'}</td></tr>
+                <tr><td>Mobilization Contingency</td><td class="num">${h.fmtMoney(inputs.mobilization_contingency)}</td><td class="num">${(sqft > 0 && inputs.mobilization_contingency > 0) ? h.fmtMoney(inputs.mobilization_contingency / sqft) : '-'}</td></tr>
+                <tr><td>Consulting</td><td class="num">${h.fmtMoney(R.consulting)}</td><td class="num">${(sqft > 0 && R.consulting > 0) ? h.fmtMoney(R.consulting / sqft) : '-'}</td></tr>
+                <tr class="totals"><td>Total Envelope</td><td class="num">${h.fmtMoney((inputs.reno_budget || 0) + (inputs.mobilization_contingency || 0) + (R.consulting || 0))}</td><td class="num">${(sqft > 0) ? h.fmtMoney(((inputs.reno_budget || 0) + (inputs.mobilization_contingency || 0) + (R.consulting || 0)) / sqft) : '-'}</td></tr>
+              </tbody>
+            </table>
+          </div>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Comparable Sales (Top ${Math.min(sales.length, 5)})</div>
+          <div>
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Exit Velocity</div>
+            <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
+              <div class="pl-row"><span class="pl-lbl">Avg Comp DOM</span><span class="pl-val">${R.comp_avg_dom != null ? Math.round(R.comp_avg_dom) + ' days' : '-'}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Sale Window</span><span class="pl-val">${Math.max(1, baseHold - Math.round(baseHold * 0.7))} months</span></div>
+              <div class="pl-row"><span class="pl-lbl">Sale Cost %</span><span class="pl-val">${h.fmtPct(inputs.sale_cost_pct)}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Subject $/SF Target</span><span class="pl-val">${(sqft > 0 && R.arv > 0) ? h.fmtMoney(R.arv / sqft) : '-'}</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Top Sales Comps</div>
         ${sales.length === 0 ? `
           <div class="print-callout pb-avoid">
             <div class="pc-title">No Sales Comps</div>
-            ARV is sourced from manual override without comp support. Lender appraiser will derive their own value; sponsor should expect loan sizing based on appraiser's independent assessment.
+            ARV is sourced from manual override without comp support. Lender appraiser will derive their own value.
           </div>
         ` : `
           <table class="print-table ff-comp-table pb-avoid">
@@ -506,196 +670,7 @@
           </table>
         `}
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Exit Velocity Indicators</div>
-        <div class="print-list pb-avoid">
-          <div class="pl-row"><span class="pl-lbl">Average Comp DOM</span><span class="pl-val">${R.comp_avg_dom != null ? Math.round(R.comp_avg_dom) + ' days' : '-'}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Planned Sale Window</span><span class="pl-val">${Math.max(1, (inputs.target_hold_months || 7) - Math.round((inputs.target_hold_months || 7) * 0.7))} months</span></div>
-          <div class="pl-row"><span class="pl-lbl">Sale Cost %</span><span class="pl-val">${h.fmtPct(inputs.sale_cost_pct)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Subject $/SF Target</span><span class="pl-val">${(sqft > 0 && R.arv > 0) ? h.fmtMoney(R.arv / sqft) : '-'}</span></div>
-        </div>
-
-        ${_footer(pageNum, totalPages)}
-      </div>`;
-  }
-
-
-  // ── PAGE 5: STRESS SCENARIOS (mode-specific) ──────────────────
-  function _page5(deal, R, inputs, market, h, mode, pageNum, totalPages) {
-    if (mode === 'brrrr') {
-      return _page5Brrrr(deal, R, inputs, market, h, pageNum, totalPages);
-    }
-    return _page5Ff(deal, R, inputs, market, h, pageNum, totalPages);
-  }
-
-
-  function _page5Brrrr(deal, R, inputs, market, h, pageNum, totalPages) {
-    // BRRRR stress: DSCR at +50bp, +100bp on refi rate; +5pp vacancy;
-    // -50bp exit cap (softer); 90% of underwritten NOI.
-
-    const baseNOI = R.stabilized_noi || 0;
-    const baseRefiLoan = R.refi_loan_amount || 0;
-    const baseRate = inputs.refi_rate || 0;
-    const baseExitCap = inputs.exit_cap || 0;
-    const refiTermMonths = 360;
-    const refiIsPI = (inputs.refi_interest_type || 'PI') === 'PI';
-    const baseEGI = R.egi || 0;
-    const baseVac = inputs.vacancy_pct || 0;
-    const baseExpRatio = (baseEGI > 0) ? (R.total_operating_expenses / baseEGI) : 0;
-    const baseGpr = R.gpr_annual || 0;
-
-    // Compute amortizing DS for an arbitrary rate/loan
-    function _amortDS(loan, annualRate, months) {
-      if (!refiIsPI || annualRate <= 0 || months <= 0) return loan * annualRate;
-      const m = annualRate / 12;
-      const monthly = loan * (m * Math.pow(1 + m, months)) / (Math.pow(1 + m, months) - 1);
-      return monthly * 12;
-    }
-
-    // Scenario rows: each shows the resulting DSCR + debt yield against
-    // the base loan amount (since the loan is what the lender is sizing).
-    const baseDS = R.refi_annual_ds || _amortDS(baseRefiLoan, baseRate, refiTermMonths);
-    const baseDY = baseRefiLoan > 0 ? baseNOI / baseRefiLoan : null;
-    const baseDSCR = baseDS > 0 ? baseNOI / baseDS : null;
-
-    const scenarios = [];
-    // Scenario 1: +50bp refi rate
-    {
-      const ds = _amortDS(baseRefiLoan, baseRate + 0.005, refiTermMonths);
-      const dscr = ds > 0 ? baseNOI / ds : null;
-      scenarios.push({ label: 'Refi Rate +50bp', dscr, dy: baseDY, noi: baseNOI, ds });
-    }
-    // Scenario 2: +100bp refi rate
-    {
-      const ds = _amortDS(baseRefiLoan, baseRate + 0.01, refiTermMonths);
-      const dscr = ds > 0 ? baseNOI / ds : null;
-      scenarios.push({ label: 'Refi Rate +100bp', dscr, dy: baseDY, noi: baseNOI, ds });
-    }
-    // Scenario 3: Vacancy +5pp
-    {
-      const vacRate = Math.min(0.95, baseVac + 0.05);
-      const egi = baseGpr * (1 - vacRate);
-      const opex = egi * baseExpRatio;
-      const noi = egi - opex;
-      const dy = baseRefiLoan > 0 ? noi / baseRefiLoan : null;
-      const dscr = baseDS > 0 ? noi / baseDS : null;
-      scenarios.push({ label: 'Vacancy +5pp', dscr, dy, noi, ds: baseDS });
-    }
-    // Scenario 4: NOI -10%
-    {
-      const noi = baseNOI * 0.9;
-      const dy = baseRefiLoan > 0 ? noi / baseRefiLoan : null;
-      const dscr = baseDS > 0 ? noi / baseDS : null;
-      scenarios.push({ label: 'Stabilized NOI -10%', dscr, dy, noi, ds: baseDS });
-    }
-    // Scenario 5: Exit cap +50bp (softer; reduces ARV → tighter LTV → loan resized)
-    {
-      const newArv = baseNOI / (baseExitCap + 0.005);
-      const newLoan = newArv * (inputs.target_refi_ltv || 0.7);
-      const ds = _amortDS(newLoan, baseRate, refiTermMonths);
-      const dscr = ds > 0 ? baseNOI / ds : null;
-      const dy = newLoan > 0 ? baseNOI / newLoan : null;
-      scenarios.push({ label: `Exit Cap +50bp (Loan resizes to ${h.fmtMoneyK(newLoan)})`, dscr, dy, noi: baseNOI, ds });
-    }
-
-    function _toneDSCR(d) { if (d == null) return 'neutral'; if (d >= 1.25) return 'good'; if (d >= 1.10) return 'warn'; return 'bad'; }
-    function _toneDY(d)   { if (d == null) return 'neutral'; if (d >= 0.10) return 'good'; if (d >= 0.085) return 'warn'; return 'bad'; }
-
-    return `
-      <div class="print-page print-page-compact">
-        ${_header(h, 'Stress Scenarios', 'brrrr')}
-
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Base Case (Underwritten)</div>
-        <div class="print-list pb-avoid">
-          <div class="pl-row"><span class="pl-lbl">Stabilized NOI</span><span class="pl-val">${h.fmtMoney(baseNOI)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Refi Annual DS</span><span class="pl-val">${h.fmtMoney(baseDS)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">DSCR</span><span class="pl-val">${h.fmtX(baseDSCR, 2)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Debt Yield</span><span class="pl-val">${h.fmtPct(baseDY)}</span></div>
-        </div>
-
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Stress Scenarios</div>
-        <table class="print-table pb-avoid">
-          <thead><tr><th>Scenario</th><th class="num">NOI</th><th class="num">Annual DS</th><th class="num">DSCR</th><th class="num">Debt Yield</th></tr></thead>
-          <tbody>
-            ${scenarios.map(s => `
-              <tr>
-                <td>${_esc(s.label)}</td>
-                <td class="num">${h.fmtMoney(s.noi)}</td>
-                <td class="num">${h.fmtMoney(s.ds)}</td>
-                <td class="num lender-stress-${_toneDSCR(s.dscr)}">${h.fmtX(s.dscr, 2)}</td>
-                <td class="num lender-stress-${_toneDY(s.dy)}">${h.fmtPct(s.dy)}</td>
-              </tr>`).join('')}
-          </tbody>
-          <caption>Cells colored: red &lt; 1.10x DSCR or &lt; 8.5% DY · amber 1.10-1.25x DSCR or 8.5-10% DY · green ≥ 1.25x DSCR or ≥ 10% DY.</caption>
-        </table>
-
-        ${_footer(pageNum, totalPages)}
-      </div>`;
-  }
-
-
-  function _page5Ff(deal, R, inputs, market, h, pageNum, totalPages) {
-    const baseARV = R.arv || 0;
-    const saleCostPct = inputs.sale_cost_pct || 0;
-    const remLoan = R.remaining_loan_balance || 0;
-    const initEq = R.investor_equity || 1;
-    const baseHold = inputs.target_hold_months || 7;
-    const annualRate = inputs.initial_rate || 0;
-    const baseLoan = R.initial_loan_amt || 0;
-    const baseMonthlyCarry = (baseLoan * annualRate) / 12;
-
-    // Scenarios:
-    //   1. Sale -5%
-    //   2. Sale -10%
-    //   3. DOM +60 (more carry)
-    //   4. DOM +90 (more carry)
-    //   5. Reno overrun +10% (eats into equity)
-    function _scenario(label, arvAdj, holdAdj, renoAdj) {
-      const adjARV = baseARV * (1 + arvAdj);
-      const adjHold = baseHold + holdAdj;
-      const adjReno = (inputs.reno_budget || 0) * (1 + renoAdj);
-      const adjCarry = baseMonthlyCarry * adjHold;
-      // Approximation: sale - sale cost - rem loan - extra carry - extra reno
-      const adjSaleCost = adjARV * saleCostPct;
-      const extraReno = adjReno - (inputs.reno_budget || 0);
-      const extraCarry = baseMonthlyCarry * holdAdj;
-      const adjGross = adjARV - adjSaleCost - remLoan - extraReno - extraCarry;
-      const adjROI = initEq > 0 ? (adjGross - initEq) / initEq : null;
-      return { label, arv: adjARV, gross: adjGross, roi: adjROI };
-    }
-
-    const scenarios = [
-      _scenario('Sale Price -5%', -0.05, 0, 0),
-      _scenario('Sale Price -10%', -0.10, 0, 0),
-      _scenario('DOM +60 days', 0, 2, 0),
-      _scenario('DOM +90 days', 0, 3, 0),
-      _scenario('Reno Overrun +10%', 0, 0, 0.10),
-      _scenario('Combined: Sale -5% + DOM +60', -0.05, 2, 0)
-    ];
-
-    function _toneROI(r) { if (r == null) return 'neutral'; if (r >= 0.15) return 'good'; if (r >= 0.05) return 'warn'; return 'bad'; }
-    function _toneCoverage(g) {
-      if (g == null) return 'neutral';
-      const coverage = g / Math.max(1, initEq + remLoan);
-      // Loan coverage: how much of the loan + equity is recovered from sale
-      if (g >= initEq) return 'good';  // recoups equity
-      if (g >= 0) return 'warn';        // breaks even on loan only
-      return 'bad';                     // underwater
-    }
-
-    return `
-      <div class="print-page print-page-compact">
-        ${_header(h, 'Stress Scenarios', 'fix_and_flip')}
-
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Base Case (Underwritten)</div>
-        <div class="print-list pb-avoid">
-          <div class="pl-row"><span class="pl-lbl">ARV</span><span class="pl-val">${h.fmtMoney(baseARV)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Hold Period</span><span class="pl-val">${baseHold} months</span></div>
-          <div class="pl-row"><span class="pl-lbl">Gross Proceeds</span><span class="pl-val">${h.fmtMoney(R.gross_proceeds)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Investor ROI</span><span class="pl-val">${h.fmtPct(R.investor_roi)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Loan Recovery Margin</span><span class="pl-val">${h.fmtMoney((R.gross_proceeds || 0) - (R.remaining_loan_balance || 0))}</span></div>
-        </div>
-
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Stress Scenarios</div>
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Stress Scenarios (Base: ${h.fmtPct(R.investor_roi)} ROI)</div>
         <table class="print-table pb-avoid">
           <thead><tr><th>Scenario</th><th class="num">Adj. ARV</th><th class="num">Net Gross</th><th class="num">ROI</th><th class="num">Loan Recovery</th></tr></thead>
           <tbody>
@@ -708,7 +683,7 @@
                 <td class="num lender-stress-${_toneCoverage(s.gross)}">${s.gross >= initEq ? 'Full' : (s.gross >= 0 ? 'Loan only' : 'Underwater')}</td>
               </tr>`).join('')}
           </tbody>
-          <caption>Approximations: sale price adjustments hold reno and carry constant; DOM scenarios add carry months at the underwritten rate; reno overrun scenarios hold sale price constant. ROI thresholds: red &lt; 5% · amber 5-15% · green ≥ 15%.</caption>
+          <caption>Sale-price scenarios hold reno and carry constant; DOM scenarios add carry at the underwritten rate; reno overrun holds sale price constant. ROI: red &lt; 5% · amber 5-15% · green ≥ 15%.</caption>
         </table>
 
         ${_footer(pageNum, totalPages)}
@@ -716,8 +691,8 @@
   }
 
 
-  // ── PAGE 6: SPONSOR PROFILE + ASSET SUMMARY + DISCLOSURES ─────
-  function _page6(deal, R, inputs, market, h, mode, pageNum, totalPages) {
+  // ── PAGE 5: SPONSOR + ASSET + MARKET + DISCLOSURES ────────────
+  function _page5(deal, R, inputs, market, h, mode, pageNum, totalPages) {
     const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
     const coName = co && co.name ? co.name : 'ASJP';
     const coSub = co && co.subtitle ? co.subtitle : '';
@@ -742,30 +717,38 @@
           ` : ''}
         </div>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Asset Summary</div>
-        <div class="print-list pb-avoid">
-          <div class="pl-row"><span class="pl-lbl">Property Address</span><span class="pl-val">${_esc(addrLine || 'Not specified')}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Asset Type</span><span class="pl-val">${_esc(_assetTypeLabel(inputs.asset_type))}</span></div>
-          ${R.total_unit_count > 0 ? `<div class="pl-row"><span class="pl-lbl">Unit Count</span><span class="pl-val">${R.total_unit_count}</span></div>` : ''}
-          ${R.subject_area_sf > 0 ? `<div class="pl-row"><span class="pl-lbl">Building Area</span><span class="pl-val">${Number(R.subject_area_sf).toLocaleString()} SF</span></div>` : ''}
-          ${mode === 'brrrr' ? `
-            <div class="pl-row"><span class="pl-lbl">Purchase Price / Unit</span><span class="pl-val">${h.fmtMoney((inputs.purchase_price || 0) / Math.max(1, R.total_unit_count))}</span></div>
-            <div class="pl-row"><span class="pl-lbl">ARV / Unit (Stabilized)</span><span class="pl-val">${h.fmtMoney(R.arv_per_unit)}</span></div>
-          ` : `
-            <div class="pl-row"><span class="pl-lbl">Acquisition $/SF</span><span class="pl-val">${(R.subject_area_sf > 0 && inputs.purchase_price > 0) ? h.fmtMoney(inputs.purchase_price / R.subject_area_sf) : '-'}</span></div>
-            <div class="pl-row"><span class="pl-lbl">Exit $/SF (ARV)</span><span class="pl-val">${(R.subject_area_sf > 0 && R.arv > 0) ? h.fmtMoney(R.arv / R.subject_area_sf) : '-'}</span></div>
-          `}
-        </div>
+        <div class="lender-twocol pb-avoid">
+          <div>
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Asset Summary</div>
+            <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
+              <div class="pl-row"><span class="pl-lbl">Property Address</span><span class="pl-val">${_esc(addrLine || 'Not specified')}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Asset Type</span><span class="pl-val">${_esc(_assetTypeLabel(inputs.asset_type))}</span></div>
+              ${R.total_unit_count > 0 ? `<div class="pl-row"><span class="pl-lbl">Unit Count</span><span class="pl-val">${R.total_unit_count}</span></div>` : ''}
+              ${R.subject_area_sf > 0 ? `<div class="pl-row"><span class="pl-lbl">Building Area</span><span class="pl-val">${Number(R.subject_area_sf).toLocaleString()} SF</span></div>` : ''}
+              ${mode === 'brrrr' ? `
+                <div class="pl-row"><span class="pl-lbl">Purchase / Unit</span><span class="pl-val">${h.fmtMoney((inputs.purchase_price || 0) / Math.max(1, R.total_unit_count))}</span></div>
+                <div class="pl-row"><span class="pl-lbl">ARV / Unit</span><span class="pl-val">${h.fmtMoney(R.arv_per_unit)}</span></div>
+              ` : `
+                <div class="pl-row"><span class="pl-lbl">Acquisition $/SF</span><span class="pl-val">${(R.subject_area_sf > 0 && inputs.purchase_price > 0) ? h.fmtMoney(inputs.purchase_price / R.subject_area_sf) : '-'}</span></div>
+                <div class="pl-row"><span class="pl-lbl">Exit $/SF (ARV)</span><span class="pl-val">${(R.subject_area_sf > 0 && R.arv > 0) ? h.fmtMoney(R.arv / R.subject_area_sf) : '-'}</span></div>
+              `}
+            </div>
+          </div>
 
-        ${market && market.cbsa_name ? `
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Market Context</div>
-        <div class="print-list pb-avoid">
-          <div class="pl-row"><span class="pl-lbl">MSA</span><span class="pl-val">${_esc(market.cbsa_name)}</span></div>
-          ${market.derived && market.derived.market_strength_grade ? `<div class="pl-row"><span class="pl-lbl">Market Strength</span><span class="pl-val">Grade ${_esc(market.derived.market_strength_grade)} (${Math.round(market.derived.market_strength_score)}/100)</span></div>` : ''}
-          ${market.census && market.census.rental_vacancy_rate != null ? `<div class="pl-row"><span class="pl-lbl">Rental Vacancy</span><span class="pl-val">${h.fmtPct(market.census.rental_vacancy_rate)}</span></div>` : ''}
-          ${market.census && market.census.unemployment_rate != null ? `<div class="pl-row"><span class="pl-lbl">Unemployment</span><span class="pl-val">${h.fmtPct(market.census.unemployment_rate)}</span></div>` : ''}
+          ${market && market.cbsa_name ? `
+          <div>
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Market Context</div>
+            <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
+              <div class="pl-row"><span class="pl-lbl">MSA</span><span class="pl-val">${_esc(market.cbsa_name)}</span></div>
+              ${market.derived && market.derived.market_strength_grade ? `<div class="pl-row"><span class="pl-lbl">Market Strength</span><span class="pl-val">Grade ${_esc(market.derived.market_strength_grade)} (${Math.round(market.derived.market_strength_score)}/100)</span></div>` : ''}
+              ${market.census && market.census.rental_vacancy_rate != null ? `<div class="pl-row"><span class="pl-lbl">Rental Vacancy</span><span class="pl-val">${h.fmtPct(market.census.rental_vacancy_rate)}</span></div>` : ''}
+              ${market.census && market.census.unemployment_rate != null ? `<div class="pl-row"><span class="pl-lbl">Unemployment</span><span class="pl-val">${h.fmtPct(market.census.unemployment_rate)}</span></div>` : ''}
+              ${market.census && market.census.median_household_income != null ? `<div class="pl-row"><span class="pl-lbl">Median HH Income</span><span class="pl-val">${h.fmtMoney(market.census.median_household_income)}</span></div>` : ''}
+              ${market.census && market.census.poverty_rate != null ? `<div class="pl-row"><span class="pl-lbl">Poverty Rate</span><span class="pl-val">${h.fmtPct(market.census.poverty_rate)}</span></div>` : ''}
+            </div>
+          </div>
+          ` : '<div></div>'}
         </div>
-        ` : ''}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Disclosures</div>
         <div class="bp-disclaimer">
@@ -787,7 +770,6 @@
     return 'bad';
   }
   function _toneBelow(v, highWarn, goodCeil) {
-    // For ratios where LOWER is BETTER (LTV, LTC, in-basis)
     if (v == null || !isFinite(v)) return 'neutral';
     if (v <= goodCeil) return 'good';
     if (v <= highWarn) return 'warn';
@@ -809,15 +791,14 @@
   function renderReport_lender_package(deal, R, inputs, market, helpers) {
     const h = helpers || {};
     const mode = (deal && deal.deal_mode) || 'brrrr';
-    const totalPages = 6;
+    const totalPages = 5;
 
     const pages = [
       _page1(deal, R, inputs, market, h, mode, 1, totalPages),
       _page2(deal, R, inputs, market, h, mode, 2, totalPages),
       _page3(deal, R, inputs, market, h, mode, 3, totalPages),
       _page4(deal, R, inputs, market, h, mode, 4, totalPages),
-      _page5(deal, R, inputs, market, h, mode, 5, totalPages),
-      _page6(deal, R, inputs, market, h, mode, 6, totalPages)
+      _page5(deal, R, inputs, market, h, mode, 5, totalPages)
     ];
 
     return pages.join('\n');
