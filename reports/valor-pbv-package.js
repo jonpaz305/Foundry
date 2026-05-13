@@ -576,9 +576,7 @@
 
         <div class="print-section pb-avoid"><span class="ps-accent valor-accent"></span>Disclosures</div>
         <div class="bp-disclaimer">
-          <p>This package describes the Valor Housing Partners platform and a representative HUD-VASH Project-Based Voucher acquisition opportunity. It does not constitute an offer to sell or a solicitation of an offer to buy any securities. Any such offer or solicitation will be made only by means of a confidential private placement memorandum and related subscription documents.</p>
-          <p>HUD-VASH program details, including FMR levels, payment standards, contract terms, and renewal mechanics, are subject to regulation by HUD, the VA, and applicable Public Housing Authorities. Specific PBV allocation, contract execution, and HAP payment continuity depend on PHA approval and federal appropriations. The voucher uplift figures presented herein reflect current FMR and ACS data and are illustrative of underwriting methodology; actual outcomes depend on PHA-specific payment standards and tenant household composition at lease-up.</p>
-          <p>Valor Housing Partners is a subsidiary of ASJP Group. References to the ASJP-KPI cooperation framework reflect a verbal arrangement at a 15% allocation floor with sliding-scale terms, formalization of which is in progress. Sovereign capital pathway references (Compass Capital Management, Qatar Investment Authority) are presented as a parallel workstream and are not base-case dependencies of the Valor platform.</p>
+          ${typeof disclaimersForValorPackage === 'function' ? disclaimersForValorPackage('Valor Housing Partners') : ''}
         </div>
 
         ${_footer(pageNum, totalPages)}
