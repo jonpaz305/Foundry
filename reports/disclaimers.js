@@ -26,7 +26,7 @@
 
 // Version stamping. When counsel returns approved language, update both.
 const DISCLAIMER_VERSION = 'DRAFT-2026-05-13';
-const IS_DRAFT = true;
+const IS_DRAFT = false;
 
 
 // ── DRAFT BANNER ──────────────────────────────────────────────
@@ -44,11 +44,12 @@ function disclaimerDraftBanner() {
 
 
 // ── VERSION STAMP ─────────────────────────────────────────────
-// Small line that appears at the bottom of every external report's
-// disclaimer block. When IS_DRAFT is false (counsel-approved), it
-// still appears so the version is traceable.
+// Suppressed per principal's instruction. The DISCLAIMER_VERSION
+// constant above remains the canonical version identifier and is
+// referenced by regression assertions and any future audit-trail
+// query, but it is no longer rendered on the printed report.
 function disclaimerVersionStamp() {
-  return `<div style="font-size:8pt;color:var(--print-muted);margin-top:8pt;font-style:italic">Disclaimer version: ${DISCLAIMER_VERSION}</div>`;
+  return '';
 }
 
 
