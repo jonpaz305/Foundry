@@ -148,6 +148,7 @@
 
 
   // ── PAGE 1: COVER + RECOMMENDATION + KPIs + EXEC SUMMARY ──────
+  // ── PAGE 1: COVER + RECOMMENDATION + KPIs + EXEC + THESIS ─────
   function _page1(deal, R, inputs, market, h, pageNum, totalPages) {
     const dealName = (deal && deal.name) ? deal.name : 'Untitled Deal';
     const addrLine = _addressLine(deal, inputs);
@@ -159,7 +160,6 @@
     if (typeof assembleRisks === 'function') risks = assembleRisks();
     const rec = _computeRecommendation(R, mode, risks);
 
-    // Headline KPIs (mode-aware, 4 tiles)
     const tiles = mode === 'brrrr' ? [
       { lbl: 'Refi DSCR',         val: h.fmtX(R.dscr, 2),                  tone: _toneAbove(R.dscr, 1.05, 1.20) },
       { lbl: 'Capital Recapture', val: h.fmtPct(R.capital_recaptured_pct), tone: _toneAbove(_pctNorm(R.capital_recaptured_pct), 0.60, 0.80) },
@@ -174,7 +174,7 @@
 
     return `
       <div class="print-page print-page-compact">
-        ${_header(h, 'Cover · Recommendation')}
+        ${_header(h, 'Recommendation · Thesis')}
 
         <div class="print-title pb-avoid">
           <div class="print-title-eyebrow">Internal Deal Memo</div>
@@ -202,10 +202,116 @@
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Executive Summary <span class="bp-draft-tag">DRAFT</span></div>
         ${_executiveSummary(R, inputs, mode, market, h)}
 
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Investment Thesis <span class="bp-draft-tag">DRAFT</span></div>
+        ${_thesis(R, inputs, mode, market, h)}
+
         ${_footer(pageNum, totalPages)}
       </div>`;
   }
 
+  // ── PAGE 2: BUSINESS PLAN + RISKS + DEVIL'S ADVOCATE + DEAL FACTS
+  function _page2(deal, R, inputs, market, h, pageNum, totalPages) {
+    const mode = (deal && deal.deal_mode) || 'brrrr';
+    let risks = [];
+    if (typeof assembleRisks === 'function') risks = assembleRisks();
+    const top5 = risks.filter(r => !r.resolved).slice(0, 5);
+
+    const renderRow = (r) => `
+      <div class="print-risk-row risk-${_esc(r.severity || 'medium')}">
+        <div class="print-risk-row-meta">
+          <span>${_esc((r.severity || 'medium').toUpperCase())}</span>
+          <span> · </span>
+          <span>${_esc(r.source || 'engine')}</span>
+          <span> · </span>
+          <span>${_esc(r.category || '-')}</span>
+        </div>
+        <div class="print-risk-row-title">${_esc(r.title || 'Untitled risk')}</div>
+        <div class="ds-risk-detail">${_esc(r.detail || '')}</div>
+      </div>`;
+
+    return `
+      <div class="print-page print-page-compact">
+        ${_header(h, 'Business Plan · Risks · Devil\'s Advocate')}
+
+        <div class="im-two-col pb-avoid">
+          <div class="im-col-main">
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Business Plan <span class="bp-draft-tag">DRAFT</span></div>
+            ${_businessPlan(R, inputs, mode, h)}
+
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Top Risks</div>
+            ${top5.length > 0 ? `
+              <div class="ds-risks-list">${top5.map(renderRow).join('')}</div>
+            ` : `
+              <div class="ds-risks-clear pb-avoid">
+                <span class="ds-risks-clear-icon">✓</span>
+                <span class="ds-risks-clear-text">No unresolved risks flagged. Confirm with diligence findings before final commitment.</span>
+              </div>
+            `}
+
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Devil's Advocate <span class="bp-draft-tag">DRAFT</span></div>
+            ${_devilsAdvocate(R, inputs, mode, risks, h)}
+          </div>
+
+          <div class="im-col-side">
+            <div class="im-facts-title">DEAL FACTS</div>
+            ${_dealFacts(R, inputs, mode, h)}
+          </div>
+        </div>
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
+  }
+
+  // ── PAGE 3: WWNTB + IC QUESTIONS + NEXT STEPS + MARKET CONTEXT
+  function _page3(deal, R, inputs, market, h, pageNum, totalPages) {
+    const mode = (deal && deal.deal_mode) || 'brrrr';
+    const d = market && market.derived;
+    const c = market && market.census;
+    const hasMarket = d && d.market_strength_score != null;
+
+    return `
+      <div class="print-page print-page-compact">
+        ${_header(h, 'IC Action Items')}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>What We'd Need to Believe</div>
+        ${_wwntb(R, inputs, mode, market, h)}
+
+        <div class="im-two-col pb-avoid">
+          <div class="im-col-main">
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>IC Questions</div>
+            ${_icQuestions(R, inputs, mode, h)}
+
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Next Steps</div>
+            ${_nextSteps(R, inputs, mode, h)}
+          </div>
+
+          <div class="im-col-side">
+            <div class="im-facts-title">MARKET CONTEXT</div>
+            ${hasMarket ? `
+              <div class="im-facts-list pb-avoid">
+                <div class="im-fact-row"><span class="im-fact-lbl">Grade</span><span class="im-fact-val">${_esc(d.market_strength_grade || '-')}</span></div>
+                <div class="im-fact-row"><span class="im-fact-lbl">Score</span><span class="im-fact-val">${Math.round(d.market_strength_score)} / 100</span></div>
+                <div class="im-fact-row"><span class="im-fact-lbl">MSA</span><span class="im-fact-val">${_esc(market.cbsa_name || 'Unknown')}</span></div>
+                ${c ? `
+                <div class="im-fact-row"><span class="im-fact-lbl">Median HH Income</span><span class="im-fact-val">${h.fmtMoney(c.median_household_income)}</span></div>
+                <div class="im-fact-row"><span class="im-fact-lbl">Median Rent</span><span class="im-fact-val">${h.fmtMoney(c.median_rent)}</span></div>
+                <div class="im-fact-row"><span class="im-fact-lbl">Rental Vacancy</span><span class="im-fact-val">${h.fmtPct(c.rental_vacancy_rate)}</span></div>
+                <div class="im-fact-row"><span class="im-fact-lbl">Unemployment</span><span class="im-fact-val">${h.fmtPct(c.unemployment_rate)}</span></div>
+                <div class="im-fact-row"><span class="im-fact-lbl">Poverty Rate</span><span class="im-fact-val">${h.fmtPct(c.poverty_rate)}</span></div>
+                <div class="im-fact-row"><span class="im-fact-lbl">Bachelors+</span><span class="im-fact-val">${h.fmtPct(c.bachelors_or_higher_pct)}</span></div>
+                <div class="im-fact-row"><span class="im-fact-lbl">Owner-Occupied</span><span class="im-fact-val">${h.fmtPct(c.owner_occupied_pct)}</span></div>
+                <div class="im-fact-row"><span class="im-fact-lbl">Median Home Value</span><span class="im-fact-val">${h.fmtMoney(c.median_home_value)}</span></div>
+                ` : ''}
+              </div>
+            ` : `
+              <div style="font-size:8pt;color:#888;font-style:italic;padding:6pt 0">Market data not fetched for this deal.</div>
+            `}
+          </div>
+        </div>
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
+  }
 
   function _executiveSummary(R, inputs, mode, market, h) {
     const units = R.total_unit_count || 0;
@@ -224,33 +330,6 @@
     }
 
     return `<div class="bp-narrative pb-avoid"><p>${para}</p></div>`;
-  }
-
-
-  // ── PAGE 2: THESIS + BUSINESS PLAN + DEAL FACTS ───────────────
-  function _page2(deal, R, inputs, market, h, pageNum, totalPages) {
-    const mode = (deal && deal.deal_mode) || 'brrrr';
-    return `
-      <div class="print-page print-page-compact">
-        ${_header(h, 'Thesis · Business Plan')}
-
-        <div class="im-two-col pb-avoid">
-          <div class="im-col-main">
-            <div class="print-section pb-avoid"><span class="ps-accent"></span>Investment Thesis <span class="bp-draft-tag">DRAFT</span></div>
-            ${_thesis(R, inputs, mode, market, h)}
-
-            <div class="print-section pb-avoid"><span class="ps-accent"></span>Business Plan <span class="bp-draft-tag">DRAFT</span></div>
-            ${_businessPlan(R, inputs, mode, h)}
-          </div>
-
-          <div class="im-col-side">
-            <div class="im-facts-title">DEAL FACTS</div>
-            ${_dealFacts(R, inputs, mode, h)}
-          </div>
-        </div>
-
-        ${_footer(pageNum, totalPages)}
-      </div>`;
   }
 
 
@@ -336,52 +415,6 @@
   }
 
 
-  // ── PAGE 3: KEY RISKS + DEVIL'S ADVOCATE ──────────────────────
-  function _page3(deal, R, inputs, market, h, pageNum, totalPages) {
-    const mode = (deal && deal.deal_mode) || 'brrrr';
-    let risks = [];
-    if (typeof assembleRisks === 'function') risks = assembleRisks();
-    const top5 = risks.filter(r => !r.resolved).slice(0, 5);
-
-    const renderRow = (r) => `
-      <div class="print-risk-row risk-${_esc(r.severity || 'medium')}">
-        <div class="print-risk-row-meta">
-          <span>${_esc((r.severity || 'medium').toUpperCase())}</span>
-          <span> · </span>
-          <span>${_esc(r.source || 'engine')}</span>
-          <span> · </span>
-          <span>${_esc(r.category || '-')}</span>
-        </div>
-        <div class="print-risk-row-title">${_esc(r.title || 'Untitled risk')}</div>
-        <div class="ds-risk-detail">${_esc(r.detail || '')}</div>
-        ${r.mitigation ? `<div class="bp-mit"><span class="bp-mit-lbl">Mitigation:</span> ${_esc(r.mitigation)}</div>` : ''}
-      </div>`;
-
-    return `
-      <div class="print-page print-page-compact">
-        ${_header(h, 'Risks · Devil\'s Advocate')}
-
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Top Risks</div>
-        ${top5.length > 0 ? `
-          <div class="ds-risks-list">${top5.map(renderRow).join('')}</div>
-        ` : `
-          <div class="ds-risks-clear pb-avoid">
-            <span class="ds-risks-clear-icon">✓</span>
-            <span class="ds-risks-clear-text">No unresolved risks flagged. Confirm with diligence findings before final commitment.</span>
-          </div>
-        `}
-
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Devil's Advocate <span class="bp-draft-tag">DRAFT</span></div>
-        ${_devilsAdvocate(R, inputs, mode, risks, h)}
-
-        ${_footer(pageNum, totalPages)}
-      </div>`;
-  }
-
-
-  // Devil's Advocate: pick the single strongest counter-argument based
-  // on which engine risks fire. The goal isn't comprehensiveness; it's
-  // to surface the one thing IC should challenge hardest.
   function _devilsAdvocate(R, inputs, mode, risks, h) {
     const high = risks.filter(r => r.severity === 'high' && !r.resolved);
     const medium = risks.filter(r => r.severity === 'medium' && !r.resolved);
@@ -435,27 +468,6 @@
     }
 
     return `<div class="bp-narrative pb-avoid"><p>${counter}</p></div>`;
-  }
-
-
-  // ── PAGE 4: WHAT WE'D NEED TO BELIEVE + IC QUESTIONS + NEXT STEPS
-  function _page4(deal, R, inputs, market, h, pageNum, totalPages) {
-    const mode = (deal && deal.deal_mode) || 'brrrr';
-    return `
-      <div class="print-page print-page-compact">
-        ${_header(h, 'What We\'d Need to Believe')}
-
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>What We'd Need to Believe</div>
-        ${_wwntb(R, inputs, mode, market, h)}
-
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>IC Questions</div>
-        ${_icQuestions(R, inputs, mode, h)}
-
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Next Steps</div>
-        ${_nextSteps(R, inputs, mode, h)}
-
-        ${_footer(pageNum, totalPages)}
-      </div>`;
   }
 
 
@@ -530,69 +542,6 @@
   }
 
 
-  // ── PAGE 5: MARKET + SPONSOR (combined, conditional) ──────────
-  function _page5(deal, R, inputs, market, h, pageNum, totalPages) {
-    const d = market && market.derived;
-    const c = market && market.census;
-    const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
-    const hasMarket = d && d.market_strength_score != null;
-    const hasSponsor = !!(co && (co.subtitle || (co.contact_info && (co.contact_info.email || co.contact_info.phone))));
-
-    if (!hasMarket && !hasSponsor) return null;
-
-    return `
-      <div class="print-page print-page-compact">
-        ${_header(h, 'Market · Sponsor')}
-
-        ${hasMarket ? `
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Market Context</div>
-        <div class="ds-market-strip pb-avoid">
-          <div class="ds-market-cell">
-            <div class="ds-market-lbl">Grade</div>
-            <div class="ds-market-val ${_gradeClass(d.market_strength_grade)}">${_esc(d.market_strength_grade || '-')}</div>
-          </div>
-          <div class="ds-market-cell">
-            <div class="ds-market-lbl">Score</div>
-            <div class="ds-market-val">${Math.round(d.market_strength_score)} <span class="ds-out-of">/ 100</span></div>
-          </div>
-          <div class="ds-market-cell">
-            <div class="ds-market-lbl">Rent-to-Income</div>
-            <div class="ds-market-val">${h.fmtPct(d.rent_to_income_ratio)}</div>
-          </div>
-          <div class="ds-market-cell">
-            <div class="ds-market-lbl">MSA</div>
-            <div class="ds-market-val ds-market-msa">${_esc(market.cbsa_name || 'Unknown')}</div>
-          </div>
-        </div>
-
-        ${c ? `
-        <div class="print-list pb-avoid">
-          <div class="pl-row"><span class="pl-lbl">Median HH Income</span><span class="pl-val">${h.fmtMoney(c.median_household_income)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Median Rent</span><span class="pl-val">${h.fmtMoney(c.median_rent)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Rental Vacancy</span><span class="pl-val">${h.fmtPct(c.rental_vacancy_rate)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Unemployment</span><span class="pl-val">${h.fmtPct(c.unemployment_rate)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Poverty Rate</span><span class="pl-val">${h.fmtPct(c.poverty_rate)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Bachelors+</span><span class="pl-val">${h.fmtPct(c.bachelors_or_higher_pct)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Owner-Occupied</span><span class="pl-val">${h.fmtPct(c.owner_occupied_pct)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Median Home Value</span><span class="pl-val">${h.fmtMoney(c.median_home_value)}</span></div>
-        </div>
-        ` : ''}
-
-        <div class="bp-source-footnote">Source: U.S. Census Bureau ACS 5-Year Estimates · HUD Fair Market Rents FY2025</div>
-        ` : ''}
-
-        ${hasSponsor ? `
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Sponsor</div>
-        <div class="bp-sponsor pb-avoid">
-          <div class="bp-sponsor-name">${_esc(co.name || '')}</div>
-          ${co.subtitle ? `<div class="bp-sponsor-sub">${_esc(co.subtitle)}</div>` : ''}
-        </div>
-        ` : ''}
-
-        ${_footer(pageNum, totalPages)}
-      </div>`;
-  }
-
 
   // ── TONE HELPERS ──────────────────────────────────────────────
   function _toneAbove(v, highWarn, goodFloor) {
@@ -624,23 +573,13 @@
   // ── MAIN ENTRY ────────────────────────────────────────────────
   function renderReport_internal_memo(deal, R, inputs, market, helpers) {
     const h = helpers || {};
-    const pages = [];
+    const totalPages = 3;
 
-    const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
-    const d = market && market.derived;
-    const hasMarket = d && d.market_strength_score != null;
-    const hasSponsor = !!(co && (co.subtitle || (co.contact_info && (co.contact_info.email || co.contact_info.phone))));
-    const hasPage5 = hasMarket || hasSponsor;
-    const totalPages = 4 + (hasPage5 ? 1 : 0);
-
-    pages.push(_page1(deal, R, inputs, market, h, 1, totalPages));
-    pages.push(_page2(deal, R, inputs, market, h, 2, totalPages));
-    pages.push(_page3(deal, R, inputs, market, h, 3, totalPages));
-    pages.push(_page4(deal, R, inputs, market, h, 4, totalPages));
-    if (hasPage5) {
-      const p5 = _page5(deal, R, inputs, market, h, 5, totalPages);
-      if (p5) pages.push(p5);
-    }
+    const pages = [
+      _page1(deal, R, inputs, market, h, 1, totalPages),
+      _page2(deal, R, inputs, market, h, 2, totalPages),
+      _page3(deal, R, inputs, market, h, 3, totalPages)
+    ];
 
     return pages.join('\n');
   }
