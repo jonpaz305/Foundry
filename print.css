@@ -918,3 +918,112 @@ html, body {
   padding: 2pt 0;
   font-size: 8.5pt;
 }
+
+
+/* ════════════════════════════════════════════════════════════════
+   M6.4 - F&F Package specifics
+   ════════════════════════════════════════════════════════════════ */
+
+/* Comp grid table: more columns, slightly tighter */
+.ff-comp-table {
+  font-size: 8pt;
+}
+.ff-comp-table th, .ff-comp-table td {
+  padding: 4pt 5pt;
+}
+.ff-comp-table td:first-child {
+  font-weight: 600;
+  color: #0a0a0b;
+}
+
+/* F&F hold timeline visual */
+.ff-timeline {
+  margin: 6pt 0 18pt 0;
+  position: relative;
+}
+.ff-timeline-bar {
+  display: flex;
+  height: 34pt;
+  width: 100%;
+  border: 0.5pt solid #d0d0d6;
+  overflow: hidden;
+  border-radius: 2pt;
+  position: relative;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.ff-timeline-phase {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 0 6pt;
+  color: #fff;
+  font-family: 'Manrope', sans-serif;
+}
+.ff-phase-reno {
+  background: #0a0a0b;
+}
+.ff-phase-sale {
+  background: #C9A84C;
+  color: #0a0a0b;
+}
+.ff-phase-lbl {
+  font-size: 9pt;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+}
+.ff-phase-months {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 7pt;
+  font-weight: 500;
+  margin-top: 2pt;
+  opacity: 0.85;
+}
+
+/* Markers below the bar */
+.ff-timeline-markers {
+  position: relative;
+  height: 30pt;
+  margin-top: 4pt;
+}
+.ff-marker {
+  position: absolute;
+  left: 0;
+  top: 0;
+  text-align: left;
+  width: 80pt;
+}
+.ff-marker.ff-marker-right {
+  left: auto;
+  right: 0;
+  text-align: right;
+}
+.ff-marker-dot {
+  width: 6pt;
+  height: 6pt;
+  background: #C9A84C;
+  border: 1pt solid #806008;
+  border-radius: 50%;
+  margin-bottom: 2pt;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.ff-marker.ff-marker-right .ff-marker-dot {
+  margin-left: auto;
+}
+.ff-marker-lbl {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 7pt;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #0a0a0b;
+}
+.ff-marker-sub {
+  font-size: 7pt;
+  color: #888;
+  margin-top: 1pt;
+}

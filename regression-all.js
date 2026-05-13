@@ -741,7 +741,7 @@ function runM6_3() {
   check(g, 'renders without throwing', typeof html === 'string' && html.length > 0 ? 1 : 0, 1);
 
   // Page count: 8 pages baseline (no sponsor extras on ASJP default)
-  const pageCount = (html.match(/class="print-page"/g) || []).length;
+  const pageCount = (html.match(/class="print-page print-page-compact"/g) || []).length;
   check(g, 'page count: 8 pages (no sponsor extras)', pageCount, 8);
 
   // Page 1 elements
@@ -776,6 +776,57 @@ function runM6_3() {
 }
 
 // ════════════════════════════════════════════════════════════════
+// M6.4 - F&F PACKAGE (12 tests)
+// ════════════════════════════════════════════════════════════════
+function runM6_4() {
+  const g = group('M6.4 F&F Pkg');
+
+  // Load module
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/ff-package.js'), 'utf8'), ctx, { filename: 'reports/ff-package.js' });
+
+  const HELPERS_SRC = `({
+    fmtMoney: (x, dec) => x == null || !isFinite(x) ? '-' : '$' + Number(x).toLocaleString(undefined, { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 }),
+    fmtMoneyK: (x) => x == null || !isFinite(x) ? '-' : (Math.abs(x) >= 1e6 ? '$' + (x/1e6).toFixed(2) + 'M' : (Math.abs(x) >= 1e3 ? '$' + (x/1e3).toFixed(0) + 'K' : '$' + Math.round(x))),
+    fmtPct: (x, dec) => x == null || !isFinite(x) ? '-' : (x*100).toFixed(dec == null ? 1 : dec) + '%',
+    fmtX: (x, dec) => x == null || !isFinite(x) ? '-' : Number(x).toFixed(dec == null ? 2 : dec) + 'x',
+    fmtInt: (x) => x == null || !isFinite(x) ? '-' : Math.round(x).toLocaleString(),
+    todayLong: () => 'May 13, 2026',
+    foundryLogo: () => ''
+  })`;
+
+  loadFF();
+  const html = vm.runInContext(`
+    renderReport_ff_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});
+  `, ctx);
+
+  check(g, 'renders without throwing', typeof html === 'string' && html.length > 0 ? 1 : 0, 1);
+
+  const pageCount = (html.match(/class="print-page print-page-compact"/g) || []).length;
+  check(g, 'page count: 7 pages (no sponsor extras)', pageCount, 7);
+
+  // P1: Cover
+  check(g, 'P1: Fix & Flip eyebrow', html.includes('Fix &amp; Flip Investment Package') ? 1 : 0, 1);
+  check(g, 'P1: ARV $550K KPI tile', html.includes('$550K') ? 1 : 0, 1);
+  check(g, 'P1: ROI 106.4% tile', html.includes('106.4%') ? 1 : 0, 1);
+  check(g, 'P1: DRAFT tag on narrative', html.includes('bp-draft-tag') ? 1 : 0, 1);
+
+  // P2: S&U
+  check(g, 'P2: Senior Debt row', html.includes('Senior Debt') ? 1 : 0, 1);
+
+  // P3: Comp grid
+  check(g, 'P3: comp grid table', html.includes('ff-comp-table') ? 1 : 0, 1);
+  check(g, 'P3: 2455 W 7 ST comps present (Thurman address)', html.includes('Thurman') ? 1 : 0, 1);
+
+  // P4: ARV derivation
+  check(g, 'P4: comp-derived ARV row', html.includes('Comp-Derived ARV') ? 1 : 0, 1);
+
+  // P5: Returns + Timeline
+  check(g, 'P5: timeline bar present', html.includes('ff-timeline-bar') ? 1 : 0, 1);
+  check(g, 'P5: timeline markers (Acquisition / Reno / Sale)',
+    html.includes('Acquisition') && html.includes('Reno Complete') && html.includes('Sale Close') ? 1 : 0, 1);
+}
+
+// ════════════════════════════════════════════════════════════════
 // Run
 // ════════════════════════════════════════════════════════════════
 runM2();
@@ -785,6 +836,7 @@ runM5();
 runM6();
 runM6_2();
 runM6_3();
+runM6_4();
 
 // ── Report ────────────────────────────────────────────────────
 console.log('');
