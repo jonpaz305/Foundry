@@ -283,3 +283,74 @@ table.data tfoot td{padding:10px 11px;color:var(--text);font-weight:600;border-b
 .data-row-label{color:var(--text2)}
 .data-row-val{font-family:var(--fm);color:var(--text1);font-weight:600;text-align:right}
 .data-row-sub{font-size:10px;color:var(--text3);width:100%;text-align:right;font-style:italic;margin-top:-2px}
+
+/* ════════════════════════════════════════════════════════════════
+   M5 - Risk Register
+   ════════════════════════════════════════════════════════════════ */
+
+/* Dashboard banner */
+.risk-banner{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:var(--r);margin:1rem 0;font-size:12px;font-family:var(--ff);border:1px solid;cursor:pointer;transition:all .15s}
+.risk-banner-high{background:var(--bad-bg);border-color:var(--bad-bd);color:var(--bad)}
+.risk-banner-high:hover{background:rgba(239,68,68,.18)}
+.risk-banner-medium{background:var(--gold-bg);border-color:var(--gold-bd);color:var(--gold-lt)}
+.risk-banner-medium:hover{background:rgba(201,168,76,.16)}
+.risk-banner-clear{background:var(--ok-bg);border-color:var(--ok-bd);color:var(--ok);cursor:default}
+.risk-banner-icon{font-size:14px;font-weight:700;flex-shrink:0}
+.risk-banner-text{flex:1}
+.risk-banner-text strong{font-family:var(--fm);font-weight:700;margin-right:2px}
+.risk-banner-cta{font-size:11px;font-weight:600;letter-spacing:.04em;opacity:.85}
+
+/* Risk Register summary tiles */
+.risk-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1rem}
+@media (max-width:600px){.risk-summary{grid-template-columns:repeat(2,1fr)}}
+.risk-summary-tile{padding:14px 12px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--bg2);text-align:center}
+.risk-summary-tile .rst-num{font-family:var(--fm);font-size:22px;font-weight:700;line-height:1.1;margin-bottom:4px}
+.risk-summary-tile .rst-lbl{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;font-family:var(--fm);color:var(--text2)}
+.risk-summary-tile.risk-sev-high{border-color:var(--bad-bd);background:var(--bad-bg)}
+.risk-summary-tile.risk-sev-high .rst-num{color:var(--bad)}
+.risk-summary-tile.risk-sev-medium{border-color:var(--gold-bd);background:var(--gold-bg)}
+.risk-summary-tile.risk-sev-medium .rst-num{color:var(--gold-lt)}
+.risk-summary-tile.risk-sev-low{border-color:var(--warn-bd);background:var(--warn-bg)}
+.risk-summary-tile.risk-sev-low .rst-num{color:var(--warn)}
+.risk-summary-tile.risk-sev-resolved{border-color:var(--ok-bd);background:var(--ok-bg)}
+.risk-summary-tile.risk-sev-resolved .rst-num{color:var(--ok)}
+
+/* Risk list */
+.risk-list{display:flex;flex-direction:column;gap:10px}
+.risk-row{background:var(--bg2);border:1px solid var(--border);border-left-width:3px;border-radius:var(--r-sm);padding:14px 16px;transition:opacity .15s}
+.risk-row.risk-sev-high{border-left-color:var(--bad)}
+.risk-row.risk-sev-medium{border-left-color:var(--gold)}
+.risk-row.risk-sev-low{border-left-color:var(--warn)}
+.risk-row-resolved{opacity:.55}
+.risk-row-resolved .risk-row-title{text-decoration:line-through;color:var(--text2)}
+
+.risk-row-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.risk-row-head-l{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.risk-row-head-r{display:flex;gap:8px;align-items:center}
+
+.risk-pill{display:inline-block;font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:99px;font-family:var(--fm);border:1px solid;line-height:1.3}
+.risk-pill-sev-high{background:var(--bad-bg);border-color:var(--bad-bd);color:var(--bad)}
+.risk-pill-sev-medium{background:var(--gold-bg);border-color:var(--gold-bd);color:var(--gold-lt)}
+.risk-pill-sev-low{background:var(--warn-bg);border-color:var(--warn-bd);color:var(--warn)}
+.risk-pill-src{background:var(--bg);border-color:var(--border);color:var(--text2)}
+.risk-pill-cat{background:transparent;border-color:var(--border2);color:var(--text2)}
+
+.risk-resolved-toggle{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text2);font-family:var(--fm);font-weight:600;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;user-select:none}
+.risk-resolved-toggle input{cursor:pointer;accent-color:var(--ok)}
+
+.risk-row-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;letter-spacing:-.1px}
+.risk-row-detail{font-size:11.5px;line-height:1.55;color:var(--text2);margin-bottom:10px}
+.risk-row-mit{display:flex;flex-direction:column;gap:4px}
+.risk-row-mit label{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-family:var(--fm);color:var(--text3)}
+.risk-mit-input{padding:8px 10px;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:var(--r-sm);font-family:var(--ff);font-size:12px;line-height:1.5;width:100%;resize:vertical;outline:none;transition:all .15s}
+.risk-mit-input:focus{border-color:var(--gold-bd);background:var(--ink3)}
+.risk-mit-input::placeholder{color:var(--text3)}
+
+/* Add custom risk dialog */
+.risk-add-dialog-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(3px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;animation:fadeIn .15s ease-out}
+.risk-add-dialog{background:var(--card);border:1px solid var(--border2);border-radius:var(--r-lg);padding:1.5rem;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.risk-add-title{font-size:14px;font-weight:700;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border);letter-spacing:-.2px}
+.risk-add-actions{display:flex;justify-content:flex-end;gap:8px}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.row-2{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+@media (max-width:480px){.row-2{grid-template-columns:1fr}}

@@ -72,6 +72,13 @@ function updateDashboard() {
   const k = $('dash-kpis');
   if (k) k.innerHTML = mode === 'brrrr' ? renderBRRRRKpis() : renderFFKpis();
 
+  // M5: Risk banner (renders after KPIs, above status banners)
+  const rb = $('dash-risk-banner');
+  if (rb) {
+    if (typeof renderRiskBannerHTML === 'function') rb.innerHTML = renderRiskBannerHTML();
+    else rb.innerHTML = '';
+  }
+
   // Status banner area
   const st = $('dash-status');
   if (st) st.innerHTML = renderStatusBanners(mode);

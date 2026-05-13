@@ -634,6 +634,7 @@ function navTo(section, btn) {
   if (section === 'operating'&& typeof renderOperatingBlock === 'function') renderOperatingBlock();
   if (section === 'capital'  && typeof renderCapitalBlock === 'function') renderCapitalBlock();
   if (section === 'market'   && typeof renderMarketPage === 'function') renderMarketPage();
+  if (section === 'risk'     && typeof renderRiskPage === 'function') renderRiskPage();
   if (section === 'company'  && typeof renderCompanyPicker === 'function') renderCompanyPicker();
   closeSidebar();
 }

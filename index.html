@@ -146,6 +146,7 @@
               </div>
             </div>
             <div class="kpi-grid" id="dash-kpis"></div>
+            <div id="dash-risk-banner"></div>
             <div id="dash-status"></div>
             <div id="dash-comp-validation"></div>
           </div>
@@ -171,19 +172,8 @@
           <div id="section-market-body"></div>
         </div>
 
-        <!-- ── RISK (M5 placeholder) ──────────────────────────── -->
-        <div id="section-risk" style="display:none">
-          <div class="panel">
-            <div class="panel-title">Risk Register</div>
-            <div class="empty">
-              <div class="empty-icon">⚠</div>
-              <div class="empty-title">Ships in M5</div>
-              <div style="font-size:11px;color:var(--text3);margin-top:6px;max-width:520px;margin-left:auto;margin-right:auto;line-height:1.7">
-                Mode-aware auto-flagged risks. BRRRR: low DSCR, high refi LTV, breakeven occupancy above market. Fix &amp; Flip: comp scatter, high DOM, thin value creation, contingency below 5%.
-              </div>
-            </div>
-          </div>
-        </div>
+        <!-- ── RISK REGISTER (M5) ─────────────────────────────── -->
+        <div id="section-risk" style="display:none"></div>
 
         <!-- ── REPORTS (M6 placeholder) ───────────────────────── -->
         <div id="section-reports" style="display:none">
@@ -301,6 +291,7 @@
 <script src="core.js"></script>
 <script src="engine.js"></script>
 <script src="market.js"></script>
+<script src="risk.js"></script>
 <script src="shell-ui.js"></script>
 <script src="data-entry.js"></script>
 <script src="seed-regression.js"></script>

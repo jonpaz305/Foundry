@@ -913,6 +913,410 @@ function computeFF() {
 
 
 // ════════════════════════════════════════════════════════════════
+// M5 - ENGINE RISK CATALOG
+// ════════════════════════════════════════════════════════════════
+//
+// Auto-flagged risks derived from engine outputs. Mode-aware: BRRRR
+// risks read R for refi/coverage/in-basis/recapture metrics; F&F
+// risks read R for comp scatter, DOM, value creation, ARV override.
+//
+// Two-tier severity per rule:
+//   medium -> rule trips at threshold
+//   high   -> rule trips beyond high-band threshold (typically ~1.5x
+//             below the medium threshold for "below" rules, or ~1.5x
+//             above for "above" rules)
+//
+// Each rule emits at most one risk per recompute. The risk object
+// shape is documented in risk.js. Engine risks carry source='engine'
+// and ids prefixed 'eng_'.
+//
+// Thresholds are exported so the regression harness and the risk UI
+// (mitigation guidance) can reference identical numbers.
+// ════════════════════════════════════════════════════════════════
+
+const ENGINE_RISK_THRESHOLDS = {
+  // BRRRR
+  dscr_min:                 1.20,    // refi DSCR below this is a risk
+  refi_ltv_max:             0.75,    // refi LTV above this is a risk
+  breakeven_occ_max:        0.75,    // breakeven occupancy above this
+  contingency_pct_min:      0.05,    // contingency below 5% of TPC
+  capital_recapture_min:    0.80,    // less than 80% capital recapture
+  exit_cap_compression_bps: 50,      // exit cap compressed >50 bps below entry
+  value_creation_min_brrrr: 0.20,    // BRRRR value creation below 20%
+  in_basis_pct_max:         0.80,    // post-refi in-basis >80% of ARV
+
+  // F&F
+  comp_cv_max:              0.25,    // CoV of comp $/SF above 25%
+  comp_count_min:           3,       // fewer than 3 valid comps
+  dom_max:                  75,      // avg DOM above 75 days
+  value_creation_min_ff:    0.15,    // F&F value creation below 15%
+  arv_override_max_pct:     0.10,    // ARV override >10% above comp-derived
+  ff_contingency_pct_min:   0.05     // F&F contingency below 5% of TPC
+};
+
+// High-tier multipliers (severity escalation thresholds).
+// For "above" rules: high tier = medium * HIGH_ABOVE_MULT (or fixed delta).
+// For "below" rules: high tier = medium * HIGH_BELOW_MULT (or fixed delta).
+const HIGH_TIER = {
+  dscr_min_high:            1.05,    // DSCR below 1.05 is high severity
+  refi_ltv_max_high:        0.80,    // refi LTV above 80% is high
+  breakeven_occ_max_high:   0.85,    // breakeven occ above 85% is high
+  contingency_pct_min_high: 0.03,    // contingency below 3% is high
+  capital_recapture_min_high: 0.60,  // <60% recapture is high
+  exit_cap_compression_bps_high: 100,
+  value_creation_min_brrrr_high: 0.10,
+  in_basis_pct_max_high:    0.90,    // >90% in-basis is high
+  comp_cv_max_high:         0.40,
+  comp_count_min_high:      2,
+  dom_max_high:             120,
+  value_creation_min_ff_high: 0.05,
+  arv_override_max_pct_high: 0.20,
+  ff_contingency_pct_min_high: 0.03
+};
+
+function _pctStr(x, dec) {
+  if (x == null || !isFinite(x)) return '-';
+  return (x * 100).toFixed(dec == null ? 1 : dec) + '%';
+}
+function _xStr(x, dec) {
+  if (x == null || !isFinite(x)) return '-';
+  return x.toFixed(dec == null ? 2 : dec) + 'x';
+}
+function _dollarStr(x) {
+  if (x == null || !isFinite(x)) return '-';
+  return '$' + Math.round(x).toLocaleString();
+}
+
+// Coefficient of variation of comp $/SF (sample-stddev / mean).
+// Returns null if there are fewer than 2 valid comps.
+function _compCV(compsArr) {
+  if (!Array.isArray(compsArr)) return null;
+  const psfs = compsArr
+    .filter(c => c && c.comp_type === 'sales')
+    .map(c => {
+      const p = +c.sales_price, sf = +c.area_sf;
+      return (p > 0 && sf > 0) ? (p / sf) : null;
+    })
+    .filter(v => v != null);
+  if (psfs.length < 2) return null;
+  const mean = psfs.reduce((a, b) => a + b, 0) / psfs.length;
+  if (mean === 0) return null;
+  const variance = psfs.reduce((a, b) => a + (b - mean) ** 2, 0) / (psfs.length - 1);
+  return Math.sqrt(variance) / mean;
+}
+
+// Mode-aware engine risk computation. Returns array of risk objects.
+// Reads inputs from globals (inputs, comps) by default; harnesses can
+// pass overrides for deterministic regression.
+function computeEngineRisks(mode, R_in, inputs_in, comps_in) {
+  const R_ = R_in || (typeof R === 'object' ? R : {});
+  const i_ = inputs_in || (typeof inputs === 'object' ? inputs : {});
+  const c_ = comps_in || (typeof comps === 'object' ? comps : []);
+  const T = ENGINE_RISK_THRESHOLDS;
+  const H = HIGH_TIER;
+  const risks = [];
+
+  if (mode === 'brrrr') {
+    // --- DSCR ---
+    if (R_.dscr != null && isFinite(R_.dscr)) {
+      if (R_.dscr < H.dscr_min_high) {
+        risks.push({
+          id: 'eng_dscr_low', source: 'engine', severity: 'high',
+          category: 'Coverage',
+          title: 'Refi DSCR below high-risk threshold',
+          detail: `Post-refi DSCR ${_xStr(R_.dscr)} is below the ${_xStr(H.dscr_min_high)} high-severity floor. Most agency takeout lenders require 1.20x minimum; below 1.05x is uninsurable.`,
+          value: R_.dscr, threshold: H.dscr_min_high
+        });
+      } else if (R_.dscr < T.dscr_min) {
+        risks.push({
+          id: 'eng_dscr_low', source: 'engine', severity: 'medium',
+          category: 'Coverage',
+          title: 'Refi DSCR below institutional threshold',
+          detail: `Post-refi DSCR ${_xStr(R_.dscr)} is below the ${_xStr(T.dscr_min)} institutional minimum. Re-test NOI build and refi loan sizing.`,
+          value: R_.dscr, threshold: T.dscr_min
+        });
+      }
+    }
+
+    // --- Refi LTV (refi loan / ARV) ---
+    if (R_.refi_loan_amount != null && R_.stabilized_arv > 0) {
+      const refi_ltv = R_.refi_loan_amount / R_.stabilized_arv;
+      if (refi_ltv > H.refi_ltv_max_high) {
+        risks.push({
+          id: 'eng_refi_ltv_high', source: 'engine', severity: 'high',
+          category: 'Capital',
+          title: 'Refi LTV exceeds high-risk threshold',
+          detail: `Refi LTV ${_pctStr(refi_ltv)} exceeds the ${_pctStr(H.refi_ltv_max_high, 0)} high-severity ceiling. Agency takeout unlikely; bridge extension or equity infusion may be required.`,
+          value: refi_ltv, threshold: H.refi_ltv_max_high
+        });
+      } else if (refi_ltv > T.refi_ltv_max) {
+        risks.push({
+          id: 'eng_refi_ltv_high', source: 'engine', severity: 'medium',
+          category: 'Capital',
+          title: 'Refi LTV above institutional threshold',
+          detail: `Refi LTV ${_pctStr(refi_ltv)} exceeds the ${_pctStr(T.refi_ltv_max, 0)} institutional ceiling. Tighten refi sizing or revisit exit cap.`,
+          value: refi_ltv, threshold: T.refi_ltv_max
+        });
+      }
+    }
+
+    // --- Breakeven occupancy ---
+    if (R_.breakeven_occupancy != null && isFinite(R_.breakeven_occupancy)) {
+      if (R_.breakeven_occupancy > H.breakeven_occ_max_high) {
+        risks.push({
+          id: 'eng_breakeven_high', source: 'engine', severity: 'high',
+          category: 'Operations',
+          title: 'Breakeven occupancy unsustainable',
+          detail: `Breakeven occupancy ${_pctStr(R_.breakeven_occupancy)} exceeds the ${_pctStr(H.breakeven_occ_max_high, 0)} high-severity threshold. The asset would need near-full lease-up just to cover debt service plus opex.`,
+          value: R_.breakeven_occupancy, threshold: H.breakeven_occ_max_high
+        });
+      } else if (R_.breakeven_occupancy > T.breakeven_occ_max) {
+        risks.push({
+          id: 'eng_breakeven_high', source: 'engine', severity: 'medium',
+          category: 'Operations',
+          title: 'Breakeven occupancy elevated',
+          detail: `Breakeven occupancy ${_pctStr(R_.breakeven_occupancy)} exceeds the ${_pctStr(T.breakeven_occ_max, 0)} comfort threshold. Limited cushion against vacancy spikes.`,
+          value: R_.breakeven_occupancy, threshold: T.breakeven_occ_max
+        });
+      }
+    }
+
+    // --- Capital recapture (capital returned / initial equity) ---
+    if (R_.capital_recaptured_pct != null && isFinite(R_.capital_recaptured_pct)) {
+      const cr = R_.capital_recaptured_pct > 1 ? R_.capital_recaptured_pct / 100 : R_.capital_recaptured_pct;
+      if (cr < H.capital_recapture_min_high) {
+        risks.push({
+          id: 'eng_capital_recapture_low', source: 'engine', severity: 'high',
+          category: 'Capital',
+          title: 'Capital recapture far below target',
+          detail: `Refi returns only ${_pctStr(cr)} of initial equity, below the ${_pctStr(H.capital_recapture_min_high, 0)} high-severity floor. Significant equity remains trapped, weakening the recycle thesis.`,
+          value: cr, threshold: H.capital_recapture_min_high
+        });
+      } else if (cr < T.capital_recapture_min) {
+        risks.push({
+          id: 'eng_capital_recapture_low', source: 'engine', severity: 'medium',
+          category: 'Capital',
+          title: 'Capital recapture below target',
+          detail: `Refi returns ${_pctStr(cr)} of initial equity, below the ${_pctStr(T.capital_recapture_min, 0)} institutional target. Equity recycle thesis weakened.`,
+          value: cr, threshold: T.capital_recapture_min
+        });
+      }
+    }
+
+    // --- In-basis after refi ---
+    if (R_.post_refi_in_basis_pct != null && isFinite(R_.post_refi_in_basis_pct)) {
+      // Field may be stored as percent (e.g. 51) or decimal (0.51); normalize.
+      const ib = R_.post_refi_in_basis_pct > 1 ? R_.post_refi_in_basis_pct / 100 : R_.post_refi_in_basis_pct;
+      if (ib > H.in_basis_pct_max_high) {
+        risks.push({
+          id: 'eng_in_basis_high', source: 'engine', severity: 'high',
+          category: 'Capital',
+          title: 'Post-refi in-basis dangerously high',
+          detail: `Post-refi in-basis ${_pctStr(ib)} exceeds the ${_pctStr(H.in_basis_pct_max_high, 0)} high-severity ceiling. Minimal cushion if exit cap softens.`,
+          value: ib, threshold: H.in_basis_pct_max_high
+        });
+      } else if (ib > T.in_basis_pct_max) {
+        risks.push({
+          id: 'eng_in_basis_high', source: 'engine', severity: 'medium',
+          category: 'Capital',
+          title: 'Post-refi in-basis elevated',
+          detail: `Post-refi in-basis ${_pctStr(ib)} is above the ${_pctStr(T.in_basis_pct_max, 0)} threshold. Limited margin for value erosion.`,
+          value: ib, threshold: T.in_basis_pct_max
+        });
+      }
+    }
+
+    // --- Contingency as pct of TPC (BRRRR) ---
+    if (R_.total_project_cost > 0) {
+      const cont = +i_.mobilization_contingency || 0;
+      const cPct = cont / R_.total_project_cost;
+      if (cPct < H.contingency_pct_min_high) {
+        risks.push({
+          id: 'eng_contingency_low', source: 'engine', severity: 'high',
+          category: 'Budget',
+          title: 'Contingency below high-risk floor',
+          detail: `Contingency ${_pctStr(cPct)} of TPC is below the ${_pctStr(H.contingency_pct_min_high, 0)} high-severity floor. Cost overruns will hit equity directly.`,
+          value: cPct, threshold: H.contingency_pct_min_high
+        });
+      } else if (cPct < T.contingency_pct_min) {
+        risks.push({
+          id: 'eng_contingency_low', source: 'engine', severity: 'medium',
+          category: 'Budget',
+          title: 'Contingency below institutional minimum',
+          detail: `Contingency ${_pctStr(cPct)} of TPC is below the ${_pctStr(T.contingency_pct_min, 0)} minimum. Recommend reserving at least 5%.`,
+          value: cPct, threshold: T.contingency_pct_min
+        });
+      }
+    }
+
+    // --- Exit cap compression (disabled in M5) ---
+    // Originally compared exit_cap to (NOI / purchase_price), but on a
+    // value-add deal the purchase price is well below stabilized ARV,
+    // so that "entry cap" is really yield-on-cost and the comparison
+    // is uncalibrated. Reintroduce in M6 with a market-cap input.
+
+    // --- Value creation (BRRRR) ---
+    if (R_.value_creation_pct != null && isFinite(R_.value_creation_pct)) {
+      const vc = R_.value_creation_pct > 1 ? R_.value_creation_pct / 100 : R_.value_creation_pct;
+      if (vc < H.value_creation_min_brrrr_high) {
+        risks.push({
+          id: 'eng_value_creation_thin_brrrr', source: 'engine', severity: 'high',
+          category: 'Returns',
+          title: 'Value creation below high-risk floor',
+          detail: `Value creation ${_pctStr(vc)} is below the ${_pctStr(H.value_creation_min_brrrr_high, 0)} high-severity floor. Thin margin makes refi takeout fragile.`,
+          value: vc, threshold: H.value_creation_min_brrrr_high
+        });
+      } else if (vc < T.value_creation_min_brrrr) {
+        risks.push({
+          id: 'eng_value_creation_thin_brrrr', source: 'engine', severity: 'medium',
+          category: 'Returns',
+          title: 'Value creation below BRRRR target',
+          detail: `Value creation ${_pctStr(vc)} is below the ${_pctStr(T.value_creation_min_brrrr, 0)} BRRRR target. Recycle thesis weakened.`,
+          value: vc, threshold: T.value_creation_min_brrrr
+        });
+      }
+    }
+  }
+
+  if (mode === 'fix_and_flip') {
+    // --- Comp count ---
+    const compCount = R_.comp_count_sales != null
+      ? R_.comp_count_sales
+      : (Array.isArray(c_) ? c_.filter(c => c && c.comp_type === 'sales').length : 0);
+    if (compCount < H.comp_count_min_high) {
+      risks.push({
+        id: 'eng_comp_count_low', source: 'engine', severity: 'high',
+        category: 'Comps',
+        title: 'Insufficient comp coverage',
+        detail: `Only ${compCount} valid sales comp(s). Below the ${H.comp_count_min_high}-comp high-severity floor; ARV derivation is unreliable.`,
+        value: compCount, threshold: H.comp_count_min_high
+      });
+    } else if (compCount < T.comp_count_min) {
+      risks.push({
+        id: 'eng_comp_count_low', source: 'engine', severity: 'medium',
+        category: 'Comps',
+        title: 'Comp count below institutional minimum',
+        detail: `Only ${compCount} valid sales comps. Institutional standard requires ${T.comp_count_min}; expand search radius or relax filters.`,
+        value: compCount, threshold: T.comp_count_min
+      });
+    }
+
+    // --- Comp CV ($/SF dispersion) ---
+    const cv = _compCV(c_);
+    if (cv != null) {
+      if (cv > H.comp_cv_max_high) {
+        risks.push({
+          id: 'eng_comp_cv_high', source: 'engine', severity: 'high',
+          category: 'Comps',
+          title: 'Comp dispersion severe',
+          detail: `Coefficient of variation in comp $/SF is ${_pctStr(cv)}, above the ${_pctStr(H.comp_cv_max_high, 0)} high-severity ceiling. Comp set is internally inconsistent; ARV is not defensible.`,
+          value: cv, threshold: H.comp_cv_max_high
+        });
+      } else if (cv > T.comp_cv_max) {
+        risks.push({
+          id: 'eng_comp_cv_high', source: 'engine', severity: 'medium',
+          category: 'Comps',
+          title: 'Comp dispersion elevated',
+          detail: `Coefficient of variation in comp $/SF is ${_pctStr(cv)}, above the ${_pctStr(T.comp_cv_max, 0)} threshold. Tighten the comp set or split into renovated vs unrenovated bands.`,
+          value: cv, threshold: T.comp_cv_max
+        });
+      }
+    }
+
+    // --- DOM ---
+    if (R_.comp_avg_dom != null && isFinite(R_.comp_avg_dom)) {
+      if (R_.comp_avg_dom > H.dom_max_high) {
+        risks.push({
+          id: 'eng_dom_high', source: 'engine', severity: 'high',
+          category: 'Comps',
+          title: 'Days on market severely elevated',
+          detail: `Average DOM ${Math.round(R_.comp_avg_dom)} days exceeds the ${H.dom_max_high}-day high-severity threshold. Market liquidity poor; price expectations may need to drop.`,
+          value: R_.comp_avg_dom, threshold: H.dom_max_high
+        });
+      } else if (R_.comp_avg_dom > T.dom_max) {
+        risks.push({
+          id: 'eng_dom_high', source: 'engine', severity: 'medium',
+          category: 'Comps',
+          title: 'Days on market elevated',
+          detail: `Average DOM ${Math.round(R_.comp_avg_dom)} days exceeds the ${T.dom_max}-day comfort threshold. Build a longer hold cushion into the timeline.`,
+          value: R_.comp_avg_dom, threshold: T.dom_max
+        });
+      }
+    }
+
+    // --- Value creation (F&F) ---
+    if (R_.value_creation_pct != null && isFinite(R_.value_creation_pct)) {
+      const vc = R_.value_creation_pct > 1 ? R_.value_creation_pct / 100 : R_.value_creation_pct;
+      if (vc < H.value_creation_min_ff_high) {
+        risks.push({
+          id: 'eng_value_creation_thin_ff', source: 'engine', severity: 'high',
+          category: 'Returns',
+          title: 'Value creation below high-risk floor',
+          detail: `Value creation ${_pctStr(vc)} is below the ${_pctStr(H.value_creation_min_ff_high, 0)} high-severity floor. Minimal margin for execution slippage.`,
+          value: vc, threshold: H.value_creation_min_ff_high
+        });
+      } else if (vc < T.value_creation_min_ff) {
+        risks.push({
+          id: 'eng_value_creation_thin_ff', source: 'engine', severity: 'medium',
+          category: 'Returns',
+          title: 'Value creation below F&F target',
+          detail: `Value creation ${_pctStr(vc)} is below the ${_pctStr(T.value_creation_min_ff, 0)} F&F target. ROI vulnerable to schedule or cost slippage.`,
+          value: vc, threshold: T.value_creation_min_ff
+        });
+      }
+    }
+
+    // --- ARV override vs comp-derived ---
+    if (R_.arv > 0 && R_.comp_derived_arv > 0 && R_.arv_source === 'override') {
+      const diff = (R_.arv - R_.comp_derived_arv) / R_.comp_derived_arv;
+      if (diff > H.arv_override_max_pct_high) {
+        risks.push({
+          id: 'eng_arv_override_high', source: 'engine', severity: 'high',
+          category: 'Assumptions',
+          title: 'ARV override far above comp-derived',
+          detail: `Manual ARV ${_dollarStr(R_.arv)} is ${_pctStr(diff)} above comp-derived ${_dollarStr(R_.comp_derived_arv)}. Override exceeds the ${_pctStr(H.arv_override_max_pct_high, 0)} high-severity ceiling.`,
+          value: diff, threshold: H.arv_override_max_pct_high
+        });
+      } else if (diff > T.arv_override_max_pct) {
+        risks.push({
+          id: 'eng_arv_override_high', source: 'engine', severity: 'medium',
+          category: 'Assumptions',
+          title: 'ARV override above comp-derived',
+          detail: `Manual ARV ${_dollarStr(R_.arv)} is ${_pctStr(diff)} above comp-derived ${_dollarStr(R_.comp_derived_arv)}. Override above ${_pctStr(T.arv_override_max_pct, 0)} requires rationale.`,
+          value: diff, threshold: T.arv_override_max_pct
+        });
+      }
+    }
+
+    // --- F&F contingency ---
+    if (R_.total_project_cost > 0) {
+      const cont = +i_.mobilization_contingency || 0;
+      const cPct = cont / R_.total_project_cost;
+      if (cPct < H.ff_contingency_pct_min_high) {
+        risks.push({
+          id: 'eng_ff_contingency_low', source: 'engine', severity: 'high',
+          category: 'Budget',
+          title: 'Contingency below high-risk floor',
+          detail: `Contingency ${_pctStr(cPct)} of TPC is below the ${_pctStr(H.ff_contingency_pct_min_high, 0)} high-severity floor. Cost overruns will hit equity directly.`,
+          value: cPct, threshold: H.ff_contingency_pct_min_high
+        });
+      } else if (cPct < T.ff_contingency_pct_min) {
+        risks.push({
+          id: 'eng_ff_contingency_low', source: 'engine', severity: 'medium',
+          category: 'Budget',
+          title: 'Contingency below institutional minimum',
+          detail: `Contingency ${_pctStr(cPct)} of TPC is below the ${_pctStr(T.ff_contingency_pct_min, 0)} minimum.`,
+          value: cPct, threshold: T.ff_contingency_pct_min
+        });
+      }
+    }
+  }
+
+  return risks;
+}
+
+
+// ════════════════════════════════════════════════════════════════
 // PUBLIC: recompute()
 // ════════════════════════════════════════════════════════════════
 // Called from core.js after any input change. Reads global state,
@@ -936,4 +1340,7 @@ function recompute() {
       R.market_risks = computeMarketRisks(marketAnalysis.census, marketAnalysis.derived);
     }
   }
+
+  // M5: engine risks (mode-aware, derived from R + inputs + comps).
+  R.engine_risks = computeEngineRisks(mode, R, inputs, comps);
 }
