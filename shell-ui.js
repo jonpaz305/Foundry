@@ -500,7 +500,7 @@ function renderDealEconomicsPanel(mode) {
       ['Refi LTV',                 refi_ltv != null ? fP(refi_ltv) : '-'],
       ['Capital Recapture',        recapVal, recapTone, true],
       ['Post-Refi In-Basis',       R.post_refi_in_basis_pct != null ? fP(R.post_refi_in_basis_pct) : '-'],
-      ['Annual Cash Flow',         R.annual_cash_flow != null ? f$(R.annual_cash_flow) : '-'],
+      ['Stabilized Annual Cash Flow', R.annual_cash_flow != null ? f$(R.annual_cash_flow) : '-'],
       ['Breakeven Occupancy',      R.breakeven_occupancy != null ? fP(R.breakeven_occupancy) : '-']
     ];
   } else {

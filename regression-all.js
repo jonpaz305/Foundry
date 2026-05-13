@@ -930,6 +930,12 @@ function runM6_2() {
   check(g, 'BRRRR snapshot: market-empty fallback shown (no census)', brrrrHtml.includes('Market analysis not run') ? 1 : 0, 1);
   // 2048 trips one medium contingency risk (M5 documented behavior)
   check(g, 'BRRRR snapshot: contingency risk surfaced in Top Risks', brrrrHtml.includes('Contingency') ? 1 : 0, 1);
+  // Layer 2 Fix 1: engine version stamp must appear on Deal Snapshot footer
+  check(g, 'BRRRR snapshot: engine version stamp present (Layer 2 Fix 1)',
+    brrrrHtml.includes('Engine 1.0.0') ? 1 : 0, 1);
+  // Layer 2 Fix 3: cash flow label disambiguated from BRRRR Package Y1
+  check(g, 'BRRRR snapshot: cash flow label disambiguated to "Stabilized" (Layer 2 Fix 3)',
+    brrrrHtml.includes('Stabilized Annual Cash Flow') ? 1 : 0, 1);
 
   // ── F&F snapshot render
   loadFF();
@@ -994,6 +1000,9 @@ function runM6_3() {
   // Page 5 (10-year cash flow)
   check(g, 'P5: 10-year cash flow table rows (Y1..Y10)',
     ((html.match(/<td>Y\d+<\/td>/g) || []).length >= 10) ? 1 : 0, 1);
+  // Layer 2 Fix 3: Y1 caption disambiguates from Dashboard "Stabilized Annual Cash Flow"
+  check(g, 'P5: Y1 caption disambiguates bridge carry from stabilized CF (Layer 2 Fix 3)',
+    html.includes('Stabilized Annual Cash Flow') && html.includes('bridge-rate carry') ? 1 : 0, 1);
 
   // Page 6 sensitivity grid
   check(g, 'P6: sensitivity grid (5x5 = 25 cells)',
@@ -1118,6 +1127,9 @@ function runM6_5() {
   check(g, 'BRRRR memo: Devil\'s Advocate section', brrrrHtml.includes("Devil") ? 1 : 0, 1);
   check(g, 'BRRRR memo: IC Questions numbered list', brrrrHtml.includes('im-questions') ? 1 : 0, 1);
   check(g, 'BRRRR memo: stabilized NOI in facts ($130,442)', brrrrHtml.includes('$130,442') ? 1 : 0, 1);
+  // Layer 2 Fix 1: engine version stamp must appear on Internal Memo footer
+  check(g, 'BRRRR memo: engine version stamp present (Layer 2 Fix 1)',
+    brrrrHtml.includes('Engine 1.0.0') ? 1 : 0, 1);
 
   // ── F&F (clean 2455 deal)
   loadFF();
@@ -1154,7 +1166,8 @@ function runM6_6() {
   check(g, 'BRRRR: refi takeout section', brrrrHtml.includes('Refinance Takeout Sizing') ? 1 : 0, 1);
   check(g, 'BRRRR: NOI build with Stabilized NOI $130,442', brrrrHtml.includes('$130,442') ? 1 : 0, 1);
   check(g, 'BRRRR: stress scenarios table', brrrrHtml.includes('Refi Rate +50bp') && brrrrHtml.includes('Refi Rate +100bp') ? 1 : 0, 1);
-  check(g, 'BRRRR: Sponsor + Asset + Disclosures page', brrrrHtml.includes('Sponsor Profile') && brrrrHtml.includes('Asset Summary') && brrrrHtml.includes('Disclosures') ? 1 : 0, 1);
+  check(g, 'BRRRR: Sponsor + Asset + Notices and Disclaimers page (Layer 2 Fix 2)',
+    brrrrHtml.includes('Sponsor Profile') && brrrrHtml.includes('Asset Summary') && brrrrHtml.includes('Notices and Disclaimers') ? 1 : 0, 1);
   check(g, 'BRRRR: Executive Summary on cover', brrrrHtml.includes('Executive Summary') ? 1 : 0, 1);
   check(g, 'BRRRR: Initial Debt Terms on page 2 (consolidated)', brrrrHtml.includes('Initial Debt Terms') ? 1 : 0, 1);
 
