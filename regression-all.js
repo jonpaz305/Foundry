@@ -68,6 +68,11 @@ vm.runInContext(`
 loadJS('market.js');
 loadJS('engine.js');
 loadJS('risk.js');
+// Path A: Load disclaimers module before any report file. Reports
+// reference disclaimer functions defensively (typeof check), so
+// reports work in either presence or absence, but production loads
+// disclaimers first.
+loadJS('disclaimers.js');
 
 // ── Test counters ─────────────────────────────────────────────
 const results = { pass: 0, fail: 0, byGroup: {} };
@@ -962,9 +967,10 @@ function runM6_3() {
 
   check(g, 'renders without throwing', typeof html === 'string' && html.length > 0 ? 1 : 0, 1);
 
-  // Page count: 8 pages baseline (no sponsor extras on ASJP default)
+  // Page count: 9 pages baseline (no sponsor extras on ASJP default,
+  // plus Path A dedicated Notices and Disclaimers page that always renders)
   const pageCount = (html.match(/class="print-page print-page-compact"/g) || []).length;
-  check(g, 'page count: 8 pages (no sponsor extras)', pageCount, 8);
+  check(g, 'page count: 9 pages (8 content + disclaimers)', pageCount, 9);
 
   // Page 1 elements
   check(g, 'P1: BRRRR Underwriting Package eyebrow', html.includes('BRRRR Underwriting Package') ? 1 : 0, 1);
@@ -1054,7 +1060,7 @@ function runM6_4() {
   check(g, 'renders without throwing', typeof html === 'string' && html.length > 0 ? 1 : 0, 1);
 
   const pageCount = (html.match(/class="print-page print-page-compact"/g) || []).length;
-  check(g, 'page count: 7 pages (no sponsor extras)', pageCount, 7);
+  check(g, 'page count: 8 pages (7 content + disclaimers)', pageCount, 8);
 
   // P1: Cover
   check(g, 'P1: Fix & Flip eyebrow', html.includes('Fix &amp; Flip Investment Package') ? 1 : 0, 1);
@@ -1316,6 +1322,125 @@ function runM6_8() {
 }
 
 // ════════════════════════════════════════════════════════════════
+// M6.9 - DISCLAIMERS (Path A Pass 1 integration)
+// ════════════════════════════════════════════════════════════════
+// Verifies the central disclaimers.js module produces the required
+// 506(b) language across all external reports. These assertions LOCK
+// the key disclaimer phrases so that future engine changes do not
+// accidentally remove counsel-blessed language. When counsel returns
+// edits, these assertions are updated to match the approved phrasing.
+function runM6_9() {
+  const g = group('M6.9 Disclaimers');
+
+  const HELPERS_SRC = `({
+    fmtMoney: (x, dec) => x == null || !isFinite(x) ? '-' : '$' + Number(x).toLocaleString(undefined, { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 }),
+    fmtMoneyK: (x) => x == null || !isFinite(x) ? '-' : (Math.abs(x) >= 1e6 ? '$' + (x/1e6).toFixed(2) + 'M' : (Math.abs(x) >= 1e3 ? '$' + (x/1e3).toFixed(0) + 'K' : '$' + Math.round(x))),
+    fmtPct: (x, dec) => x == null || !isFinite(x) ? '-' : (x*100).toFixed(dec == null ? 1 : dec) + '%',
+    fmtX: (x, dec) => x == null || !isFinite(x) ? '-' : Number(x).toFixed(dec == null ? 2 : dec) + 'x',
+    fmtInt: (x) => x == null || !isFinite(x) ? '-' : Math.round(x).toLocaleString(),
+    todayLong: () => 'May 13, 2026',
+    foundryLogo: () => ''
+  })`;
+
+  // Load all report modules into the shared ctx if not already loaded
+  // by prior M6.x tests. Defensive: report files declare functions at
+  // top level so re-loading is safe.
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/brrrr-package.js'), 'utf8'), ctx, { filename: 'reports/brrrr-package.js' });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/ff-package.js'), 'utf8'), ctx, { filename: 'reports/ff-package.js' });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/lender-package.js'), 'utf8'), ctx, { filename: 'reports/lender-package.js' });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/valor-pbv-package.js'), 'utf8'), ctx, { filename: 'reports/valor-pbv-package.js' });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/internal-memo.js'), 'utf8'), ctx, { filename: 'reports/internal-memo.js' });
+
+  // ── BRRRR Package disclaimer block
+  loadBRRRR();
+  const brrrrHtml = vm.runInContext(`renderReport_brrrr_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
+  check(g, 'BRRRR: DRAFT banner present',
+    brrrrHtml.includes('DRAFT -- Pending Counsel Review') ? 1 : 0, 1);
+  check(g, 'BRRRR: Rule 506(b) reference present',
+    brrrrHtml.includes('Rule 506(b)') ? 1 : 0, 1);
+  check(g, 'BRRRR: Regulation D reference present',
+    brrrrHtml.includes('Regulation D') ? 1 : 0, 1);
+  check(g, 'BRRRR: accredited investors reference present',
+    brrrrHtml.includes('accredited investors') ? 1 : 0, 1);
+  check(g, 'BRRRR: pre-existing substantive relationship language present',
+    brrrrHtml.includes('pre-existing substantive relationship') ? 1 : 0, 1);
+  check(g, 'BRRRR: PPM shall control language present',
+    brrrrHtml.includes('the PPM shall control') ? 1 : 0, 1);
+  check(g, 'BRRRR: no representation or warranty language present',
+    brrrrHtml.includes('No representation or warranty') ? 1 : 0, 1);
+  check(g, 'BRRRR: confidentiality restriction present',
+    brrrrHtml.includes('confidential and is furnished solely') ? 1 : 0, 1);
+  check(g, 'BRRRR: disclaimer version stamp present',
+    brrrrHtml.includes('Disclaimer version:') && brrrrHtml.includes('DRAFT-2026-05-13') ? 1 : 0, 1);
+  check(g, 'BRRRR: no F&F liquidity paragraph (BRRRR not single-asset short-hold)',
+    brrrrHtml.indexOf('Liquidity and Concentration') < 0 ? 1 : 0, 1);
+
+  // ── F&F Package disclaimer block (same modules + Liquidity & Concentration)
+  loadFF();
+  const ffHtml = vm.runInContext(`renderReport_ff_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
+  check(g, 'F&F: DRAFT banner present',
+    ffHtml.includes('DRAFT -- Pending Counsel Review') ? 1 : 0, 1);
+  check(g, 'F&F: Rule 506(b) reference present',
+    ffHtml.includes('Rule 506(b)') ? 1 : 0, 1);
+  check(g, 'F&F: Liquidity and Concentration paragraph present',
+    ffHtml.includes('Liquidity and Concentration') ? 1 : 0, 1);
+  check(g, 'F&F: single-asset concentration language',
+    ffHtml.includes('concentrated exposure to a single asset') ? 1 : 0, 1);
+  check(g, 'F&F: disclaimer version stamp present',
+    ffHtml.includes('DRAFT-2026-05-13') ? 1 : 0, 1);
+
+  // ── Lender Package - different structure, no Reg D apparatus
+  loadBRRRR();
+  const lenderHtml = vm.runInContext(`renderReport_lender_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
+  check(g, 'Lender: DRAFT banner present',
+    lenderHtml.includes('DRAFT -- Pending Counsel Review') ? 1 : 0, 1);
+  check(g, 'Lender: not a commitment to lend language present',
+    lenderHtml.includes('commitment to lend') ? 1 : 0, 1);
+  check(g, 'Lender: cross-reference to equity materials present',
+    lenderHtml.includes('Cross-Reference to Equity Materials') ? 1 : 0, 1);
+  check(g, 'Lender: credit committee approval reference present',
+    lenderHtml.includes('credit committee approval') ? 1 : 0, 1);
+  check(g, 'Lender: no Reg D language (lender is not securities investor)',
+    lenderHtml.indexOf('Rule 506(b)') < 0 ? 1 : 0, 1);
+
+  // ── Valor PBV Package - 8-paragraph block with counsel-flagged items
+  loadBRRRR();
+  const valorHtml = vm.runInContext(`renderReport_valor_pbv(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
+  check(g, 'Valor: DRAFT banner present',
+    valorHtml.includes('DRAFT -- Pending Counsel Review') ? 1 : 0, 1);
+  check(g, 'Valor: Platform Stage paragraph present',
+    valorHtml.includes('Platform Stage; Limited Operating History') ? 1 : 0, 1);
+  check(g, 'Valor: HUD-VASH Program Risk language present',
+    valorHtml.includes('HUD-VASH Program Risk') ? 1 : 0, 1);
+  check(g, 'Valor: federal appropriations risk language present',
+    valorHtml.includes('federal appropriations') ? 1 : 0, 1);
+  check(g, 'Valor: Third-Party References paragraph present (flagged for counsel)',
+    valorHtml.includes('Third-Party References') ? 1 : 0, 1);
+  check(g, 'Valor: Compass Capital Management reference retained (counsel-flagged)',
+    valorHtml.includes('Compass Capital Management') ? 1 : 0, 1);
+  check(g, 'Valor: Qatar Investment Authority reference retained (counsel-flagged)',
+    valorHtml.includes('Qatar Investment Authority') ? 1 : 0, 1);
+  check(g, 'Valor: ASJP-KPI Cooperation Framework paragraph present (counsel-flagged)',
+    valorHtml.includes('ASJP-KPI Cooperation Framework') ? 1 : 0, 1);
+  check(g, 'Valor: 15% allocation floor reference retained',
+    valorHtml.includes('15% allocation floor') ? 1 : 0, 1);
+
+  // ── Internal Deal Memo - body-level mark on page 1
+  loadBRRRR();
+  const memoHtml = vm.runInContext(`renderReport_internal_memo(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
+  check(g, 'Internal Memo: body-level IC-only mark present',
+    memoHtml.includes('Internal Investment Committee Document') ? 1 : 0, 1);
+  check(g, 'Internal Memo: Devil\'s Advocate disclaimer language present',
+    memoHtml.includes('Devil\'s Advocate counter-arguments') ? 1 : 0, 1);
+  check(g, 'Internal Memo: no Reg D language (internal only)',
+    memoHtml.indexOf('Rule 506(b)') < 0 ? 1 : 0, 1);
+
+  // ── No em-dashes in any disclaimer output
+  check(g, 'no em-dashes across all disclaimer blocks',
+    (brrrrHtml + ffHtml + lenderHtml + valorHtml + memoHtml).indexOf('\u2014') < 0 ? 1 : 0, 1);
+}
+
+// ════════════════════════════════════════════════════════════════
 // Run
 // ════════════════════════════════════════════════════════════════
 runM2();
@@ -1333,6 +1458,7 @@ runM6_5();
 runM6_6();
 runM6_7();
 runM6_8();
+runM6_9();
 
 // ── Report ────────────────────────────────────────────────────
 console.log('');
