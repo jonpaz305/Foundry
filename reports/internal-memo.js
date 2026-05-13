@@ -316,7 +316,7 @@
   function _executiveSummary(R, inputs, mode, market, h) {
     const units = R.total_unit_count || 0;
     const purchase = inputs.purchase_price || 0;
-    const reno = inputs.reno_budget || 0;
+    const reno = inputs.capex_budget || 0;
     const tpc = R.total_project_cost || 0;
     const city = inputs.city || '';
     const state = inputs.state || '';
@@ -361,14 +361,14 @@
     if (mode === 'brrrr') {
       return `
         <div class="bp-narrative pb-avoid">
-          <p>Acquire at month 0 using ${h.fmtMoney(R.initial_loan_amt)} of bridge debt at ${h.fmtPct(inputs.initial_rate, 2)} ${_esc(inputs.initial_interest_type || 'IO')}. Execute ${h.fmtMoney(inputs.reno_budget)} renovation program over months 0-${(inputs.target_refi_months || 9) - 1}, achieving stabilized rent roll by month ${inputs.target_refi_months || 9}. Refinance into ${h.fmtPct(inputs.target_refi_ltv, 0)} agency takeout at ${h.fmtPct(inputs.refi_rate, 2)} ${_esc(inputs.refi_interest_type || 'PI')}, returning sponsor equity. Hold for ${inputs.target_hold_years || 10}-year operating period at ${h.fmtPct(inputs.rent_growth_pct, 1)} rent growth and ${h.fmtPct(inputs.appreciation_pct, 1)} appreciation. Dispose at year ${inputs.target_hold_years || 10} at ${h.fmtPct(inputs.exit_cap, 2)} exit cap.</p>
+          <p>Acquire at month 0 using ${h.fmtMoney(R.initial_loan_amt)} of bridge debt at ${h.fmtPct(inputs.initial_rate, 2)} ${_esc(inputs.initial_interest_type || 'IO')}. Execute ${h.fmtMoney(inputs.capex_budget)} renovation program over months 0-${(inputs.target_refi_months || 9) - 1}, achieving stabilized rent roll by month ${inputs.target_refi_months || 9}. Refinance into ${h.fmtPct(inputs.target_refi_ltv, 0)} agency takeout at ${h.fmtPct(inputs.refi_rate, 2)} ${_esc(inputs.refi_interest_type || 'PI')}, returning sponsor equity. Hold for ${inputs.target_hold_years || 10}-year operating period at ${h.fmtPct(inputs.rent_growth_pct, 1)} rent growth and ${h.fmtPct(inputs.appreciation_pct, 1)} appreciation. Dispose at year ${inputs.target_hold_years || 10} at ${h.fmtPct(inputs.exit_cap, 2)} exit cap.</p>
         </div>`;
     } else {
       const renoMonths = inputs.ff_reno_months || Math.round((inputs.target_hold_months || 7) * 0.7);
       const saleMonths = inputs.ff_sale_months || Math.max(1, (inputs.target_hold_months || 7) - renoMonths);
       return `
         <div class="bp-narrative pb-avoid">
-          <p>Acquire at month 0 using ${h.fmtMoney(R.initial_loan_amt)} of acquisition + reno bridge debt at ${h.fmtPct(inputs.initial_rate, 2)} ${_esc(inputs.initial_interest_type || 'IO')}. Execute ${h.fmtMoney(inputs.reno_budget)} renovation over months 0-${renoMonths}. Market and dispose over months ${renoMonths}-${(inputs.target_hold_months || 7)} at ${h.fmtMoney(R.arv)} target sale price. Distribute net proceeds to investor after ${h.fmtPct(inputs.sale_cost_pct)} sale costs and remaining loan payoff. ${inputs.lp_gp_split_ff ? h.fmtPct(inputs.lp_gp_split_ff, 0) + ' to LP per split.' : ''}</p>
+          <p>Acquire at month 0 using ${h.fmtMoney(R.initial_loan_amt)} of acquisition + reno bridge debt at ${h.fmtPct(inputs.initial_rate, 2)} ${_esc(inputs.initial_interest_type || 'IO')}. Execute ${h.fmtMoney(inputs.capex_budget)} renovation over months 0-${renoMonths}. Market and dispose over months ${renoMonths}-${(inputs.target_hold_months || 7)} at ${h.fmtMoney(R.arv)} target sale price. Distribute net proceeds to investor after ${h.fmtPct(inputs.sale_cost_pct)} sale costs and remaining loan payoff. ${inputs.lp_gp_split_ff ? h.fmtPct(inputs.lp_gp_split_ff, 0) + ' to LP per split.' : ''}</p>
         </div>`;
     }
   }
@@ -379,7 +379,7 @@
     if (mode === 'brrrr') {
       facts.push(['Units', String(R.total_unit_count || 0)]);
       facts.push(['Purchase Price', h.fmtMoney(inputs.purchase_price)]);
-      facts.push(['Reno Budget', h.fmtMoney(inputs.reno_budget)]);
+      facts.push(['Reno Budget', h.fmtMoney(inputs.capex_budget)]);
       facts.push(['Total Project Cost', h.fmtMoney(R.total_project_cost)]);
       facts.push(['Initial Loan', h.fmtMoney(R.initial_loan_amt)]);
       facts.push(['Refi Loan', h.fmtMoney(R.refi_loan_amount)]);
@@ -392,7 +392,7 @@
     } else {
       facts.push(['Subject Area', R.subject_area_sf ? Number(R.subject_area_sf).toLocaleString() + ' SF' : '-']);
       facts.push(['Purchase Price', h.fmtMoney(inputs.purchase_price)]);
-      facts.push(['Reno Budget', h.fmtMoney(inputs.reno_budget)]);
+      facts.push(['Reno Budget', h.fmtMoney(inputs.capex_budget)]);
       facts.push(['Total Project Cost', h.fmtMoney(R.total_project_cost)]);
       facts.push(['Initial Loan', h.fmtMoney(R.initial_loan_amt)]);
       facts.push(['ARV', h.fmtMoney(R.arv)]);
@@ -476,12 +476,12 @@
     if (mode === 'brrrr') {
       items.push(`<strong>Stabilized rents</strong> achievable at ${h.fmtMoney(R.gpr_monthly)} monthly GPR (${h.fmtMoney(R.gpr_annual)} annual), supported by submarket comparables and post-reno asset quality.`);
       items.push(`<strong>Exit cap rate</strong> of ${h.fmtPct(inputs.exit_cap, 2)} holds through the ${inputs.target_hold_years || 10}-year hold period, with no material softening even in a higher-rate environment.`);
-      items.push(`<strong>Renovation execution</strong> on time and on budget at ${h.fmtMoney(inputs.reno_budget)}, with the asset stabilized by month ${inputs.target_refi_months || 9} for refi qualification.`);
+      items.push(`<strong>Renovation execution</strong> on time and on budget at ${h.fmtMoney(inputs.capex_budget)}, with the asset stabilized by month ${inputs.target_refi_months || 9} for refi qualification.`);
       items.push(`<strong>Operating expense ratio</strong> stabilizes at ${h.fmtPct(R.expense_ratio)} (${h.fmtMoney(R.total_operating_expenses)}/year), with no material tax reassessment, insurance step-function, or utility inflation surprises.`);
       items.push(`<strong>Refinance market</strong> receptive at ${h.fmtPct(inputs.refi_rate, 2)} for ${h.fmtPct(inputs.target_refi_ltv, 0)} agency takeout in month ${inputs.target_refi_months || 9}, with the asset DSCR-qualified.`);
     } else {
       items.push(`<strong>ARV</strong> achievable at ${h.fmtMoney(R.arv)}${R.arv_source === 'override' ? ' (above comp-derived ' + h.fmtMoney(R.comp_derived_arv) + ')' : ''}, with the comp set defensible as we approach listing.`);
-      items.push(`<strong>Renovation scope</strong> executed at ${h.fmtMoney(inputs.reno_budget)} budget within the planned ${Math.round((inputs.target_hold_months || 7) * 0.7)}-month renovation window.`);
+      items.push(`<strong>Renovation scope</strong> executed at ${h.fmtMoney(inputs.capex_budget)} budget within the planned ${Math.round((inputs.target_hold_months || 7) * 0.7)}-month renovation window.`);
       items.push(`<strong>Marketing window</strong> closes within the planned ${(inputs.target_hold_months || 7) - Math.round((inputs.target_hold_months || 7) * 0.7)} months, with carry burden manageable if extended.`);
       items.push(`<strong>Sale execution</strong> at full asking price (or near it), with sale costs of ${h.fmtPct(inputs.sale_cost_pct)} reflecting realistic buyer agent + closing splits.`);
     }
@@ -527,10 +527,10 @@
     items.push(`Walk the property and surrounding submarket within 7 days; confirm asset condition matches underwriting.`);
     items.push(`Pull comparable sales and rent comps independent of seller package; validate ${mode === 'brrrr' ? 'GPR and stabilized rents' : 'ARV and DOM'} against a refreshed comp set.`);
     if (mode === 'brrrr') {
-      items.push(`Engage GC for binding renovation scope and timeline at ${h.fmtMoney(inputs.reno_budget)} budget; identify any scope items requiring add-alternates.`);
+      items.push(`Engage GC for binding renovation scope and timeline at ${h.fmtMoney(inputs.capex_budget)} budget; identify any scope items requiring add-alternates.`);
       items.push(`Confirm refi market appetite at ${h.fmtPct(inputs.refi_rate, 2)} for ${h.fmtPct(inputs.target_refi_ltv, 0)} LTV; source 2-3 quotes from preferred takeout lenders.`);
     } else {
-      items.push(`Engage GC for binding renovation scope at ${h.fmtMoney(inputs.reno_budget)}; lock in start date and substantial-completion milestone.`);
+      items.push(`Engage GC for binding renovation scope at ${h.fmtMoney(inputs.capex_budget)}; lock in start date and substantial-completion milestone.`);
       items.push(`Engage listing agent and confirm marketing strategy; pre-MLS preview and pricing approach.`);
     }
     items.push(`File documented mitigation for each open risk on the register before capital commitment.`);
