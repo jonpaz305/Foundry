@@ -1354,8 +1354,8 @@ function runM6_9() {
   // ── BRRRR Package disclaimer block
   loadBRRRR();
   const brrrrHtml = vm.runInContext(`renderReport_brrrr_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
-  check(g, 'BRRRR: DRAFT banner present',
-    brrrrHtml.includes('DRAFT -- Pending Counsel Review') ? 1 : 0, 1);
+  check(g, 'BRRRR: DRAFT banner suppressed (IS_DRAFT=false)',
+    brrrrHtml.indexOf('DRAFT -- Pending Counsel Review') < 0 ? 1 : 0, 1);
   check(g, 'BRRRR: Rule 506(b) reference present',
     brrrrHtml.includes('Rule 506(b)') ? 1 : 0, 1);
   check(g, 'BRRRR: Regulation D reference present',
@@ -1370,30 +1370,30 @@ function runM6_9() {
     brrrrHtml.includes('No representation or warranty') ? 1 : 0, 1);
   check(g, 'BRRRR: confidentiality restriction present',
     brrrrHtml.includes('confidential and is furnished solely') ? 1 : 0, 1);
-  check(g, 'BRRRR: disclaimer version stamp present',
-    brrrrHtml.includes('Disclaimer version:') && brrrrHtml.includes('DRAFT-2026-05-13') ? 1 : 0, 1);
+  check(g, 'BRRRR: version stamp suppressed (no inline render)',
+    brrrrHtml.indexOf('Disclaimer version:') < 0 ? 1 : 0, 1);
   check(g, 'BRRRR: no F&F liquidity paragraph (BRRRR not single-asset short-hold)',
     brrrrHtml.indexOf('Liquidity and Concentration') < 0 ? 1 : 0, 1);
 
   // ── F&F Package disclaimer block (same modules + Liquidity & Concentration)
   loadFF();
   const ffHtml = vm.runInContext(`renderReport_ff_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
-  check(g, 'F&F: DRAFT banner present',
-    ffHtml.includes('DRAFT -- Pending Counsel Review') ? 1 : 0, 1);
+  check(g, 'F&F: DRAFT banner suppressed (IS_DRAFT=false)',
+    ffHtml.indexOf('DRAFT -- Pending Counsel Review') < 0 ? 1 : 0, 1);
   check(g, 'F&F: Rule 506(b) reference present',
     ffHtml.includes('Rule 506(b)') ? 1 : 0, 1);
   check(g, 'F&F: Liquidity and Concentration paragraph present',
     ffHtml.includes('Liquidity and Concentration') ? 1 : 0, 1);
   check(g, 'F&F: single-asset concentration language',
     ffHtml.includes('concentrated exposure to a single asset') ? 1 : 0, 1);
-  check(g, 'F&F: disclaimer version stamp present',
-    ffHtml.includes('DRAFT-2026-05-13') ? 1 : 0, 1);
+  check(g, 'F&F: version stamp suppressed (no inline render)',
+    ffHtml.indexOf('Disclaimer version:') < 0 ? 1 : 0, 1);
 
   // ── Lender Package - different structure, no Reg D apparatus
   loadBRRRR();
   const lenderHtml = vm.runInContext(`renderReport_lender_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
-  check(g, 'Lender: DRAFT banner present',
-    lenderHtml.includes('DRAFT -- Pending Counsel Review') ? 1 : 0, 1);
+  check(g, 'Lender: DRAFT banner suppressed (IS_DRAFT=false)',
+    lenderHtml.indexOf('DRAFT -- Pending Counsel Review') < 0 ? 1 : 0, 1);
   check(g, 'Lender: not a commitment to lend language present',
     lenderHtml.includes('commitment to lend') ? 1 : 0, 1);
   check(g, 'Lender: cross-reference to equity materials present',
@@ -1406,8 +1406,8 @@ function runM6_9() {
   // ── Valor PBV Package - 8-paragraph block with counsel-flagged items
   loadBRRRR();
   const valorHtml = vm.runInContext(`renderReport_valor_pbv(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
-  check(g, 'Valor: DRAFT banner present',
-    valorHtml.includes('DRAFT -- Pending Counsel Review') ? 1 : 0, 1);
+  check(g, 'Valor: DRAFT banner suppressed (IS_DRAFT=false)',
+    valorHtml.indexOf('DRAFT -- Pending Counsel Review') < 0 ? 1 : 0, 1);
   check(g, 'Valor: Platform Stage paragraph present',
     valorHtml.includes('Platform Stage; Limited Operating History') ? 1 : 0, 1);
   check(g, 'Valor: HUD-VASH Program Risk language present',
