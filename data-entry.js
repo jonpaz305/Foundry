@@ -6,6 +6,18 @@
 // ════════════════════════════════════════════════════════════════
 
 
+// A-smart consulting fee helper: returns the engine's auto-computed
+// consulting value for a given inputs object. Mirrors the engine's
+// fallback formula (max $10K, 3% of purchase + capex). Used by the
+// Capital form to pre-fill the consulting field when the user has
+// not locked the value.
+function _autoConsulting(i) {
+  const purchase = Number(i && i.purchase_price) || 0;
+  const capex = Number(i && i.capex_budget) || 0;
+  return Math.round(Math.max(10000, 0.03 * (purchase + capex)));
+}
+
+
 // M1: Negotiation diagnostic helper. Renders the "% under ask" hint
 // under the Asking Price field on the Capital panel. Asking price is
 // purely informational (Version B per spec) - does NOT drive engine
@@ -709,8 +721,10 @@ function renderCapitalBlock() {
           <div class="hint">Float to cover GC mobilization and draw-cycle lag before lender reimbursement. Reimbursed via construction draws before refi.</div></div>
       </div>
       <div class="g2" style="margin-bottom:1rem">
-        <div class="field"><label>Consulting fees override</label>
-          <input type="number" class="num" value="${i.consulting_fees_override ?? ''}" placeholder="Default: max($10k, 3% of acq+capex)" oninput="onInputChange('consulting_fees_override', this.value)"/></div>
+        <div class="field"><label>Consulting / project fee${i.consulting_fees_user_locked ? ' <span style="color:var(--gold-lt);font-size:10px;font-weight:600;margin-left:6px">OVERRIDDEN</span>' : ' <span style="color:var(--text3);font-size:10px;margin-left:6px">auto</span>'}</label>
+          <input type="number" class="num" value="${i.consulting_fees_override ?? _autoConsulting(i)}" placeholder="Auto: max($10k, 3% of purchase + capex)" oninput="onInputChange('consulting_fees_override', this.value)"/>
+          <div class="hint">${i.consulting_fees_user_locked ? 'Manually set. Clear the field to return to auto mode (3% of purchase + capex, $10K minimum).' : 'Auto-recomputes from 3% of (purchase + capex) as those change. Type a value to override.'}</div>
+          </div>
         ${mode === 'brrrr' ? `
           <label class="field-cb" style="margin-top:1.4rem">
             <input type="checkbox" ${i.treat_mob_as_equity ? 'checked' : ''} onchange="onInputChange('treat_mob_as_equity', this.checked)"/>

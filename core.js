@@ -79,6 +79,7 @@ function makeDefaultInputs() {
     gc_contingency:          0,
     treat_mob_as_equity:     false,
     consulting_fees_override: null,
+    consulting_fees_user_locked: false,  // A-smart: false = auto-recompute from 3% of (purchase+capex); true = user has overridden, freeze the value
     closing_cost_baseline:   2444,
     // M0.3: closing cost decomposition. The legacy single
     // closing_cost_loan_pct (0.045) was an aggregate of origination
@@ -1001,6 +1002,32 @@ function onInputChange(field, value) {
   } else {
     inputs[field] = value;
   }
+
+  // A-smart consulting fee: when the user manually edits the consulting
+  // field, flip the lock so the engine stops auto-recomputing. Empty/null
+  // value resets the lock (back to auto). Suppressed during loadDeal
+  // hydration so restoring a saved deal doesn't flip the lock.
+  if (field === 'consulting_fees_override' && !_loadingDeal) {
+    inputs.consulting_fees_user_locked = (inputs.consulting_fees_override != null);
+  }
+
+  // A-smart consulting fee: when purchase_price or capex_budget changes
+  // AND the user has not locked the consulting field, update the
+  // displayed value in the form so the user sees the live auto value.
+  // We DO NOT write to inputs.consulting_fees_override - it stays null
+  // in auto mode, and the engine's fallback formula (in computeBRRRR
+  // and computeFF) does the actual math. This avoids accidentally
+  // "freezing" the auto value into state when the user is still in
+  // auto mode. Suppressed during loadDeal hydration.
+  if ((field === 'purchase_price' || field === 'capex_budget') && !_loadingDeal && !inputs.consulting_fees_user_locked) {
+    const purchase = Number(inputs.purchase_price) || 0;
+    const capex = Number(inputs.capex_budget) || 0;
+    const auto = Math.max(10000, 0.03 * (purchase + capex));
+    const consEl = document.querySelector('input[oninput*="consulting_fees_override"]');
+    if (consEl) consEl.value = Math.round(auto);
+    // inputs.consulting_fees_override stays null - engine fallback applies
+  }
+
   autosave('inputs');
   if (typeof recompute === 'function') recompute();
   updateDashboard();
