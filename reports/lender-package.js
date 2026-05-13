@@ -171,10 +171,10 @@
 
     let para;
     if (mode === 'brrrr') {
-      para = `${h.fmtMoneyK(R.initial_loan_amt)} bridge facility against a ${units}-unit ${_assetTypeLabel(inputs.asset_type).toLowerCase()} acquisition in ${_esc(city)}${state ? ', ' + _esc(state) : ''} (${h.fmtMoneyK(R.total_project_cost)} TPC). Takeout strategy: agency refinance in month ${inputs.target_refi_months || 9} at ${h.fmtPct(inputs.target_refi_ltv, 0)} LTV (${h.fmtMoneyK(R.refi_loan_amount)} sized to ${h.fmtX(R.dscr, 2)} DSCR), retiring the bridge in full${R.dscr >= 1.20 ? ' with coverage cushion above the agency 1.20x floor' : '; coverage runs thin and may require a rate buydown or extended IO period at the bridge level'}.${grade ? ' Submarket grades ' + _esc(grade) + '.' : ''}`;
+      para = `${h.fmtMoneyK(R.initial_loan_amt)} bridge facility against a ${units}-unit ${_assetTypeLabel(inputs.asset_type).toLowerCase()} acquisition in ${_esc(city)}${state ? ', ' + _esc(state) : ''} (${h.fmtMoneyK(R.total_project_cost)} TPC). Takeout strategy: agency refinance in month ${inputs.target_refi_months || 9} at ${h.fmtPct(inputs.target_refi_ltv, 0)} LTV (${h.fmtMoneyK(R.refi_loan_amount)} sized to ${h.fmtX(R.dscr, 2)} DSCR), retiring the bridge in full${R.dscr >= 1.20 ? ' with coverage cushion above the agency 1.20x floor' : '; coverage runs thin and may require a rate buydown or extended IO period at the bridge level'}.${grade ? ' Submarket grade: ' + _esc(grade) + '.' : ''}`;
     } else {
       const ltv = (R.initial_loan_amt > 0 && R.arv > 0) ? R.initial_loan_amt / R.arv : null;
-      para = `${h.fmtMoneyK(R.initial_loan_amt)} acquisition + reno bridge against a ${_assetTypeLabel(inputs.asset_type).toLowerCase()} in ${_esc(city)}${state ? ', ' + _esc(state) : ''}${R.subject_area_sf > 0 ? ' (' + Number(R.subject_area_sf).toLocaleString() + ' SF)' : ''}. Exit strategy: sale at ${h.fmtMoneyK(R.arv)} ARV${R.arv_source === 'override' ? ' (manual override)' : ' (' + (R.comp_count_sales || 0) + '-comp set)'} over a ${inputs.target_hold_months || 0}-month hold, generating ${h.fmtMoneyK(R.gross_proceeds)} in gross proceeds against ${h.fmtPct(ltv)} LTV at origination.${grade ? ' Submarket grades ' + _esc(grade) + '.' : ''}`;
+      para = `${h.fmtMoneyK(R.initial_loan_amt)} acquisition + reno bridge against a ${_assetTypeLabel(inputs.asset_type).toLowerCase()} in ${_esc(city)}${state ? ', ' + _esc(state) : ''}${R.subject_area_sf > 0 ? ' (' + Number(R.subject_area_sf).toLocaleString() + ' SF)' : ''}. Exit strategy: sale at ${h.fmtMoneyK(R.arv)} ARV${R.arv_source === 'override' ? ' (manual override)' : ' (' + (R.comp_count_sales || 0) + '-comp set)'} over a ${inputs.target_hold_months || 0}-month hold, generating ${h.fmtMoneyK(R.gross_proceeds)} in gross proceeds against ${h.fmtPct(ltv)} LTV at origination.${grade ? ' Submarket grade: ' + _esc(grade) + '.' : ''}`;
     }
 
     return `<div class="bp-narrative pb-avoid"><p>${para}</p></div>`;
@@ -187,7 +187,7 @@
       rows.push(['Loan Type',          'Bridge (with refi takeout)']);
       rows.push(['Requested Amount',   h.fmtMoney(R.initial_loan_amt)]);
       rows.push(['LTV (Purchase)',     h.fmtPct(inputs.initial_loan_ltv)]);
-      rows.push(['LTC + Reno',         h.fmtPct(inputs.initial_loan_ltc_reno)]);
+      rows.push(['LTC + Capex',         h.fmtPct(inputs.initial_loan_ltc_capex)]);
       rows.push(['Rate',               h.fmtPct(inputs.initial_rate, 2)]);
       rows.push(['Interest Type',      _esc(inputs.initial_interest_type || 'IO')]);
       rows.push(['Term to Refi',       (inputs.target_refi_months || 9) + ' months']);
@@ -217,11 +217,11 @@
     const totalSources = initialLoan + investorEquity;
 
     const purchase = inputs.purchase_price || 0;
-    const reno = inputs.reno_budget || 0;
+    const reno = inputs.capex_budget || 0;
     const closing = R.closing_costs || 0;
     const consulting = R.consulting || 0;
     const carry = mode === 'brrrr' ? (R.debt_service_pre_refi || 0) : (R.debt_service_pre_sale || 0);
-    const contingency = inputs.mobilization_contingency || 0;
+    const contingency = inputs.gc_contingency || 0;
     const totalUses = purchase + reno + closing + consulting + carry + contingency;
 
     const sponsorPct = totalSources > 0 ? investorEquity / totalSources : 0;
@@ -246,11 +246,11 @@
             <thead><tr><th>Uses</th><th class="num">Amount</th><th class="num">%</th></tr></thead>
             <tbody>
               <tr><td>Purchase Price</td><td class="num">${h.fmtMoney(purchase)}</td><td class="num">${h.fmtPct(purchase / Math.max(1, totalUses))}</td></tr>
-              <tr><td>Renovation Budget</td><td class="num">${h.fmtMoney(reno)}</td><td class="num">${h.fmtPct(reno / Math.max(1, totalUses))}</td></tr>
+              <tr><td>Capex Budget</td><td class="num">${h.fmtMoney(reno)}</td><td class="num">${h.fmtPct(reno / Math.max(1, totalUses))}</td></tr>
               <tr><td>Closing Costs</td><td class="num">${h.fmtMoney(closing)}</td><td class="num">${h.fmtPct(closing / Math.max(1, totalUses))}</td></tr>
               <tr><td>Consulting</td><td class="num">${h.fmtMoney(consulting)}</td><td class="num">${h.fmtPct(consulting / Math.max(1, totalUses))}</td></tr>
               <tr><td>Carry (DS through ${mode === 'brrrr' ? 'Refi' : 'Sale'})</td><td class="num">${h.fmtMoney(carry)}</td><td class="num">${h.fmtPct(carry / Math.max(1, totalUses))}</td></tr>
-              <tr><td>Mobilization Contingency</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, totalUses))}</td></tr>
+              <tr><td>GC Contingency</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, totalUses))}</td></tr>
               <tr class="totals"><td>Total Uses</td><td class="num">${h.fmtMoney(totalUses)}</td><td class="num">100.0%</td></tr>
             </tbody>
           </table>
@@ -277,7 +277,7 @@
               <thead><tr><th>Component</th><th class="num">Amount</th><th class="num">% TPC</th></tr></thead>
               <tbody>
                 <tr><td>Cash Equity at Closing</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${h.fmtPct(investorEquity / Math.max(1, R.total_project_cost))}</td></tr>
-                <tr><td>Mobilization Contingency</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, R.total_project_cost))}</td></tr>
+                <tr><td>GC Contingency</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, R.total_project_cost))}</td></tr>
                 <tr class="totals"><td>Total Capital at Risk</td><td class="num">${h.fmtMoney(investorEquity + contingency)}</td><td class="num">${h.fmtPct((investorEquity + contingency) / Math.max(1, R.total_project_cost))}</td></tr>
               </tbody>
             </table>
@@ -289,7 +289,7 @@
               <div class="pl-row"><span class="pl-lbl">Loan Amount</span><span class="pl-val">${h.fmtMoney(R.initial_loan_amt)}</span></div>
               <div class="pl-row"><span class="pl-lbl">Rate / Type</span><span class="pl-val">${h.fmtPct(inputs.initial_rate, 2)} ${_esc(inputs.initial_interest_type || 'IO')}</span></div>
               <div class="pl-row"><span class="pl-lbl">LTV (Purchase)</span><span class="pl-val">${h.fmtPct(inputs.initial_loan_ltv)}</span></div>
-              ${mode === 'brrrr' ? `<div class="pl-row"><span class="pl-lbl">LTC + Reno</span><span class="pl-val">${h.fmtPct(inputs.initial_loan_ltc_reno)}</span></div>` : ''}
+              ${mode === 'brrrr' ? `<div class="pl-row"><span class="pl-lbl">LTC + Capex</span><span class="pl-val">${h.fmtPct(inputs.initial_loan_ltc_capex)}</span></div>` : ''}
               <div class="pl-row"><span class="pl-lbl">Monthly DS</span><span class="pl-val">${h.fmtMoney(R.initial_monthly_ds)}</span></div>
               <div class="pl-row"><span class="pl-lbl">Term</span><span class="pl-val">${mode === 'brrrr' ? (inputs.target_refi_months || 9) + ' mo to refi' : (inputs.target_hold_months || 0) + ' mo to sale'}</span></div>
               <div class="pl-row"><span class="pl-lbl">Total DS Through ${mode === 'brrrr' ? 'Refi' : 'Sale'}</span><span class="pl-val">${h.fmtMoney(mode === 'brrrr' ? R.debt_service_pre_refi : R.debt_service_pre_sale)}</span></div>
@@ -572,9 +572,9 @@
 
     function _scenario(label, arvAdj, holdAdj, renoAdj) {
       const adjARV = baseARV * (1 + arvAdj);
-      const adjReno = (inputs.reno_budget || 0) * (1 + renoAdj);
+      const adjReno = (inputs.capex_budget || 0) * (1 + renoAdj);
       const adjSaleCost = adjARV * saleCostPct;
-      const extraReno = adjReno - (inputs.reno_budget || 0);
+      const extraReno = adjReno - (inputs.capex_budget || 0);
       const extraCarry = baseMonthlyCarry * holdAdj;
       const adjGross = adjARV - adjSaleCost - remLoan - extraReno - extraCarry;
       const adjROI = initEq > 0 ? (adjGross - initEq) / initEq : null;
@@ -608,10 +608,10 @@
             <table class="print-table">
               <thead><tr><th>Line</th><th class="num">Amount</th><th class="num">$/SF</th></tr></thead>
               <tbody>
-                <tr><td>Renovation Budget</td><td class="num">${h.fmtMoney(inputs.reno_budget)}</td><td class="num">${(sqft > 0 && inputs.reno_budget > 0) ? h.fmtMoney(inputs.reno_budget / sqft) : '-'}</td></tr>
-                <tr><td>Mobilization Contingency</td><td class="num">${h.fmtMoney(inputs.mobilization_contingency)}</td><td class="num">${(sqft > 0 && inputs.mobilization_contingency > 0) ? h.fmtMoney(inputs.mobilization_contingency / sqft) : '-'}</td></tr>
+                <tr><td>Capex Budget</td><td class="num">${h.fmtMoney(inputs.capex_budget)}</td><td class="num">${(sqft > 0 && inputs.capex_budget > 0) ? h.fmtMoney(inputs.capex_budget / sqft) : '-'}</td></tr>
+                <tr><td>GC Contingency</td><td class="num">${h.fmtMoney(inputs.gc_contingency)}</td><td class="num">${(sqft > 0 && inputs.gc_contingency > 0) ? h.fmtMoney(inputs.gc_contingency / sqft) : '-'}</td></tr>
                 <tr><td>Consulting</td><td class="num">${h.fmtMoney(R.consulting)}</td><td class="num">${(sqft > 0 && R.consulting > 0) ? h.fmtMoney(R.consulting / sqft) : '-'}</td></tr>
-                <tr class="totals"><td>Total Envelope</td><td class="num">${h.fmtMoney((inputs.reno_budget || 0) + (inputs.mobilization_contingency || 0) + (R.consulting || 0))}</td><td class="num">${(sqft > 0) ? h.fmtMoney(((inputs.reno_budget || 0) + (inputs.mobilization_contingency || 0) + (R.consulting || 0)) / sqft) : '-'}</td></tr>
+                <tr class="totals"><td>Total Envelope</td><td class="num">${h.fmtMoney((inputs.capex_budget || 0) + (inputs.gc_contingency || 0) + (R.consulting || 0))}</td><td class="num">${(sqft > 0) ? h.fmtMoney(((inputs.capex_budget || 0) + (inputs.gc_contingency || 0) + (R.consulting || 0)) / sqft) : '-'}</td></tr>
               </tbody>
             </table>
           </div>
