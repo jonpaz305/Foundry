@@ -230,8 +230,13 @@
     const contingency = inputs.gc_contingency || 0;
     const totalUses = purchase + reno + closing + consulting + carry + contingency;
 
-    const ccBaseline = inputs.closing_cost_baseline || 0;
-    const ccLoan = (inputs.closing_cost_loan_pct || 0) * initialLoan;
+    const ccBaseline   = R.cc_baseline || 0;
+    const ccInsurance  = R.cc_insurance || 0;
+    const ccAppraisal  = R.cc_appraisal || 0;
+    const ccOrig       = R.cc_origination || 0;
+    const ccLenderPts  = R.cc_lender_points || 0;
+    const ccBrokerPts  = R.cc_broker_points || 0;
+    const ccFlatFees   = R.cc_lender_flat_fees || 0;
 
     return `
       <div class="print-page print-page-compact">
@@ -256,7 +261,7 @@
               <tr><td>Closing Costs</td><td class="num">${h.fmtMoney(closing)}</td><td class="num">${h.fmtPct(closing / Math.max(1, totalUses))}</td></tr>
               <tr><td>Consulting</td><td class="num">${h.fmtMoney(consulting)}</td><td class="num">${h.fmtPct(consulting / Math.max(1, totalUses))}</td></tr>
               <tr><td>Carry (DS to Sale)</td><td class="num">${h.fmtMoney(carry)}</td><td class="num">${h.fmtPct(carry / Math.max(1, totalUses))}</td></tr>
-              <tr><td>GC Contingency</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, totalUses))}</td></tr>
+              <tr><td>Sponsor Mobilization</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, totalUses))}</td></tr>
               <tr class="totals"><td>Total Uses</td><td class="num">${h.fmtMoney(totalUses)}</td><td class="num">100.0%</td></tr>
             </tbody>
           </table>
@@ -280,8 +285,13 @@
         <table class="print-table pb-avoid">
           <thead><tr><th>Component</th><th class="num">Basis</th><th class="num">Amount</th></tr></thead>
           <tbody>
-            <tr><td>Fixed Baseline</td><td class="num">Flat</td><td class="num">${h.fmtMoney(ccBaseline)}</td></tr>
-            <tr><td>Loan Origination & Title</td><td class="num">${h.fmtPct(inputs.closing_cost_loan_pct || 0)} of Loan</td><td class="num">${h.fmtMoney(ccLoan)}</td></tr>
+            <tr><td>Title / Escrow / Recording (Baseline)</td><td class="num">Flat</td><td class="num">${h.fmtMoney(ccBaseline)}</td></tr>
+            <tr><td>Insurance (First-Year Premium)</td><td class="num">Flat</td><td class="num">${h.fmtMoney(ccInsurance)}</td></tr>
+            <tr><td>Appraisal</td><td class="num">Flat</td><td class="num">${h.fmtMoney(ccAppraisal)}</td></tr>
+            <tr><td>Origination Fee</td><td class="num">${h.fmtPct(inputs.origination_pct || 0, 2)} of Loan</td><td class="num">${h.fmtMoney(ccOrig)}</td></tr>
+            <tr><td>Lender Points</td><td class="num">${h.fmtPct(inputs.lender_points_pct || 0, 2)} of Loan</td><td class="num">${h.fmtMoney(ccLenderPts)}</td></tr>
+            <tr><td>Broker Points</td><td class="num">${h.fmtPct(inputs.broker_points_pct || 0, 2)} of Loan</td><td class="num">${h.fmtMoney(ccBrokerPts)}</td></tr>
+            <tr><td>Lender Flat Fees (legal, environmental, processing)</td><td class="num">Flat</td><td class="num">${h.fmtMoney(ccFlatFees)}</td></tr>
             <tr class="totals"><td>Total Closing Costs</td><td></td><td class="num">${h.fmtMoney(closing)}</td></tr>
           </tbody>
         </table>
@@ -440,7 +450,7 @@
           <thead><tr><th>Line</th><th class="num">Amount</th><th class="num">$/SF</th></tr></thead>
           <tbody>
             <tr><td>Capex Budget</td><td class="num">${h.fmtMoney(inputs.capex_budget)}</td><td class="num">${(sqft > 0 && inputs.capex_budget > 0) ? h.fmtMoney(inputs.capex_budget / sqft) : '-'}</td></tr>
-            <tr><td>GC Contingency</td><td class="num">${h.fmtMoney(inputs.gc_contingency)}</td><td class="num">${(sqft > 0 && inputs.gc_contingency > 0) ? h.fmtMoney(inputs.gc_contingency / sqft) : '-'}</td></tr>
+            <tr><td>Sponsor Mobilization</td><td class="num">${h.fmtMoney(inputs.gc_contingency)}</td><td class="num">${(sqft > 0 && inputs.gc_contingency > 0) ? h.fmtMoney(inputs.gc_contingency / sqft) : '-'}</td></tr>
             <tr><td>Consulting</td><td class="num">${h.fmtMoney(R.consulting)}</td><td class="num">${(sqft > 0 && R.consulting > 0) ? h.fmtMoney(R.consulting / sqft) : '-'}</td></tr>
             <tr class="totals"><td>Total Renovation Envelope</td><td class="num">${h.fmtMoney((inputs.capex_budget || 0) + (inputs.gc_contingency || 0) + (R.consulting || 0))}</td><td class="num">${(sqft > 0) ? h.fmtMoney(((inputs.capex_budget || 0) + (inputs.gc_contingency || 0) + (R.consulting || 0)) / sqft) : '-'}</td></tr>
           </tbody>
