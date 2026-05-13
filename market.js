@@ -132,6 +132,7 @@ async function fetchMarketData(zip, opts) {
     marketAnalysis.census        = censusResp.data;
     marketAnalysis.fmr           = fmrData.fmr;
     marketAnalysis.fmr_by_zip    = fmrData.fmr_by_zip;
+    marketAnalysis.fmr_source    = fmrData.fmr_source;
     marketAnalysis.fmr_smallarea = fmrResp.smallarea;
     marketAnalysis.cached_census = censusResp.cached;
     marketAnalysis.cached_fmr    = fmrResp.cached;
@@ -159,27 +160,41 @@ async function fetchMarketData(zip, opts) {
 
 // ── NORMALIZE FMR RESPONSE ──────────────────────────────────────
 // HUD returns either:
-//   - smallarea=true: array of per-zip entries, each with FMR levels
+//   - smallarea=true: array of per-zip entries, each with FMR levels.
+//     The first row's zip_code is the literal string "MSA level"
+//     and contains the MSA-wide average; the rest are per-zip rows.
 //   - smallarea=false: a single MSA-level object
-// We extract the subject zip's row if smallarea, otherwise use MSA-level.
+// We extract the subject zip's row when SAFMR, falling back to the
+// MSA-level row if the zip isn't in the array.
 function _normalizeFmr(data, smallarea, zip) {
   if (smallarea && Array.isArray(data)) {
-    // Find the subject zip
-    const match = data.find(d => String(d.zip_code || d.zip || '').padStart(5, '0') === zip);
+    let msaRow = null;
+    let match = null;
     const fmr_by_zip = {};
     for (const row of data) {
-      const z = String(row.zip_code || row.zip || '').padStart(5, '0');
+      const rawZ = String(row.zip_code || row.zip || '').trim();
+      if (rawZ.toLowerCase() === 'msa level') {
+        msaRow = row;
+        continue;
+      }
+      const z = rawZ.padStart(5, '0');
       fmr_by_zip[z] = _extractFmrLevels(row);
+      if (z === zip) match = row;
     }
+    // Prefer subject-zip row; fall back to MSA average so the panel
+    // always populates with something useful.
+    const chosen = match || msaRow;
     return {
-      fmr: match ? _extractFmrLevels(match) : null,
-      fmr_by_zip
+      fmr: chosen ? _extractFmrLevels(chosen) : null,
+      fmr_by_zip,
+      fmr_source: match ? 'subject_zip' : (msaRow ? 'msa_fallback' : 'none')
     };
   }
   // MSA-level (single object)
   return {
     fmr: _extractFmrLevels(data),
-    fmr_by_zip: null
+    fmr_by_zip: null,
+    fmr_source: 'msa'
   };
 }
 
@@ -598,9 +613,15 @@ function renderFmrPanel(ma) {
   function row(label, val, sub) {
     return `<div class="data-row"><span class="data-row-label">${label}</span><span class="data-row-val">${val}</span>${sub ? `<span class="data-row-sub">${sub}</span>` : ''}</div>`;
   }
-  const subtitle = ma.fmr_smallarea
-    ? `Small Area FMR (zip-level) for ${ma.cbsa_name}, ${ma.year_fmr}.`
-    : `MSA-level FMR for ${ma.cbsa_name}, ${ma.year_fmr}.`;
+  const subtitle = (() => {
+    const src = ma.fmr_source;
+    if (src === 'subject_zip') return `Zip-level SAFMR for ${ma.zip}, ${ma.cbsa_name}, ${ma.year_fmr}.`;
+    if (src === 'msa_fallback') return `MSA-level FMR for ${ma.cbsa_name}, ${ma.year_fmr} (subject zip not published).`;
+    if (src === 'msa') return `MSA-level FMR for ${ma.cbsa_name}, ${ma.year_fmr}.`;
+    return ma.fmr_smallarea
+      ? `Small Area FMR (zip-level) for ${ma.cbsa_name}, ${ma.year_fmr}.`
+      : `MSA-level FMR for ${ma.cbsa_name}, ${ma.year_fmr}.`;
+  })();
   return `
     <div class="panel">
       <div class="panel-title">HUD Fair Market Rents
