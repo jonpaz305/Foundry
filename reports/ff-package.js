@@ -752,6 +752,23 @@
       </div>`;
   }
 
+  // ── PAGE: MODEL ASSUMPTIONS AND METHODOLOGY (Path A Pass 3) ──
+  function _pageModelAssumptions(deal, R, inputs, market, h, pageNum, totalPages) {
+    return `
+      <div class="print-page print-page-compact">
+        ${_header(h, 'Model Assumptions and Methodology')}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Model Assumptions and Methodology</div>
+        <div style="font-size:9pt;color:var(--print-muted);margin-bottom:6pt;line-height:1.45">
+          The following inventory of inputs, derived values, and methodological choices was used to produce the figures elsewhere in this report. Where a value is labeled "sponsor input", the sponsor selected the value; where labeled "engine", "derived", or "data source", the value follows from sponsor inputs via the underwriting engine or third-party data.
+        </div>
+
+        ${typeof modelAssumptionsForEquityPackage === 'function' ? modelAssumptionsForEquityPackage(R, inputs, market, 'fix_and_flip') : ''}
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
+  }
+
 
   // ── TONE HELPERS ──────────────────────────────────────────────
   function _toneAbove(v, highWarn, goodFloor) {
@@ -787,7 +804,7 @@
 
     const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
     const hasSponsorPage = !!(co && (co.subtitle || (co.contact_info && (co.contact_info.email || co.contact_info.phone || co.contact_info.website || co.contact_info.address))));
-    const totalPages = 7 + (hasSponsorPage ? 1 : 0) + 1;  // +1 for Notices and Disclaimers page
+    const totalPages = 7 + (hasSponsorPage ? 1 : 0) + 2;  // +1 Model Assumptions, +1 Notices and Disclaimers
 
     pages.push(_page1(deal, R, inputs, market, h, 1, totalPages));
     pages.push(_page2(deal, R, inputs, market, h, 2, totalPages));
@@ -801,6 +818,8 @@
       const p8 = _page8(deal, R, inputs, market, h, nextPage, totalPages);
       if (p8) { pages.push(p8); nextPage++; }
     }
+    pages.push(_pageModelAssumptions(deal, R, inputs, market, h, nextPage, totalPages));
+    nextPage++;
     pages.push(_pageDisclaimers(deal, R, inputs, market, h, nextPage, totalPages));
 
     return pages.join('\n');
