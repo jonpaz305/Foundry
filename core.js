@@ -29,8 +29,12 @@ let riskRegister = [];
 // Engine outputs - written by engine.js (M2/M3). M1 stub: empty.
 let R = {};
 
-// Company profiles
-let CP = { list: [], active: null };
+// Company profiles. CP.list = all loaded profiles. CP.active = the
+// profile currently used for reports (persisted to localStorage).
+// CP.editing = the profile loaded in the Company Profiles editor
+// (may differ from CP.active while user is editing a different profile).
+// CP.dirty = unsaved edits in the editor.
+let CP = { list: [], active: null, editing: null, dirty: false };
 
 // Autosave timers (per-section debouncing, same pattern as Cadence/Tranche)
 let autosaveTimers = {};
@@ -70,6 +74,7 @@ function makeDefaultInputs() {
 
     // Acquisition / debt (both modes)
     purchase_price:          0,
+    asking_price:            null,  // M1: optional negotiation diagnostic
     capex_budget:            0,
     gc_contingency:          0,
     treat_mob_as_equity:     false,
@@ -293,6 +298,15 @@ async function initApp() {
 
 
 // ── COMPANIES ─────────────────────────────────────────────────
+// M1: Full CRUD for foundry_companies. Schema:
+//   id (uuid), user_id (uuid), name, subtitle, logo_base64 (text),
+//   primary_color (text), contact_info (jsonb), created_at, updated_at
+//
+// CP.active is the currently-selected profile (used by reports for
+// header logo, company name, and contact info). CP.editing is the
+// profile currently loaded in the editor (may differ from CP.active
+// when user clicks a non-active profile in the picker). CP.dirty
+// tracks unsaved edits in the editor.
 async function loadCompanies() {
   const { data, error } = await sb
     .from('foundry_companies')
@@ -306,37 +320,323 @@ async function loadCompanies() {
     CP.active = CP.list[0];
     localStorage.setItem('foundry_active_company', CP.active.id);
   }
+  applyTopbarLogo();
 }
 
+// Update the top-bar logo image to the active company's logo, falling
+// back to the Foundry default wordmark when no company is active or
+// the active company has no logo uploaded.
+function applyTopbarLogo() {
+  const el = $('tb-logo-img');
+  if (!el) return;
+  const companyLogo = CP.active && CP.active.logo_base64;
+  if (companyLogo) {
+    el.src = companyLogo;
+    el.alt = CP.active.name || 'Company';
+  } else if (typeof FOUNDRY_LOGO_DARK !== 'undefined') {
+    el.src = FOUNDRY_LOGO_DARK;
+    el.alt = 'Foundry';
+  }
+}
+
+// User clicked a profile in the picker. Set it active, persist to
+// localStorage, refresh the picker visual state, and load the profile
+// into the editor.
 function setActiveCompany(id) {
   const found = CP.list.find(c => c.id === id);
   if (!found) return;
   CP.active = found;
   localStorage.setItem('foundry_active_company', id);
+  applyTopbarLogo();
   renderCompanyPicker();
+  loadProfileIntoEditor(id);
 }
 
-async function createCompanyProfile() {
-  const name = prompt('Company name (e.g. "ASJP Group", "KPI Capital Partners"):');
-  if (!name) return;
-  try {
-    const { data, error } = await sb
-      .from('foundry_companies')
-      .insert({
-        user_id: currentUser.id,
-        name: name.trim(), subtitle: '',
-        logo_base64: null, primary_color: '#C9A84C',
-        contact_info: {}
-      })
-      .select().single();
-    if (error) throw error;
-    CP.list.push(data);
-    CP.active = data;
-    localStorage.setItem('foundry_active_company', data.id);
-    renderCompanyPicker();
-  } catch (e) {
-    alert('Could not create company: ' + e.message);
+// User clicked "+ New profile". Open the editor with a blank form.
+// Profile is NOT created in the DB until the user clicks Save (so
+// abandoned-new-profile flows leave no DB rows).
+function newCompanyProfile() {
+  CP.editing = {
+    id: null,
+    name: '',
+    subtitle: '',
+    primary_color: '#C9A84C',
+    logo_base64: null,
+    contact_info: {}
+  };
+  CP.dirty = false;
+  showEditor();
+  populateEditorFields();
+  markCompanyDirty(false);
+}
+
+// User clicked a profile in the picker. Load it into the editor.
+function loadProfileIntoEditor(id) {
+  const found = CP.list.find(c => c.id === id);
+  if (!found) return;
+  CP.editing = JSON.parse(JSON.stringify(found));  // deep clone so edits don't mutate the picker until save
+  CP.dirty = false;
+  showEditor();
+  populateEditorFields();
+  markCompanyDirty(false);
+}
+
+function showEditor() {
+  const editor = $('cp-editor');
+  const empty = $('cp-editor-empty');
+  if (editor) editor.style.display = 'block';
+  if (empty) empty.style.display = 'none';
+}
+
+function hideEditor() {
+  const editor = $('cp-editor');
+  const empty = $('cp-editor-empty');
+  if (editor) editor.style.display = 'none';
+  if (empty) empty.style.display = 'block';
+}
+
+// Pull values from CP.editing and push them into the editor form fields.
+function populateEditorFields() {
+  if (!CP.editing) return;
+  const c = CP.editing;
+  const ci = c.contact_info || {};
+  const set = (id, val) => { const el = $(id); if (el) el.value = val || ''; };
+  set('cp-name', c.name);
+  set('cp-subtitle', c.subtitle);
+  set('cp-primary-color', c.primary_color || '#C9A84C');
+  set('cp-email', ci.email);
+  set('cp-phone', ci.phone);
+  set('cp-website', ci.website);
+  set('cp-address', ci.address);
+  // Logo preview
+  const preview = $('cp-logo-preview');
+  const placeholder = $('cp-logo-placeholder');
+  const removeBtn = $('cp-logo-remove-btn');
+  if (c.logo_base64) {
+    if (preview) { preview.src = c.logo_base64; preview.style.display = 'block'; }
+    if (placeholder) placeholder.style.display = 'none';
+    if (removeBtn) removeBtn.style.display = 'inline-block';
+  } else {
+    if (preview) preview.style.display = 'none';
+    if (placeholder) placeholder.style.display = 'block';
+    if (removeBtn) removeBtn.style.display = 'none';
   }
+  // Delete button only visible for existing profiles (those with an id)
+  const deleteBtn = $('cp-delete-btn');
+  if (deleteBtn) deleteBtn.style.display = c.id ? 'inline-block' : 'none';
+}
+
+// Read values from the editor form fields back into CP.editing.
+function collectEditorFields() {
+  if (!CP.editing) return;
+  const gv = id => { const el = $(id); return el ? el.value : ''; };
+  CP.editing.name = gv('cp-name').trim();
+  CP.editing.subtitle = gv('cp-subtitle').trim();
+  CP.editing.primary_color = gv('cp-primary-color') || '#C9A84C';
+  CP.editing.contact_info = {
+    email: gv('cp-email').trim(),
+    phone: gv('cp-phone').trim(),
+    website: gv('cp-website').trim(),
+    address: gv('cp-address').trim()
+  };
+  // logo_base64 is set directly by handleCompanyLogoUpload, not from a form field
+}
+
+// Mark editor state as dirty so the unsaved-changes indicator shows.
+// Called by oninput handlers on every editable field.
+function markCompanyDirty(dirty) {
+  if (dirty === false) {
+    CP.dirty = false;
+  } else {
+    CP.dirty = true;
+  }
+  const ind = $('cp-dirty-ind');
+  if (ind) ind.style.display = CP.dirty ? 'inline' : 'none';
+}
+
+// Logo upload: file → base64 → preview + stage in CP.editing.
+// Persisted to DB on next Save.
+async function handleCompanyLogoUpload(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) {
+    alert('Logo file is larger than 2 MB. Please use a smaller image.');
+    input.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const b64 = e.target.result;
+    if (!CP.editing) CP.editing = { id: null, contact_info: {} };
+    CP.editing.logo_base64 = b64;
+    const preview = $('cp-logo-preview');
+    const placeholder = $('cp-logo-placeholder');
+    const removeBtn = $('cp-logo-remove-btn');
+    if (preview) { preview.src = b64; preview.style.display = 'block'; }
+    if (placeholder) placeholder.style.display = 'none';
+    if (removeBtn) removeBtn.style.display = 'inline-block';
+    markCompanyDirty();
+  };
+  reader.readAsDataURL(file);
+  input.value = '';  // reset so user can re-upload the same file if they want
+}
+
+// User clicked Remove logo. Clears the logo in the editor; persisted on Save.
+function removeCompanyLogo() {
+  if (!CP.editing) return;
+  CP.editing.logo_base64 = null;
+  const preview = $('cp-logo-preview');
+  const placeholder = $('cp-logo-placeholder');
+  const removeBtn = $('cp-logo-remove-btn');
+  if (preview) preview.style.display = 'none';
+  if (placeholder) placeholder.style.display = 'block';
+  if (removeBtn) removeBtn.style.display = 'none';
+  markCompanyDirty();
+}
+
+// Save the editor state to foundry_companies. Inserts new row if
+// CP.editing.id is null, otherwise updates existing row.
+async function saveCompanyPanelData() {
+  if (!CP.editing) return;
+  collectEditorFields();
+  if (!CP.editing.name) {
+    alert('Company name is required.');
+    return;
+  }
+  try {
+    let saved;
+    if (CP.editing.id) {
+      // Update existing
+      const { data, error } = await sb
+        .from('foundry_companies')
+        .update({
+          name: CP.editing.name,
+          subtitle: CP.editing.subtitle,
+          primary_color: CP.editing.primary_color,
+          logo_base64: CP.editing.logo_base64,
+          contact_info: CP.editing.contact_info,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', CP.editing.id)
+        .select().single();
+      if (error) throw error;
+      saved = data;
+      // Update the list entry
+      const idx = CP.list.findIndex(c => c.id === saved.id);
+      if (idx >= 0) CP.list[idx] = saved;
+    } else {
+      // Insert new
+      const { data, error } = await sb
+        .from('foundry_companies')
+        .insert({
+          user_id: currentUser.id,
+          name: CP.editing.name,
+          subtitle: CP.editing.subtitle,
+          primary_color: CP.editing.primary_color,
+          logo_base64: CP.editing.logo_base64,
+          contact_info: CP.editing.contact_info
+        })
+        .select().single();
+      if (error) throw error;
+      saved = data;
+      CP.list.push(saved);
+    }
+    CP.editing = JSON.parse(JSON.stringify(saved));
+    // If this is the active profile (or no active profile yet), update CP.active
+    if (!CP.active || CP.active.id === saved.id) {
+      CP.active = saved;
+      localStorage.setItem('foundry_active_company', saved.id);
+      applyTopbarLogo();
+    }
+    markCompanyDirty(false);
+    populateEditorFields();
+    renderCompanyPicker();
+    flashSaveIndicator('Profile saved');
+  } catch (e) {
+    alert('Could not save profile: ' + (e.message || 'unknown error'));
+  }
+}
+
+// Show a brief "saved" toast (reuses tb-save-ind element if present).
+function flashSaveIndicator(msg) {
+  const el = $('tb-save-ind');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'inline-block';
+  el.style.opacity = '1';
+  setTimeout(() => {
+    el.style.opacity = '0';
+    setTimeout(() => { el.style.display = 'none'; el.style.opacity = '1'; }, 400);
+  }, 1800);
+}
+
+// Delete flow: confirm modal first, then actually delete on confirm.
+function confirmDeleteCompany() {
+  if (!CP.editing || !CP.editing.id) return;
+  const nameEl = $('dcm-name');
+  if (nameEl) nameEl.textContent = CP.editing.name || 'this profile';
+  openModal('delete-company-modal');
+}
+
+async function deleteCompanyConfirmed() {
+  if (!CP.editing || !CP.editing.id) { closeModal('delete-company-modal'); return; }
+  const idToDelete = CP.editing.id;
+  try {
+    const { error } = await sb
+      .from('foundry_companies')
+      .delete()
+      .eq('id', idToDelete);
+    if (error) throw error;
+    CP.list = CP.list.filter(c => c.id !== idToDelete);
+    // If the deleted profile was active, pick a fallback
+    if (CP.active && CP.active.id === idToDelete) {
+      CP.active = CP.list.length ? CP.list[0] : null;
+      if (CP.active) {
+        localStorage.setItem('foundry_active_company', CP.active.id);
+      } else {
+        localStorage.removeItem('foundry_active_company');
+      }
+      applyTopbarLogo();
+    }
+    CP.editing = null;
+    hideEditor();
+    renderCompanyPicker();
+    closeModal('delete-company-modal');
+    flashSaveIndicator('Profile deleted');
+  } catch (e) {
+    closeModal('delete-company-modal');
+    alert('Could not delete profile: ' + (e.message || 'unknown error'));
+  }
+}
+
+// Legacy entry point preserved for backward compat (any HTML that still
+// references createCompanyProfile gets routed to the new editor flow).
+function createCompanyProfile() {
+  newCompanyProfile();
+}
+
+// User changed the Active company profile select on Setup form. Updates
+// the currentDeal.company_id, swaps CP.active to the new selection, and
+// triggers autosave to write the assignment to foundry_deals.
+function onDealCompanyChange(newId) {
+  if (!currentDeal) return;
+  currentDeal.company_id = newId || null;
+  if (newId) {
+    const found = CP.list.find(c => c.id === newId);
+    if (found) {
+      CP.active = found;
+      localStorage.setItem('foundry_active_company', newId);
+    }
+  } else {
+    // User chose "No company" -- clear active so reports use default branding
+    CP.active = null;
+    localStorage.removeItem('foundry_active_company');
+  }
+  applyTopbarLogo();
+  autosave('company');
+  // Re-render anything that displays the active company
+  if (typeof renderDealSetupForm === 'function') renderDealSetupForm();
+  if (typeof updateDashboard === 'function') updateDashboard();
 }
 
 
@@ -368,6 +668,20 @@ async function loadDeal(id) {
     hydrateFromDeal(d);
   } finally {
     _loadingDeal = false;
+  }
+
+  // M1: Restore the deal's company assignment. Each deal has a
+  // company_id pointing at the foundry_companies row that should be
+  // active while this deal is loaded. If the deal's company exists in
+  // the loaded list, switch to it; if not (deleted profile, or deal
+  // created without a profile), keep current CP.active.
+  if (d.company_id) {
+    const dealCompany = CP.list.find(c => c.id === d.company_id);
+    if (dealCompany) {
+      CP.active = dealCompany;
+      localStorage.setItem('foundry_active_company', dealCompany.id);
+      applyTopbarLogo();
+    }
   }
 
   // Surface deal name in topbar subtitle
@@ -609,6 +923,7 @@ async function commitSection(section) {
   else if (section === 'overrides')      { patch.overrides = overrides; }
   else if (section === 'risks')          { patch.risks = riskRegister; }
   else if (section === 'header')         { patch.name = currentDeal.name; }
+  else if (section === 'company')        { patch.company_id = currentDeal.company_id; }
   else { console.warn('[Foundry] unknown autosave section:', section); return; }
 
   try {
@@ -664,7 +979,7 @@ function onInputChange(field, value) {
     'vacancy_pct','pm_pct','maint_pct_of_egi','insurance_pct_of_egi',
     'utilities_pct_of_egi','reserves_per_unit_year','rent_growth_pct',
     'appreciation_pct','exit_cap','sale_cost_pct','target_hold_months',
-    'arv_override','purchase_price','capex_budget','gc_contingency',
+    'arv_override','purchase_price','asking_price','capex_budget','gc_contingency',
     'consulting_fees_override','closing_cost_baseline',
     'origination_pct','lender_points_pct','broker_points_pct',
     'lender_flat_fees','closing_cost_insurance','closing_cost_appraisal',
@@ -686,6 +1001,13 @@ function onInputChange(field, value) {
   autosave('inputs');
   if (typeof recompute === 'function') recompute();
   updateDashboard();
+  // M1: Refresh the negotiation hint inline when relevant fields change
+  if (field === 'asking_price' || field === 'purchase_price') {
+    const hint = $('asking-vs-purchase-hint');
+    if (hint && typeof _renderNegotiationHint === 'function') {
+      hint.innerHTML = _renderNegotiationHint(inputs.asking_price, inputs.purchase_price);
+    }
+  }
 }
 
 

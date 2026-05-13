@@ -186,9 +186,58 @@
         <div id="section-company" style="display:none">
           <div class="panel">
             <div class="panel-title">Company Profiles
-              <button class="btn btn-sm btn-gold" onclick="createCompanyProfile()">+ New profile</button>
+              <button class="btn btn-sm btn-gold" onclick="newCompanyProfile()">+ New profile</button>
             </div>
-            <div id="cp-picker" style="margin-top:.5rem"></div>
+            <div style="display:grid;grid-template-columns:280px 1fr;gap:18px;margin-top:.5rem">
+              <div id="cp-picker"></div>
+              <div id="cp-editor" style="display:none">
+                <div class="ssub" style="margin-bottom:1rem">Edit Profile</div>
+                <div class="g2" style="margin-bottom:1rem">
+                  <div class="field"><label>Company name</label>
+                    <input type="text" id="cp-name" placeholder="e.g. ASJP Group" oninput="markCompanyDirty()"/></div>
+                  <div class="field"><label>Subtitle / tagline</label>
+                    <input type="text" id="cp-subtitle" placeholder="e.g. Value-Add Multifamily" oninput="markCompanyDirty()"/></div>
+                </div>
+                <div class="g3" style="margin-bottom:1rem">
+                  <div class="field"><label>Primary color</label>
+                    <input type="color" id="cp-primary-color" value="#C9A84C" oninput="markCompanyDirty()"/>
+                    <div class="hint">Stored for future per-company branding. Reports continue to use the platform gold accent.</div></div>
+                  <div class="field"><label>Email</label>
+                    <input type="email" id="cp-email" placeholder="contact@example.com" oninput="markCompanyDirty()"/></div>
+                  <div class="field"><label>Phone</label>
+                    <input type="tel" id="cp-phone" placeholder="(305) 555-1234" oninput="markCompanyDirty()"/></div>
+                </div>
+                <div class="g2" style="margin-bottom:1rem">
+                  <div class="field"><label>Website</label>
+                    <input type="url" id="cp-website" placeholder="https://example.com" oninput="markCompanyDirty()"/></div>
+                  <div class="field"><label>Office address</label>
+                    <input type="text" id="cp-address" placeholder="1000 Brickell Ave, Miami FL 33131" oninput="markCompanyDirty()"/></div>
+                </div>
+                <div class="ssub" style="margin-bottom:1rem">Logo</div>
+                <div style="display:flex;gap:1rem;align-items:flex-start;margin-bottom:1rem">
+                  <div style="width:160px;height:90px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--bg2);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+                    <img id="cp-logo-preview" alt="" style="max-width:100%;max-height:100%;object-fit:contain;display:none"/>
+                    <div id="cp-logo-placeholder" style="font-size:11px;color:var(--text3);text-align:center;padding:0 8px">No logo<br/>uploaded</div>
+                  </div>
+                  <div style="flex:1">
+                    <input type="file" id="cp-logo-file" accept="image/png,image/jpeg,image/svg+xml" onchange="handleCompanyLogoUpload(this)" style="display:none"/>
+                    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('cp-logo-file').click()">Upload logo</button>
+                    <button class="btn btn-ghost btn-sm" onclick="removeCompanyLogo()" id="cp-logo-remove-btn" style="display:none;margin-left:6px">Remove</button>
+                    <div class="hint" style="margin-top:6px">PNG, JPG, or SVG. Renders in report headers and the top bar. Max 1 MB recommended.</div>
+                  </div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:1rem;margin-top:1rem">
+                  <button class="btn btn-ghost btn-sm" id="cp-delete-btn" onclick="confirmDeleteCompany()" style="color:#f85e5e;display:none">Delete profile</button>
+                  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+                    <span id="cp-dirty-ind" style="font-size:11px;color:var(--text3);display:none">Unsaved changes</span>
+                    <button class="btn btn-gold btn-sm" onclick="saveCompanyPanelData()">Save profile</button>
+                  </div>
+                </div>
+              </div>
+              <div id="cp-editor-empty" style="font-size:12px;color:var(--text3);padding:1rem;text-align:center;line-height:1.6">
+                Select a profile on the left to edit, or click <span style="color:var(--gold-lt)">+ New profile</span> above to create one.
+              </div>
+            </div>
           </div>
           <div class="panel">
             <div class="panel-title">Regression Seed Data</div>
@@ -196,6 +245,20 @@
               Seed the two canonical regression deals (2048 E 79th BRRRR and 2455 W 7 ST Fix &amp; Flip) with the exact inputs from the original spreadsheets. Used to validate the engine in M2/M3. Safe to re-run.
             </div>
             <button class="btn btn-ghost" onclick="seedRegressionDeals()">Seed regression deals</button>
+          </div>
+        </div>
+
+        <!-- ── DELETE COMPANY CONFIRMATION MODAL ──────────────── -->
+        <div id="delete-company-modal" class="modal-overlay" style="display:none">
+          <div class="modal-card" style="max-width:420px">
+            <div class="modal-title">Delete company profile</div>
+            <div style="margin-bottom:14px;line-height:1.5;font-size:13px;color:var(--text2)">
+              Delete <strong id="dcm-name" style="color:var(--text)"></strong>? This cannot be undone. Deals assigned to this profile will keep working but lose their company branding until reassigned.
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px">
+              <button class="btn btn-ghost btn-sm" onclick="closeModal('delete-company-modal')">Cancel</button>
+              <button class="btn btn-sm" style="background:#c93232;color:#fff;border-color:#c93232" onclick="deleteCompanyConfirmed()">Delete</button>
+            </div>
           </div>
         </div>
 

@@ -6,6 +6,29 @@
 // ════════════════════════════════════════════════════════════════
 
 
+// M1: Negotiation diagnostic helper. Renders the "% under ask" hint
+// under the Asking Price field on the Capital panel. Asking price is
+// purely informational (Version B per spec) - does NOT drive engine
+// math, only surfaces as a deal-quality signal.
+function _renderNegotiationHint(askingPrice, purchasePrice) {
+  const ask = Number(askingPrice) || 0;
+  const buy = Number(purchasePrice) || 0;
+  if (ask <= 0 || buy <= 0) {
+    return 'Optional: seller&rsquo;s ask. Not used in any underwriting math.';
+  }
+  const delta = ask - buy;
+  const pct = (delta / ask) * 100;
+  const fmt = (n) => '$' + Math.abs(Math.round(n)).toLocaleString();
+  if (delta > 0) {
+    return `Negotiated <strong style="color:#3fb950">${fmt(delta)} (${pct.toFixed(1)}%) under ask</strong>.`;
+  } else if (delta < 0) {
+    return `Bid <strong style="color:#f85e5e">${fmt(delta)} (${Math.abs(pct).toFixed(1)}%) over ask</strong>.`;
+  } else {
+    return 'At-ask transaction.';
+  }
+}
+
+
 // ── DEAL SETUP ────────────────────────────────────────────────
 function renderDealSetupForm() {
   const wrap = $('section-setup-body');
@@ -48,6 +71,19 @@ function renderDealSetupForm() {
           <input type="number" value="${i.subject_area_sf ?? ''}" oninput="onInputChange('subject_area_sf', this.value)"/>
           <div class="hint">Required for comp-based valuation (avg $/SF × subject area).</div>
         </div>
+      </div>
+
+      <div class="ssub">Company Assigned to This Deal</div>
+      <div class="g2" style="margin-bottom:1rem">
+        <div class="field"><label>Active company profile</label>
+          <select id="deal-company-id" onchange="onDealCompanyChange(this.value)">
+            <option value="">-- No company (default Foundry branding) --</option>
+            ${(typeof CP !== 'undefined' && CP.list ? CP.list : []).map(c =>
+              `<option value="${c.id}" ${currentDeal && currentDeal.company_id === c.id ? 'selected' : ''}>${escapeHtml(c.name || 'Unnamed')}</option>`
+            ).join('')}
+          </select>
+          <div class="hint">Reports and the top-bar logo use this profile's branding while this deal is loaded. Change on the Company Profiles page.</div></div>
+        <div></div>
       </div>
 
       <div class="ssub">Strategy</div>
@@ -598,10 +634,15 @@ function renderCapitalBlock() {
 
       <div class="ssub">Acquisition</div>
       <div class="g3" style="margin-bottom:1rem">
+        <div class="field"><label>Asking price</label>
+          <input type="number" class="num" value="${i.asking_price ?? ''}" placeholder="Seller's ask (not used in math)" oninput="onInputChange('asking_price', this.value)"/>
+          <div class="hint" id="asking-vs-purchase-hint">${_renderNegotiationHint(i.asking_price, i.purchase_price)}</div></div>
         <div class="field"><label>Purchase price</label>
           <input type="number" class="num" value="${i.purchase_price ?? 0}" oninput="onInputChange('purchase_price', this.value)"/></div>
         <div class="field"><label>Capex budget</label>
           <input type="number" class="num" value="${i.capex_budget ?? 0}" oninput="onInputChange('capex_budget', this.value)"/></div>
+      </div>
+      <div class="g3" style="margin-bottom:1rem">
         <div class="field"><label>Sponsor mobilization</label>
           <input type="number" class="num" value="${i.gc_contingency ?? 0}" placeholder="Approx 4-5 draws of capex float" oninput="onInputChange('gc_contingency', this.value)"/>
           <div class="hint">Float to cover GC mobilization and draw-cycle lag before lender reimbursement. Reimbursed via construction draws before refi.</div></div>

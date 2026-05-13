@@ -1546,6 +1546,63 @@ function runM6_10() {
 }
 
 // ════════════════════════════════════════════════════════════════
+// M7 - COMPANY PROFILES + ASKING PRICE (M1 integration)
+// ════════════════════════════════════════════════════════════════
+// Verifies the M1 _renderNegotiationHint helper and the asking_price
+// field plumbing. The Supabase-dependent CRUD functions (loadCompanies,
+// saveCompanyPanelData, etc.) are not exercised here because they
+// require a live DB connection or a Supabase mock; they are validated
+// via production smoke test instead.
+function runM7() {
+  const g = group('M7 M1 Company + Asking');
+
+  // Load data-entry.js into ctx so _renderNegotiationHint is available.
+  // Catch any errors loading (it depends on $/escapeHtml/etc. which are
+  // not all defined in the harness) -- but the helper itself is pure
+  // and at the top of the file so it parses cleanly.
+  try {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, 'data-entry.js'), 'utf8'), ctx, { filename: 'data-entry.js' });
+  } catch (e) {
+    // Partial load is fine; _renderNegotiationHint is at the top
+    // of the file so it executes before any failures further down.
+  }
+
+  // ── _renderNegotiationHint helper covers the four key states
+  const cases = [
+    { ask: 550000, buy: 430000, label: 'negotiated under ask',     phrase: 'under ask' },
+    { ask: 430000, buy: 550000, label: 'bid over ask',             phrase: 'over ask' },
+    { ask: 430000, buy: 430000, label: 'at ask',                   phrase: 'At-ask' },
+    { ask: 0,      buy: 0,      label: 'neither set (empty hint)', phrase: 'Not used' }
+  ];
+  for (const c of cases) {
+    const out = vm.runInContext(
+      `(typeof _renderNegotiationHint === 'function') ? _renderNegotiationHint(${c.ask}, ${c.buy}) : ''`,
+      ctx
+    );
+    check(g, `_renderNegotiationHint (${c.label})`,
+      out.indexOf(c.phrase) >= 0 ? 1 : 0, 1);
+  }
+
+  // ── Negotiation diagnostic computes the correct delta dollar amount
+  const out550_430 = vm.runInContext(
+    `(typeof _renderNegotiationHint === 'function') ? _renderNegotiationHint(550000, 430000) : ''`,
+    ctx
+  );
+  check(g, 'negotiation hint shows $120,000 delta when ask 550K and buy 430K',
+    out550_430.includes('$120,000') ? 1 : 0, 1);
+  check(g, 'negotiation hint shows 21.8% when ask 550K and buy 430K',
+    out550_430.includes('21.8%') ? 1 : 0, 1);
+
+  // ── No em-dashes in negotiation hint output
+  const allHints = cases.map(c => vm.runInContext(
+    `(typeof _renderNegotiationHint === 'function') ? _renderNegotiationHint(${c.ask}, ${c.buy}) : ''`,
+    ctx
+  )).join('');
+  check(g, 'no em-dashes in any negotiation hint output',
+    allHints.indexOf('\u2014') < 0 ? 1 : 0, 1);
+}
+
+// ════════════════════════════════════════════════════════════════
 // Run
 // ════════════════════════════════════════════════════════════════
 runM2();
@@ -1565,6 +1622,7 @@ runM6_7();
 runM6_8();
 runM6_9();
 runM6_10();
+runM7();
 
 // ── Report ────────────────────────────────────────────────────
 console.log('');
