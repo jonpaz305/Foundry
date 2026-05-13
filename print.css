@@ -140,6 +140,11 @@ html, body {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #0a0a0b;
+  /* Keep section headers attached to the first row of content under them. */
+  page-break-after: avoid;
+  break-after: avoid;
+  page-break-inside: avoid;
+  break-inside: avoid;
 }
 .print-section .ps-accent {
   display: inline-block;
@@ -484,4 +489,19 @@ html, body {
   color: #888;
   font-weight: 400;
   letter-spacing: 0.02em;
+}
+
+/* M6.2.1 - KPI tile tone colors (good/warn/bad signal) */
+.pk-tile.pk-tone-good { border-left-color: #2e7a3c; }
+.pk-tile.pk-tone-good .pk-tile-val { color: #1f5a2a; }
+.pk-tile.pk-tone-warn { border-left-color: #C9A84C; }
+.pk-tile.pk-tone-warn .pk-tile-val { color: #806008; }
+.pk-tile.pk-tone-bad  { border-left-color: #c43030; }
+.pk-tile.pk-tone-bad  .pk-tile-val { color: #a02020; }
+.pk-tile.pk-tone-neutral { border-left-color: #C9A84C; }
+
+/* Keep each risk row together with its meta + title + detail */
+.print-risk-row {
+  page-break-inside: avoid;
+  break-inside: avoid;
 }
