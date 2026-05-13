@@ -665,6 +665,55 @@ function runM6() {
 }
 
 // ════════════════════════════════════════════════════════════════
+// M6.2 - DEAL SNAPSHOT REPORT (10 tests)
+// ════════════════════════════════════════════════════════════════
+function runM6_2() {
+  const g = group('M6.2 Snapshot');
+
+  // Set window and CP as context properties (not let-bindings), then load
+  // the report module so its IIFE assigns to window.renderReport_deal_snapshot.
+  sandbox.window = sandbox;
+  sandbox.CP = { active: { name: 'ASJP' } };
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/deal-snapshot.js'), 'utf8'), ctx, { filename: 'reports/deal-snapshot.js' });
+
+  // Helpers that print.js exposes to report renderers.
+  const HELPERS_SRC = `({
+    fmtMoney: (x, dec) => x == null || !isFinite(x) ? '-' : '$' + Number(x).toLocaleString(undefined, { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 }),
+    fmtMoneyK: (x) => x == null || !isFinite(x) ? '-' : (Math.abs(x) >= 1e6 ? '$' + (x/1e6).toFixed(2) + 'M' : (Math.abs(x) >= 1e3 ? '$' + (x/1e3).toFixed(0) + 'K' : '$' + Math.round(x))),
+    fmtPct: (x, dec) => x == null || !isFinite(x) ? '-' : (x*100).toFixed(dec == null ? 1 : dec) + '%',
+    fmtX: (x, dec) => x == null || !isFinite(x) ? '-' : Number(x).toFixed(dec == null ? 2 : dec) + 'x',
+    fmtInt: (x) => x == null || !isFinite(x) ? '-' : Math.round(x).toLocaleString(),
+    todayLong: () => 'May 13, 2026',
+    foundryLogo: () => ''
+  })`;
+
+  // ── BRRRR snapshot render
+  loadBRRRR();
+  const brrrrHtml = vm.runInContext(`
+    renderReport_deal_snapshot(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});
+  `, ctx);
+
+  check(g, 'BRRRR snapshot: renders without throwing', typeof brrrrHtml === 'string' && brrrrHtml.length > 0 ? 1 : 0, 1);
+  check(g, 'BRRRR snapshot: contains DSCR tile', brrrrHtml.includes('Refi DSCR') && brrrrHtml.includes('1.57x') ? 1 : 0, 1);
+  check(g, 'BRRRR snapshot: contains stabilized ARV ($1.49M)', brrrrHtml.includes('$1.49M') ? 1 : 0, 1);
+  check(g, 'BRRRR snapshot: contains capital recapture 100%', brrrrHtml.includes('100.0%') ? 1 : 0, 1);
+  check(g, 'BRRRR snapshot: contains EM 4.76x', brrrrHtml.includes('4.76x') ? 1 : 0, 1);
+  check(g, 'BRRRR snapshot: BRRRR mode pill present', brrrrHtml.includes('ds-mode-pill') && brrrrHtml.includes('BRRRR') ? 1 : 0, 1);
+  check(g, 'BRRRR snapshot: market-empty fallback shown (no census)', brrrrHtml.includes('Market analysis not run') ? 1 : 0, 1);
+  // 2048 trips one medium contingency risk (M5 documented behavior)
+  check(g, 'BRRRR snapshot: contingency risk surfaced in Top Risks', brrrrHtml.includes('Contingency') ? 1 : 0, 1);
+
+  // ── F&F snapshot render
+  loadFF();
+  const ffHtml = vm.runInContext(`
+    renderReport_deal_snapshot(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});
+  `, ctx);
+
+  check(g, 'F&F snapshot: contains ARV $550K', ffHtml.includes('$550K') ? 1 : 0, 1);
+  check(g, 'F&F snapshot: contains investor ROI 106.4%', ffHtml.includes('106.4%') ? 1 : 0, 1);
+}
+
+// ════════════════════════════════════════════════════════════════
 // Run
 // ════════════════════════════════════════════════════════════════
 runM2();
@@ -672,6 +721,7 @@ runM3();
 runM4();
 runM5();
 runM6();
+runM6_2();
 
 // ── Report ────────────────────────────────────────────────────
 console.log('');
