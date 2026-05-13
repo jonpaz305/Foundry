@@ -239,8 +239,6 @@
     // M0.2: surface the two bridge tranches separately.
     const acqTranche = R.acquisition_tranche || 0;
     const conTranche = R.construction_tranche || 0;
-    const sponsorMob = R.sponsor_mobilization || 0;
-    const capexGap = R.capex_funding_gap || 0;
     const capexDur = R.capex_duration_months_resolved || 6;
 
     const sponsorEquity = (R.initial_investor_equity || 0) * (1 - (inputs.investor_ownership || 0));
@@ -255,10 +253,25 @@
     const contingency = inputs.gc_contingency || 0;
     const totalUses = purchase + capex + closing + consulting + carry + contingency;
 
-    // Closing cost breakdown
-    const ccBaseline = inputs.closing_cost_baseline || 0;
-    const ccLoan = (inputs.closing_cost_loan_pct || 0) * initialLoan;
-    const ccTransfer = inputs.closing_cost_transfer_addon || 0;
+    // M0.3: closing cost components for the itemized detail table.
+    // Pull from engine R fields so the breakdown ties exactly to closing_costs.
+    const ccBaseline   = R.cc_baseline || 0;
+    const ccInsurance  = R.cc_insurance || 0;
+    const ccAppraisal  = R.cc_appraisal || 0;
+    const ccOrig       = R.cc_origination || 0;
+    const ccLenderPts  = R.cc_lender_points || 0;
+    const ccBrokerPts  = R.cc_broker_points || 0;
+    const ccFlatFees   = R.cc_lender_flat_fees || 0;
+    const ccTransfer   = R.cc_transfer_addon || 0;
+
+    // M0.3: equity required breakdown components (sum to R.initial_investor_equity).
+    const eqAcqDown    = R.equity_acq_down_payment || 0;
+    const eqCapexGap   = R.equity_capex_gap || 0;
+    const eqClosing    = R.equity_closing_costs || 0;
+    const eqConsulting = R.equity_consulting || 0;
+    const eqCarry      = R.equity_bridge_carry || 0;
+    const eqMobIfEq    = R.equity_gc_contingency_if_equity || 0;
+    const eqTotal      = R.equity_required_breakdown_total || 0;
 
     // Capital Stack segment widths. The two debt segments are sized
     // proportional to their tranche dollars. Sponsor + LP equity stack
@@ -295,16 +308,16 @@
               <tr><td>Closing Costs</td><td class="num">${h.fmtMoney(closing)}</td><td class="num">${h.fmtPct(closing / Math.max(1, totalUses))}</td></tr>
               <tr><td>Consulting</td><td class="num">${h.fmtMoney(consulting)}</td><td class="num">${h.fmtPct(consulting / Math.max(1, totalUses))}</td></tr>
               <tr><td>Carry (DS pre-refi)</td><td class="num">${h.fmtMoney(carry)}</td><td class="num">${h.fmtPct(carry / Math.max(1, totalUses))}</td></tr>
-              <tr><td>GC Contingency</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, totalUses))}</td></tr>
+              <tr><td>Sponsor Mobilization</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, totalUses))}</td></tr>
               <tr class="totals"><td>Total Uses</td><td class="num">${h.fmtMoney(totalUses)}</td><td class="num">100.0%</td></tr>
             </tbody>
           </table>
         </div>
 
         <div class="bp-capex-note pb-avoid" style="font-size:9pt;color:var(--print-muted);margin-top:6pt;line-height:1.4">
-          Sponsor mobilization (capex pre-funding): <strong>${h.fmtMoney(sponsorMob)}</strong>.
+          Sponsor mobilization (capex float): <strong>${h.fmtMoney(contingency)}</strong>.
           Construction tranche funds ${h.fmtPct(inputs.initial_loan_ltc_capex)} of capex via draws over a ${capexDur}-month execution window.
-          ${capexGap > 0 ? `Capex funding gap: <strong>${h.fmtMoney(capexGap)}</strong> covered by sponsor equity above mobilization.` : 'Construction tranche fully funds capex (no sponsor capex gap).'}
+          Mobilization covers GC payment cycles before lender reimbursement and is recouped before refi.
         </div>
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Capital Structure</div>
@@ -335,12 +348,31 @@
           </div>
         </div>
 
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Equity Required Breakdown</div>
+        <table class="print-table pb-avoid">
+          <thead><tr><th>Component</th><th class="num">Amount</th><th class="num">% of Equity</th></tr></thead>
+          <tbody>
+            <tr><td>Mortgage down payment (acquisition)</td><td class="num">${h.fmtMoney(eqAcqDown)}</td><td class="num">${h.fmtPct(eqAcqDown / Math.max(1, eqTotal))}</td></tr>
+            <tr><td>Sponsor capex above lender funding</td><td class="num">${h.fmtMoney(eqCapexGap)}</td><td class="num">${h.fmtPct(eqCapexGap / Math.max(1, eqTotal))}</td></tr>
+            <tr><td>Closing costs (full detail below)</td><td class="num">${h.fmtMoney(eqClosing)}</td><td class="num">${h.fmtPct(eqClosing / Math.max(1, eqTotal))}</td></tr>
+            <tr><td>Consulting / project fee</td><td class="num">${h.fmtMoney(eqConsulting)}</td><td class="num">${h.fmtPct(eqConsulting / Math.max(1, eqTotal))}</td></tr>
+            <tr><td>Bridge debt service through refi</td><td class="num">${h.fmtMoney(eqCarry)}</td><td class="num">${h.fmtPct(eqCarry / Math.max(1, eqTotal))}</td></tr>
+            <tr><td>Sponsor mobilization${eqMobIfEq > 0 ? '' : ' (excluded - reimbursed via draws)'}</td><td class="num">${h.fmtMoney(eqMobIfEq)}</td><td class="num">${h.fmtPct(eqMobIfEq / Math.max(1, eqTotal))}</td></tr>
+            <tr class="totals"><td>Total Equity Required at Closing</td><td class="num">${h.fmtMoney(eqTotal)}</td><td class="num">100.0%</td></tr>
+          </tbody>
+        </table>
+
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Closing Cost Detail</div>
         <table class="print-table pb-avoid">
           <thead><tr><th>Component</th><th class="num">Basis</th><th class="num">Amount</th></tr></thead>
           <tbody>
-            <tr><td>Fixed Baseline</td><td class="num">Flat</td><td class="num">${h.fmtMoney(ccBaseline)}</td></tr>
-            <tr><td>Loan Origination & Title</td><td class="num">${h.fmtPct(inputs.closing_cost_loan_pct || 0)} of Loan</td><td class="num">${h.fmtMoney(ccLoan)}</td></tr>
+            <tr><td>Title / Escrow / Recording (Baseline)</td><td class="num">Flat</td><td class="num">${h.fmtMoney(ccBaseline)}</td></tr>
+            <tr><td>Insurance (First-Year Premium)</td><td class="num">Flat</td><td class="num">${h.fmtMoney(ccInsurance)}</td></tr>
+            <tr><td>Appraisal</td><td class="num">Flat</td><td class="num">${h.fmtMoney(ccAppraisal)}</td></tr>
+            <tr><td>Origination Fee</td><td class="num">${h.fmtPct(inputs.origination_pct || 0, 2)} of Loan</td><td class="num">${h.fmtMoney(ccOrig)}</td></tr>
+            <tr><td>Lender Points</td><td class="num">${h.fmtPct(inputs.lender_points_pct || 0, 2)} of Loan</td><td class="num">${h.fmtMoney(ccLenderPts)}</td></tr>
+            <tr><td>Broker Points</td><td class="num">${h.fmtPct(inputs.broker_points_pct || 0, 2)} of Loan</td><td class="num">${h.fmtMoney(ccBrokerPts)}</td></tr>
+            <tr><td>Lender Flat Fees (legal, environmental, processing)</td><td class="num">Flat</td><td class="num">${h.fmtMoney(ccFlatFees)}</td></tr>
             <tr><td>Transfer Tax Add-On</td><td class="num">Flat</td><td class="num">${h.fmtMoney(ccTransfer)}</td></tr>
             <tr class="totals"><td>Total Closing Costs</td><td></td><td class="num">${h.fmtMoney(closing)}</td></tr>
           </tbody>
