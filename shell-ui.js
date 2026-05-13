@@ -467,14 +467,27 @@ function renderDealEconomicsPanel(mode) {
   if (mode === 'brrrr') {
     const refi_ltv = (R.refi_loan_amount > 0 && R.stabilized_arv > 0)
       ? R.refi_loan_amount / R.stabilized_arv : null;
-    // Capital Recapture row tagged with a tone color when present.
-    // The third element of the row tuple (when provided) overrides the
-    // default text color in the cell renderer below. BRRRR mode only;
-    // F&F omits this row entirely per spec.
+    // Capital Recapture row: primary value is the dollar amount returned
+    // to investors at refi (R.capital_returned_at_refi); the percentage
+    // is shown as a secondary muted suffix to match the visual pattern
+    // used by the Equity Required Breakdown panel below this one.
+    // Tone color (green/amber/red) applies to the dollar amount, since
+    // the dollar amount IS now the primary readout and the percentage
+    // sits beside it. The third element of the row tuple is the color
+    // override consumed by the row renderer further down.
+    // BRRRR mode only; F&F omits this row entirely per spec.
     const recapTone = _recaptureTone(R.capital_recaptured_pct);
-    const recapVal = R.capital_recaptured_pct != null
-      ? fP(R.capital_recaptured_pct > 1 ? R.capital_recaptured_pct / 100 : R.capital_recaptured_pct)
-      : '-';
+    const recapPctNorm = R.capital_recaptured_pct == null
+      ? null
+      : (R.capital_recaptured_pct > 1 ? R.capital_recaptured_pct / 100 : R.capital_recaptured_pct);
+    const recapDollars = R.capital_returned_at_refi != null ? f$(R.capital_returned_at_refi) : '-';
+    const recapPctStr = recapPctNorm != null ? fP(recapPctNorm) : null;
+    // HTML-shaped value: dollar primary in tone color + percentage muted
+    // suffix. Stored as a raw HTML string and passed through the row
+    // renderer unescaped (renderer accepts a fourth flag to skip escape).
+    const recapVal = recapPctStr
+      ? `${escapeHtml(recapDollars)} <span style="color:var(--text3);font-weight:400;font-size:11px;margin-left:8px">${escapeHtml(recapPctStr)}</span>`
+      : escapeHtml(recapDollars);
     rows = [
       ['Purchase Price',           inputs.purchase_price != null ? f$(inputs.purchase_price) : '-'],
       ['Capex Budget',             inputs.capex_budget != null ? f$(inputs.capex_budget) : '-'],
@@ -485,7 +498,7 @@ function renderDealEconomicsPanel(mode) {
       ['Refi Loan',                R.refi_loan_amount != null ? f$(R.refi_loan_amount) : '-'],
       ['Stabilized NOI',           R.stabilized_noi != null ? f$(R.stabilized_noi) : '-'],
       ['Refi LTV',                 refi_ltv != null ? fP(refi_ltv) : '-'],
-      ['Capital Recapture',        recapVal, recapTone],
+      ['Capital Recapture',        recapVal, recapTone, true],
       ['Post-Refi In-Basis',       R.post_refi_in_basis_pct != null ? fP(R.post_refi_in_basis_pct) : '-'],
       ['Annual Cash Flow',         R.annual_cash_flow != null ? f$(R.annual_cash_flow) : '-'],
       ['Breakeven Occupancy',      R.breakeven_occupancy != null ? fP(R.breakeven_occupancy) : '-']
@@ -505,18 +518,21 @@ function renderDealEconomicsPanel(mode) {
     ];
   }
 
-  // Row renderer accepts an optional third element (color override). When
-  // present, the value cell is colored accordingly (used for the BRRRR
-  // Capital Recapture tone band). When absent, the default text color
-  // applies. All cells use the standard mono font for numeric values.
+  // Row renderer accepts an optional third element (color override) and
+  // optional fourth element (raw-HTML flag). Color override drives the
+  // tone band on the value cell (used for Capital Recapture). Raw-HTML
+  // flag means the value is already an HTML string and must not be
+  // re-escaped; defaults to false (label and value both escaped).
   const rowsHtml = rows.map(r => {
     const lbl = r[0];
     const val = r[1];
     const tone = r[2] || null;
+    const isRawHtml = r[3] === true;
     const valStyle = `color:${tone ? tone : 'var(--text)'};font-family:var(--fm);font-weight:600`;
+    const valOut = isRawHtml ? val : escapeHtml(val);
     return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">
        <span style="color:var(--text2)">${escapeHtml(lbl)}</span>
-       <span style="${valStyle}">${escapeHtml(val)}</span>
+       <span style="${valStyle}">${valOut}</span>
      </div>`;
   }).join('');
 

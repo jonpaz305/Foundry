@@ -1291,6 +1291,10 @@ function runM6_8() {
     econHtml.includes('Capital Recapture') ? 1 : 0, 1);
   check(g, 'BRRRR economics: Capital Recapture rendered with tone color',
     /Capital Recapture[\s\S]{0,500}#3fb950|#d29922|#f85e5e/.test(econHtml) ? 1 : 0, 1);
+  check(g, 'BRRRR economics: Capital Recapture row contains a dollar amount',
+    /Capital Recapture[\s\S]{0,800}\$[\d,]+/.test(econHtml) ? 1 : 0, 1);
+  check(g, 'BRRRR economics: Capital Recapture row contains a percentage',
+    /Capital Recapture[\s\S]{0,800}\d+(?:\.\d+)?%/.test(econHtml) ? 1 : 0, 1);
 
   // ── F&F Deal Economics panel
   const econFFHtml = vm.runInContext(`renderDealEconomicsPanel('fix_and_flip')`, dashCtx);
