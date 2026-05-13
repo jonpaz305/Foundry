@@ -698,6 +698,9 @@ async function loadDeal(id) {
   if (typeof renderOperatingBlock === 'function') renderOperatingBlock();
   if (typeof recompute === 'function') recompute();
   updateDashboard();
+  // Pass 4: load snapshots for this deal so the Snapshots page is
+  // immediately populated when the user navigates to it.
+  loadSnapshotsForCurrentDeal();
   closeSidebar();
 }
 
@@ -1013,7 +1016,7 @@ function onInputChange(field, value) {
 
 // ── NAVIGATION ────────────────────────────────────────────────
 function navTo(section, btn) {
-  ['dashboard','setup','unitmix','comps','operating','capital','market','risk','reports','company'].forEach(s => {
+  ['dashboard','setup','unitmix','comps','operating','capital','market','risk','reports','snapshots','company'].forEach(s => {
     const el = $('section-' + s);
     if (el) el.style.display = 'none';
   });
@@ -1031,6 +1034,7 @@ function navTo(section, btn) {
   if (section === 'market'   && typeof renderMarketPage === 'function') renderMarketPage();
   if (section === 'risk'     && typeof renderRiskPage === 'function') renderRiskPage();
   if (section === 'reports'  && typeof renderReportsPage === 'function') renderReportsPage();
+  if (section === 'snapshots'&& typeof renderSnapshotsPage === 'function') renderSnapshotsPage();
   if (section === 'company'  && typeof renderCompanyPicker === 'function') renderCompanyPicker();
   closeSidebar();
 }
@@ -1051,6 +1055,210 @@ function closeSidebar() {
 
 
 // ── recompute() is defined in engine.js ───────────────────────
+
+
+// ════════════════════════════════════════════════════════════════
+// PATH A PASS 4 - REPORT SNAPSHOTS
+// ════════════════════════════════════════════════════════════════
+// A snapshot captures (a) the rendered HTML of a report, (b) the
+// underlying data state at lock time (inputs, unit_mix, comps,
+// market_analysis, overrides, R), and (c) the engine version stamp.
+// Snapshots are immutable once created. They are NOT generated on
+// every export - only when the user explicitly clicks "Lock Snapshot"
+// on a generated report. The locked record becomes the audit-trail
+// answer to "what version did the LP receive on date X?"
+// ════════════════════════════════════════════════════════════════
+
+// State: list of snapshots for the currently-loaded deal, and the
+// report being staged for a Lock action (set when user clicks Lock,
+// cleared when modal closes).
+let SNAPSHOTS = { list: [], staging: null };
+
+// Map of report type slug to friendly label and the renderer function
+// to call. Slugs match the kebab-case slugs used in shell-ui.js's
+// report catalog so the Lock buttons can be wired consistently.
+const SNAPSHOT_REPORT_TYPES = {
+  'brrrr-package':    { label: 'BRRRR Package',          render: 'renderReport_brrrr_package' },
+  'ff-package':       { label: 'Fix and Flip Package',   render: 'renderReport_ff_package' },
+  'lender-package':   { label: 'Lender Package',         render: 'renderReport_lender_package' },
+  'hud-vash-package': { label: 'Valor PBV Package',      render: 'renderReport_valor_pbv' },
+  'internal-memo':    { label: 'Internal Memo',          render: 'renderReport_internal_memo' },
+  'deal-snapshot':    { label: 'Deal Snapshot',          render: 'renderReport_deal_snapshot' }
+};
+
+// Helpers passed to renderer functions. Mirrors the standard helpers
+// object used by the Reports section in shell-ui.
+function _snapshotHelpers() {
+  return {
+    fmtMoney:  (x, dec) => x == null || !isFinite(x) ? '-' : '$' + Number(x).toLocaleString(undefined, { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 }),
+    fmtMoneyK: (x) => x == null || !isFinite(x) ? '-' : (Math.abs(x) >= 1e6 ? '$' + (x/1e6).toFixed(2) + 'M' : (Math.abs(x) >= 1e3 ? '$' + (x/1e3).toFixed(0) + 'K' : '$' + Math.round(x))),
+    fmtPct:    (x, dec) => x == null || !isFinite(x) ? '-' : (x*100).toFixed(dec == null ? 1 : dec) + '%',
+    fmtX:      (x, dec) => x == null || !isFinite(x) ? '-' : Number(x).toFixed(dec == null ? 2 : dec) + 'x',
+    fmtInt:    (x) => x == null || !isFinite(x) ? '-' : Math.round(x).toLocaleString(),
+    todayLong: () => new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+    foundryLogo: () => (typeof FOUNDRY_LOGO_DARK !== 'undefined') ? FOUNDRY_LOGO_DARK : ''
+  };
+}
+
+// User clicked "Lock Snapshot" on a report. Stage the report type
+// and open the confirmation modal so they can add an optional note.
+function lockSnapshot(reportType) {
+  if (!currentDeal) {
+    alert('Open a deal first.');
+    return;
+  }
+  const config = SNAPSHOT_REPORT_TYPES[reportType];
+  if (!config) {
+    alert('Unknown report type: ' + reportType);
+    return;
+  }
+  if (typeof window[config.render] !== 'function') {
+    alert('Renderer not available: ' + config.render);
+    return;
+  }
+  SNAPSHOTS.staging = { reportType: reportType, label: config.label };
+  const labelEl = $('lock-snapshot-label');
+  if (labelEl) labelEl.textContent = config.label;
+  const noteEl = $('lock-snapshot-note');
+  if (noteEl) noteEl.value = '';
+  openModal('lock-snapshot-modal');
+}
+
+// User confirmed the Lock action. Render the report, capture data
+// state, write the snapshot row to Supabase, refresh the list.
+async function lockSnapshotConfirmed() {
+  if (!SNAPSHOTS.staging || !currentDeal) {
+    closeModal('lock-snapshot-modal');
+    return;
+  }
+  const { reportType, label } = SNAPSHOTS.staging;
+  const config = SNAPSHOT_REPORT_TYPES[reportType];
+  const noteEl = $('lock-snapshot-note');
+  const note = noteEl ? noteEl.value.trim() : '';
+
+  try {
+    // Render the report against current state
+    const renderer = window[config.render];
+    const helpers = _snapshotHelpers();
+    const html = renderer(currentDeal, R, inputs, marketAnalysis, helpers);
+
+    // Capture all underlying data
+    const payload = {
+      user_id:        currentUser.id,
+      deal_id:        currentDeal.id,
+      deal_name:      currentDeal.name,
+      report_type:    reportType,
+      engine_version: (typeof FOUNDRY_ENGINE_VERSION === 'string') ? FOUNDRY_ENGINE_VERSION : 'unversioned',
+      snapshot_inputs:          JSON.parse(JSON.stringify(inputs)),
+      snapshot_unit_mix:        JSON.parse(JSON.stringify(unitMix)),
+      snapshot_comps:           JSON.parse(JSON.stringify(comps)),
+      snapshot_market_analysis: JSON.parse(JSON.stringify(marketAnalysis)),
+      snapshot_overrides:       JSON.parse(JSON.stringify(overrides)),
+      snapshot_R:               JSON.parse(JSON.stringify(R)),
+      snapshot_html:            html,
+      note:                     note || null
+    };
+
+    const { data, error } = await sb
+      .from('foundry_report_snapshots')
+      .insert(payload)
+      .select().single();
+    if (error) throw error;
+
+    SNAPSHOTS.list.unshift(data);
+    SNAPSHOTS.staging = null;
+    closeModal('lock-snapshot-modal');
+    flashSaveIndicator('Snapshot locked');
+    // If the Snapshots page is currently visible, refresh it
+    if (typeof renderSnapshotsPage === 'function') renderSnapshotsPage();
+  } catch (e) {
+    closeModal('lock-snapshot-modal');
+    alert('Could not lock snapshot: ' + (e.message || 'unknown error'));
+  }
+}
+
+// Load all snapshots for the current deal. Called when user navigates
+// to the Snapshots page, and after loadDeal.
+async function loadSnapshotsForCurrentDeal() {
+  if (!currentDeal || !currentUser) {
+    SNAPSHOTS.list = [];
+    return;
+  }
+  try {
+    const { data, error } = await sb
+      .from('foundry_report_snapshots')
+      .select('*')
+      .eq('deal_id', currentDeal.id)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    SNAPSHOTS.list = data || [];
+  } catch (e) {
+    console.error('[Foundry] load snapshots:', e);
+    SNAPSHOTS.list = [];
+  }
+}
+
+// User clicked View on a snapshot. Open the rendered HTML in a new
+// window with a banner above the content identifying it as historical.
+function viewSnapshot(snapshotId) {
+  const snap = SNAPSHOTS.list.find(s => s.id === snapshotId);
+  if (!snap) return;
+  const created = snap.created_at ? new Date(snap.created_at).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' }) : 'unknown date';
+  const banner = `
+    <div style="background:#fff8e1;border:1px solid #C9A84C;border-radius:4px;padding:14px 18px;margin:16px;font-family:system-ui,-apple-system,sans-serif;font-size:13px;line-height:1.55;color:#3a2f0b">
+      <div style="font-weight:600;font-size:14px;margin-bottom:4px">Historical snapshot</div>
+      <div>This is a locked snapshot from <strong>${escapeHtml(created)}</strong>, rendered against engine version <strong>${escapeHtml(snap.engine_version || 'unversioned')}</strong>. Inputs and outputs may differ from the current state of this deal.</div>
+      ${snap.note ? `<div style="margin-top:8px;font-style:italic;color:#5a4a1b">Note at lock time: ${escapeHtml(snap.note)}</div>` : ''}
+    </div>
+  `;
+  // Open in a new window. Include print.css so the rendered report
+  // looks correct (same as live print preview).
+  const win = window.open('', '_blank');
+  if (!win) {
+    alert('Pop-up blocked. Allow pop-ups for this site to view snapshots.');
+    return;
+  }
+  win.document.write(`<!doctype html><html><head><title>Snapshot: ${escapeHtml(snap.deal_name || 'deal')} - ${escapeHtml(snap.report_type)}</title>
+    <link rel="stylesheet" href="${window.location.origin}/print.css"/>
+    <link rel="stylesheet" href="${window.location.origin}/styles.css"/>
+    </head><body>${banner}${snap.snapshot_html || '<div style="padding:20px;color:#888">No HTML stored for this snapshot.</div>'}</body></html>`);
+  win.document.close();
+}
+
+// User clicked Delete on a snapshot. Confirm and delete.
+function confirmDeleteSnapshot(snapshotId) {
+  const snap = SNAPSHOTS.list.find(s => s.id === snapshotId);
+  if (!snap) return;
+  SNAPSHOTS.staging = { deleteId: snapshotId, label: SNAPSHOT_REPORT_TYPES[snap.report_type] ? SNAPSHOT_REPORT_TYPES[snap.report_type].label : snap.report_type };
+  const labelEl = $('delete-snapshot-label');
+  if (labelEl) labelEl.textContent = SNAPSHOTS.staging.label;
+  const dateEl = $('delete-snapshot-date');
+  if (dateEl) dateEl.textContent = snap.created_at ? new Date(snap.created_at).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' }) : '';
+  openModal('delete-snapshot-modal');
+}
+
+async function deleteSnapshotConfirmed() {
+  if (!SNAPSHOTS.staging || !SNAPSHOTS.staging.deleteId) {
+    closeModal('delete-snapshot-modal');
+    return;
+  }
+  const id = SNAPSHOTS.staging.deleteId;
+  try {
+    const { error } = await sb
+      .from('foundry_report_snapshots')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    SNAPSHOTS.list = SNAPSHOTS.list.filter(s => s.id !== id);
+    SNAPSHOTS.staging = null;
+    closeModal('delete-snapshot-modal');
+    flashSaveIndicator('Snapshot deleted');
+    if (typeof renderSnapshotsPage === 'function') renderSnapshotsPage();
+  } catch (e) {
+    closeModal('delete-snapshot-modal');
+    alert('Could not delete snapshot: ' + (e.message || 'unknown error'));
+  }
+}
 
 
 // ── BOOT ──────────────────────────────────────────────────────

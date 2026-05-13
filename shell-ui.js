@@ -709,9 +709,12 @@ function renderReportsPage() {
 
 function _reportCard(rep, applicable) {
   const disabled = !applicable;
-  const click = disabled ? '' : `onclick="openPrintTab('${rep.slug}')"`;
+  const generateClick = disabled ? '' : `onclick="openPrintTab('${rep.slug}')"`;
+  // Lock buttons stop propagation so they don't trigger the card's
+  // Generate action. The button is hidden for disabled (not-applicable)
+  // reports.
   return `
-    <div class="report-card ${disabled ? 'report-card-disabled' : ''}" ${click}>
+    <div class="report-card ${disabled ? 'report-card-disabled' : ''}" ${generateClick}>
       <div class="rc-head">
         <div class="rc-icon">📄</div>
         <div class="rc-meta">
@@ -721,8 +724,87 @@ function _reportCard(rep, applicable) {
       </div>
       <div class="rc-title">${escapeHtml(rep.label)}</div>
       <div class="rc-desc">${escapeHtml(rep.desc)}</div>
-      <div class="rc-cta">
-        ${disabled ? '<span class="rc-na">Not applicable in current mode</span>' : '<span class="rc-go">Generate →</span>'}
+      <div class="rc-cta" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        ${disabled
+          ? '<span class="rc-na">Not applicable in current mode</span>'
+          : `<span class="rc-go">Generate →</span>
+             <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();lockSnapshot('${rep.slug}')" title="Save a locked version of this report for the audit trail" style="font-size:10px;padding:4px 10px">Lock snapshot</button>`}
+      </div>
+    </div>`;
+}
+
+
+// ── SNAPSHOTS PAGE (Path A Pass 4) ────────────────────────────
+// Lists all locked snapshots for the currently-loaded deal.
+// Snapshots are immutable; only View and Delete actions are exposed.
+function renderSnapshotsPage() {
+  const root = $('section-snapshots');
+  if (!root) return;
+
+  if (!currentDeal) {
+    root.innerHTML = `
+      <div class="panel">
+        <div class="panel-title">Snapshots</div>
+        <div class="empty">
+          <div class="empty-icon">🔒</div>
+          <div class="empty-title">No deal loaded</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:6px">Open a deal to view its locked report snapshots.</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const list = (typeof SNAPSHOTS === 'object' && SNAPSHOTS && Array.isArray(SNAPSHOTS.list)) ? SNAPSHOTS.list : [];
+
+  if (list.length === 0) {
+    root.innerHTML = `
+      <div class="panel">
+        <div class="panel-title">Snapshots
+          <span class="panel-sub">${escapeHtml(currentDeal.name || 'Untitled')}</span>
+        </div>
+        <div class="empty">
+          <div class="empty-icon">🔒</div>
+          <div class="empty-title">No locked snapshots</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:6px;max-width:480px;line-height:1.5">
+            Lock snapshots from the Reports page to preserve an audit-trail record of the inputs, math, and rendered output at the moment you sent a report to an LP or lender. Snapshots are immutable once created.
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const rows = list.map(_snapshotRow).join('');
+
+  root.innerHTML = `
+    <div class="panel">
+      <div class="panel-title">Snapshots
+        <span class="panel-sub">${escapeHtml(currentDeal.name || 'Untitled')} · ${list.length} locked</span>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:1rem;line-height:1.5">
+        Each row below is an immutable record of a report generated against this deal at a specific point in time. Engine version stamps tie snapshots back to entries in <code style="font-size:10px;background:var(--bg2);padding:1px 5px;border-radius:3px">CHANGELOG.md</code>.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">${rows}</div>
+    </div>`;
+}
+
+function _snapshotRow(snap) {
+  const types = (typeof SNAPSHOT_REPORT_TYPES === 'object') ? SNAPSHOT_REPORT_TYPES : {};
+  const cfg = types[snap.report_type];
+  const label = cfg ? cfg.label : snap.report_type;
+  const created = snap.created_at
+    ? new Date(snap.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
+    : 'unknown';
+  const note = snap.note ? `<div style="font-size:11px;color:var(--text2);margin-top:4px;font-style:italic">${escapeHtml(snap.note)}</div>` : '';
+  return `
+    <div style="border:1px solid var(--border);border-radius:var(--r-sm);padding:12px 14px;background:var(--bg2);display:flex;align-items:flex-start;gap:12px">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;color:var(--text)">${escapeHtml(label)}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;font-family:var(--fm)">${escapeHtml(created)} · engine ${escapeHtml(snap.engine_version || 'unversioned')}</div>
+        ${note}
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn btn-ghost btn-sm" onclick="viewSnapshot('${snap.id}')" style="font-size:10px;padding:4px 10px">View</button>
+        <button class="btn btn-ghost btn-sm" onclick="confirmDeleteSnapshot('${snap.id}')" style="font-size:10px;padding:4px 10px;color:#f85e5e">Delete</button>
       </div>
     </div>`;
 }

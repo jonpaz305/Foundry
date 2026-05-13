@@ -32,6 +32,16 @@
 // ════════════════════════════════════════════════════════════════
 
 
+// ── VERSION STAMP (Path A Pass 4) ─────────────────────────────
+// Semver: MAJOR.MINOR.PATCH. See CHANGELOG.md for entries.
+// Bump whenever the engine math, input schema, or report output
+// changes. This constant is read by model-assumptions.js (for the
+// Engine version line on every external report) and by core.js
+// (for snapshot record stamping in foundry_report_snapshots).
+const FOUNDRY_ENGINE_VERSION = '1.0.0';
+const FOUNDRY_ENGINE_VERSION_DATE = '2026-05-13';
+
+
 // ── CUYAHOGA TAX RATES (residential / commercial as % of market) ──
 // Extracted from the spreadsheet's TaxRates_Cuyahoga sheet.
 // Static reference data, ships with the app.
