@@ -959,7 +959,7 @@
       </div>`;
   }
 
-  // ── PAGE 10: NOTICES AND DISCLAIMERS (Path A - always renders) ──
+  // ── PAGE: NOTICES AND DISCLAIMERS (Path A - always renders) ──
   function _pageDisclaimers(deal, R, inputs, market, h, pageNum, totalPages) {
     const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
     const coName = co && co.name ? co.name : 'ASJP';
@@ -971,6 +971,25 @@
         <div class="bp-disclaimer">
           ${typeof disclaimersForEquityPackage === 'function' ? disclaimersForEquityPackage(coName, { isFF: false }) : ''}
         </div>
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
+  }
+
+  // ── PAGE: MODEL ASSUMPTIONS AND METHODOLOGY (Path A Pass 3) ──
+  // Placed before Notices and Disclaimers. Itemizes every input that
+  // drove the report's outputs so the reader can audit any conclusion.
+  function _pageModelAssumptions(deal, R, inputs, market, h, pageNum, totalPages) {
+    return `
+      <div class="print-page print-page-compact">
+        ${_header(h, 'Model Assumptions and Methodology')}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Model Assumptions and Methodology</div>
+        <div style="font-size:9pt;color:var(--print-muted);margin-bottom:6pt;line-height:1.45">
+          The following inventory of inputs, derived values, and methodological choices was used to produce the figures elsewhere in this report. Where a value is labeled "sponsor input", the sponsor selected the value; where labeled "engine", "derived", or "data source", the value follows from sponsor inputs via the underwriting engine or third-party data.
+        </div>
+
+        ${typeof modelAssumptionsForEquityPackage === 'function' ? modelAssumptionsForEquityPackage(R, inputs, market, 'brrrr') : ''}
 
         ${_footer(pageNum, totalPages)}
       </div>`;
@@ -1015,11 +1034,11 @@
     const h = helpers || {};
     const pages = [];
 
-    // First pass: determine total page count (page 9 is conditional;
-    // Notices and Disclaimers page is always last and always present).
+    // First pass: determine total page count. Sponsor page is conditional.
+    // Model Assumptions and Notices and Disclaimers pages always render.
     const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
     const hasSponsorPage = !!(co && (co.subtitle || (co.contact_info && (co.contact_info.email || co.contact_info.phone || co.contact_info.website || co.contact_info.address))));
-    const totalPages = 8 + (hasSponsorPage ? 1 : 0) + 1;  // +1 for Notices and Disclaimers page
+    const totalPages = 8 + (hasSponsorPage ? 1 : 0) + 2;  // +1 Model Assumptions, +1 Notices and Disclaimers
 
     pages.push(_page1(deal, R, inputs, market, h, 1, totalPages));
     pages.push(_page2(deal, R, inputs, market, h, 2, totalPages));
@@ -1034,6 +1053,8 @@
       const p9 = _page9(deal, R, inputs, market, h, nextPage, totalPages);
       if (p9) { pages.push(p9); nextPage++; }
     }
+    pages.push(_pageModelAssumptions(deal, R, inputs, market, h, nextPage, totalPages));
+    nextPage++;
     pages.push(_pageDisclaimers(deal, R, inputs, market, h, nextPage, totalPages));
 
     return pages.join('\n');
