@@ -86,9 +86,16 @@
   function _footer(pageNum, totalPages) {
     const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
     const coName = co && co.name ? co.name : 'ASJP';
+    // Engine version stamp (Layer 2 audit Finding 1). Even though this
+    // is an internal IC document, a snapshot or accidental external
+    // forward needs to be traceable back to a specific engine version
+    // and its CHANGELOG entry.
+    const v = (typeof FOUNDRY_ENGINE_VERSION === 'string' && FOUNDRY_ENGINE_VERSION) ? FOUNDRY_ENGINE_VERSION : 'unversioned';
+    const d = (typeof FOUNDRY_ENGINE_VERSION_DATE === 'string' && FOUNDRY_ENGINE_VERSION_DATE) ? FOUNDRY_ENGINE_VERSION_DATE : '';
+    const versionStamp = `Engine ${_esc(v)}${d ? ' (' + _esc(d) + ')' : ''}`;
     return `
       <div class="print-footer pb-avoid">
-        <div class="pf-conf">Internal Use Only · ${_esc(coName)} IC</div>
+        <div class="pf-conf">Internal Use Only · ${_esc(coName)} IC · <span style="font-style:italic;color:var(--print-muted)">${versionStamp}</span></div>
         <div class="pf-page">${pageNum} of ${totalPages}</div>
       </div>`;
   }
