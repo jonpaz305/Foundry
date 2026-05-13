@@ -116,7 +116,7 @@
         ? R.refi_loan_amount / R.stabilized_arv : null;
       rows = [
         ['Purchase Price',       h.fmtMoney(inputs.purchase_price)],
-        ['Renovation Budget',    h.fmtMoney(inputs.reno_budget)],
+        ['Capex Budget',    h.fmtMoney(inputs.capex_budget)],
         ['Total Project Cost',   h.fmtMoney(R.total_project_cost)],
         ['Initial Loan',         h.fmtMoney(R.initial_loan_amt)],
         ['Refi Loan',            h.fmtMoney(R.refi_loan_amount)],
@@ -129,7 +129,7 @@
     } else {
       rows = [
         ['Purchase Price',       h.fmtMoney(inputs.purchase_price)],
-        ['Renovation Budget',    h.fmtMoney(inputs.reno_budget)],
+        ['Capex Budget',    h.fmtMoney(inputs.capex_budget)],
         ['Total Project Cost',   h.fmtMoney(R.total_project_cost)],
         ['Initial Loan',         h.fmtMoney(R.initial_loan_amt)],
         ['ARV',                  h.fmtMoney(R.arv)],
