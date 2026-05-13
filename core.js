@@ -145,8 +145,20 @@ async function checkSession() {
   const { data } = await sb.auth.getSession();
   if (data && data.session) {
     currentUser = data.session.user;
+    // M6: if URL is a print route, take over the page before booting the app.
+    if (typeof isPrintHash === 'function' && isPrintHash()) {
+      await startPrintMode();
+      return;
+    }
     await initApp();
   } else {
+    // Not signed in. If a print route was requested, surface a clear message
+    // instead of silently dropping the user on the sign-in screen (which
+    // would discard the hash on auth flow).
+    if (typeof isPrintHash === 'function' && isPrintHash()) {
+      document.body.innerHTML = '<div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:6in;margin:2in auto;padding:1in;border:1px solid #ddd"><div style="font-size:14pt;font-weight:700;margin-bottom:12pt;color:#a00">Sign in required</div><div style="font-size:10pt;color:#666;line-height:1.6">Open the main app in another tab and sign in, then refresh this tab.</div></div>';
+      return;
+    }
     $('auth-screen').style.display = 'flex';
     $('app-screen').style.display = 'none';
   }
@@ -635,6 +647,7 @@ function navTo(section, btn) {
   if (section === 'capital'  && typeof renderCapitalBlock === 'function') renderCapitalBlock();
   if (section === 'market'   && typeof renderMarketPage === 'function') renderMarketPage();
   if (section === 'risk'     && typeof renderRiskPage === 'function') renderRiskPage();
+  if (section === 'reports'  && typeof renderReportsPage === 'function') renderReportsPage();
   if (section === 'company'  && typeof renderCompanyPicker === 'function') renderCompanyPicker();
   closeSidebar();
 }

@@ -451,3 +451,78 @@ function renderCompanyPicker() {
       </div>`;
   }).join('');
 }
+
+
+// ── REPORTS PAGE (M6) ──────────────────────────────────────────
+// Card grid of the six PDF report types. Clicking a card opens a new
+// tab to the print route (openPrintTab in print.js), which renders the
+// report and triggers window.print(). Cards disabled when no deal loaded.
+function renderReportsPage() {
+  const root = $('section-reports');
+  if (!root) return;
+
+  if (!currentDeal) {
+    root.innerHTML = `
+      <div class="panel">
+        <div class="panel-title">Reports</div>
+        <div class="empty">
+          <div class="empty-icon">📄</div>
+          <div class="empty-title">No deal loaded</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:6px">Open a deal to generate reports.</div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const mode = getDealMode();
+  const modeLbl = mode === 'brrrr' ? 'BRRRR' : 'Fix & Flip';
+
+  // Report catalog (slug, label, desc, audience, mode-applicability).
+  // Mode-applicability: 'both' = always shown; 'brrrr' = BRRRR only; 'ff' = F&F only.
+  const reports = [
+    { slug: 'deal-snapshot',    label: 'Deal Snapshot',      desc: 'One-page internal summary. Headline KPIs, mode-aware status, top risks.', audience: 'Internal',          modes: 'both', pages: '1pp' },
+    { slug: 'brrrr-package',    label: 'BRRRR Package',      desc: 'Full underwriting package for lender or equity. Income, expenses, refi, exit, returns.', audience: 'Lender / Equity',   modes: 'brrrr', pages: '8-12pp' },
+    { slug: 'ff-package',       label: 'F&F Package',        desc: 'Single-equity-LP package. Comp grid, ARV derivation, returns, timeline.', audience: 'Equity LP',         modes: 'ff', pages: '6-8pp' },
+    { slug: 'internal-memo',    label: 'Internal Memo',      desc: 'Mode-aware narrative deal memo. Thesis, risks, recommendation.', audience: 'Internal IC',       modes: 'both', pages: '3-5pp' },
+    { slug: 'lender-package',   label: 'Lender Package',     desc: 'Bridge or agency lender deliverable. Sources/uses, DSCR, debt yield, sponsor.', audience: 'Lender',            modes: 'brrrr', pages: '4-6pp' },
+    { slug: 'hud-vash-package', label: 'HUD-VASH PBV Package', desc: 'Valor Housing Partners deliverable. Voucher uplift, PBV mechanics, federal pathway.', audience: 'HUD / GP',          modes: 'brrrr', pages: '5-7pp' }
+  ];
+
+  const cards = reports.map(rep => {
+    const applicable = rep.modes === 'both'
+      || (rep.modes === 'brrrr' && mode === 'brrrr')
+      || (rep.modes === 'ff' && mode === 'fix_and_flip');
+    return _reportCard(rep, applicable);
+  }).join('');
+
+  root.innerHTML = `
+    <div class="panel">
+      <div class="panel-title">
+        <span>Reports · ${escapeHtml(currentDeal.name || 'Untitled')} · ${modeLbl}</span>
+      </div>
+      <div class="panel-sub" style="margin-bottom:1rem">
+        Each report opens in a new tab and triggers your browser's print dialog. Choose "Save as PDF" to download. Filename auto-fills with deal and report metadata.
+      </div>
+      <div class="report-grid">${cards}</div>
+    </div>`;
+}
+
+function _reportCard(rep, applicable) {
+  const disabled = !applicable;
+  const click = disabled ? '' : `onclick="openPrintTab('${rep.slug}')"`;
+  return `
+    <div class="report-card ${disabled ? 'report-card-disabled' : ''}" ${click}>
+      <div class="rc-head">
+        <div class="rc-icon">📄</div>
+        <div class="rc-meta">
+          <div class="rc-audience">${escapeHtml(rep.audience)}</div>
+          <div class="rc-pages">${escapeHtml(rep.pages)}</div>
+        </div>
+      </div>
+      <div class="rc-title">${escapeHtml(rep.label)}</div>
+      <div class="rc-desc">${escapeHtml(rep.desc)}</div>
+      <div class="rc-cta">
+        ${disabled ? '<span class="rc-na">Not applicable in current mode</span>' : '<span class="rc-go">Generate →</span>'}
+      </div>
+    </div>`;
+}
