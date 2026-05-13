@@ -820,17 +820,36 @@
 
 
   // ── MAIN ENTRY ────────────────────────────────────────────────
+  // ── PAGE: MODEL ASSUMPTIONS AND METHODOLOGY (Path A Pass 3) ──
+  function _pageModelAssumptionsLender(deal, R, inputs, market, h, mode, pageNum, totalPages) {
+    return `
+      <div class="print-page print-page-compact">
+        ${_header(h, 'Model Assumptions and Methodology', mode)}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Model Assumptions and Methodology</div>
+        <div style="font-size:9pt;color:var(--print-muted);margin-bottom:6pt;line-height:1.45">
+          The following inventory of inputs, derived values, and methodological choices was used to produce the figures elsewhere in this report. Lender-facing variant: focused on valuation, debt structure, operating expenses, and methodology. Full investor-return assumptions are disclosed in the equity offering materials.
+        </div>
+
+        ${typeof modelAssumptionsForLenderPackage === 'function' ? modelAssumptionsForLenderPackage(R, inputs, market, mode) : ''}
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
+  }
+
+
   function renderReport_lender_package(deal, R, inputs, market, helpers) {
     const h = helpers || {};
     const mode = (deal && deal.deal_mode) || 'brrrr';
-    const totalPages = 5;
+    const totalPages = 6;  // +1 Model Assumptions
 
     const pages = [
       _page1(deal, R, inputs, market, h, mode, 1, totalPages),
       _page2(deal, R, inputs, market, h, mode, 2, totalPages),
       _page3(deal, R, inputs, market, h, mode, 3, totalPages),
       _page4(deal, R, inputs, market, h, mode, 4, totalPages),
-      _page5(deal, R, inputs, market, h, mode, 5, totalPages)
+      _pageModelAssumptionsLender(deal, R, inputs, market, h, mode, 5, totalPages),
+      _page5(deal, R, inputs, market, h, mode, 6, totalPages)
     ];
 
     return pages.join('\n');
