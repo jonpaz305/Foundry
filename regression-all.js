@@ -939,7 +939,6 @@ function runM6_7() {
   check(g, 'page 1: voucher uplift KPI', html.includes('Voucher Uplift') ? 1 : 0, 1);
   check(g, 'page 1: PBV Eligible Units tile', html.includes('PBV Eligible Units') ? 1 : 0, 1);
   check(g, 'page 2: mission section', html.includes("Valor's Mission") ? 1 : 0, 1);
-  check(g, 'page 2: Robert Cullen contact', html.includes('Robert Cullen') && html.includes('SVP Federal Relations') ? 1 : 0, 1);
   check(g, 'page 3: FMR vs ACS rent stack section', html.includes('FMR vs ACS Market Rent by Bedroom') ? 1 : 0, 1);
   check(g, 'page 4: footprint classification box', html.includes('valor-footprint-box') ? 1 : 0, 1);
   // 2048 is in Cleveland → should be anchor tier
@@ -953,12 +952,18 @@ function runM6_7() {
     html.includes('Jonathan Paz') && html.includes('Chief Investment Officer') ? 1 : 0, 1);
   check(g, 'page 6: Alexei Semenov COO/Chief Asset Officer role',
     html.includes('Alexei Semenov') && html.includes('Chief Asset Officer') ? 1 : 0, 1);
-  check(g, 'page 6: Tiffany Loo role',
-    html.includes('Tiffany Loo') ? 1 : 0, 1);
 
   // ── Confirm em-dash never appears in generated HTML
   check(g, 'no em-dashes in generated HTML',
     html.indexOf('\u2014') < 0 ? 1 : 0, 1);
+
+  // ── M6.7.1: Lock in removed elements
+  check(g, 'page 1: no footprint pill in title sub',
+    html.indexOf('valor-footprint-pill') < 0 ? 1 : 0, 1);
+  check(g, 'no Robert Cullen anywhere in output',
+    html.indexOf('Robert Cullen') < 0 ? 1 : 0, 1);
+  check(g, 'no Tiffany Loo anywhere in output',
+    html.indexOf('Tiffany Loo') < 0 ? 1 : 0, 1);
 }
 
 // ════════════════════════════════════════════════════════════════
