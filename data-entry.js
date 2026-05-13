@@ -176,7 +176,7 @@ function renderUnitMixBlock() {
       <div class="panel-title">Unit Mix &amp; Rent Roll
         <button class="btn btn-sm btn-gold" onclick="addUnitRow()">+ Add unit type</button>
       </div>
-      <table class="data">
+      <table class="data" id="um-table">
         <thead>
           <tr>
             <th>Bed Type</th>
@@ -188,9 +188,9 @@ function renderUnitMixBlock() {
         </thead>
         <tbody>
           ${unitMix.map((u, idx) => `
-            <tr>
+            <tr data-um-row="${idx}">
               <td>
-                <select onchange="updateUnitRow(${idx},'bed_type',this.value)">
+                <select onchange="updateUnitRowBedType(${idx},this.value)">
                   <option value="studio" ${u.bed_type === 'studio' ? 'selected' : ''}>Studio</option>
                   <option value="1br" ${u.bed_type === '1br' ? 'selected' : ''}>1 Bedroom</option>
                   <option value="2br" ${u.bed_type === '2br' ? 'selected' : ''}>2 Bedroom</option>
@@ -198,9 +198,9 @@ function renderUnitMixBlock() {
                   <option value="4br" ${u.bed_type === '4br' ? 'selected' : ''}>4 Bedroom</option>
                 </select>
               </td>
-              <td><input type="number" class="num" value="${u.count ?? 0}" oninput="updateUnitRow(${idx},'count',this.value)"/></td>
-              <td><input type="number" class="num" value="${u.rent ?? 0}" oninput="updateUnitRow(${idx},'rent',this.value)"/></td>
-              <td class="num">${(u.count && u.rent) ? f$(Number(u.count) * Number(u.rent)) : '-'}</td>
+              <td><input type="number" inputmode="numeric" class="num" value="${u.count ?? 0}" oninput="updateUnitRowField(${idx},'count',this.value)"/></td>
+              <td><input type="number" inputmode="decimal" class="num" value="${u.rent ?? 0}" oninput="updateUnitRowField(${idx},'rent',this.value)"/></td>
+              <td class="num" data-um-cell="gpr-${idx}">${(u.count && u.rent) ? f$(Number(u.count) * Number(u.rent)) : '-'}</td>
               <td><button class="btn btn-sm btn-bad" onclick="removeUnitRow(${idx})" title="Remove">×</button></td>
             </tr>
           `).join('')}
@@ -208,14 +208,14 @@ function renderUnitMixBlock() {
         <tfoot>
           <tr>
             <td><strong>Total</strong></td>
-            <td class="num"><strong>${totalUnits}</strong></td>
+            <td class="num" data-um-cell="total-units"><strong>${totalUnits}</strong></td>
             <td></td>
-            <td class="num"><strong>${f$(totalGpr)}</strong></td>
+            <td class="num" data-um-cell="total-gpr-monthly"><strong>${f$(totalGpr)}</strong></td>
             <td></td>
           </tr>
           <tr>
             <td colspan="3" style="color:var(--text2);font-size:11px">Annual GPR (× 12)</td>
-            <td class="num" style="color:var(--gold-lt)"><strong>${f$(totalGpr * 12)}</strong></td>
+            <td class="num" style="color:var(--gold-lt)" data-um-cell="total-gpr-annual"><strong>${f$(totalGpr * 12)}</strong></td>
             <td></td>
           </tr>
         </tfoot>
@@ -223,6 +223,12 @@ function renderUnitMixBlock() {
     </div>
   `;
 }
+
+// Debounce timer for unit_mix autosave so we don't spam Supabase
+// on every keystroke. Re-armed on each keystroke; fires 700ms after
+// the user stops typing. Matches the autosave debounce pattern used
+// in commitSection.
+let _umAutosaveTimer = null;
 
 function addUnitRow() {
   unitMix.push({ bed_type: '2br', count: 0, rent: 0 });
@@ -232,18 +238,73 @@ function addUnitRow() {
   updateDashboard();
 }
 
-function updateUnitRow(idx, field, value) {
+// Numeric field update (count or rent). Updates the underlying data,
+// recomputes ONLY the dependent cells (row GPR + footer totals)
+// without re-rendering the table. This preserves keyboard focus and
+// cursor position in the input the user is typing into -- critical
+// on mobile where re-rendering mid-keystroke kills the soft keyboard.
+function updateUnitRowField(idx, field, value) {
   if (!unitMix[idx]) return;
-  if (field === 'count' || field === 'rent') {
-    const n = Number(value);
-    unitMix[idx][field] = isFinite(n) ? n : 0;
-  } else {
-    unitMix[idx][field] = value;
-  }
+  const n = Number(value);
+  unitMix[idx][field] = isFinite(n) ? n : 0;
+
+  // Update the dependent display cells in-place (do not re-render)
+  _refreshUnitMixDerived();
+
+  // Debounce autosave + recompute + dashboard so they don't fire
+  // on every keystroke. Fires once 700ms after the user stops typing.
+  if (_umAutosaveTimer) clearTimeout(_umAutosaveTimer);
+  _umAutosaveTimer = setTimeout(() => {
+    autosave('unit_mix');
+    if (typeof recompute === 'function') recompute();
+    updateDashboard();
+  }, 700);
+}
+
+// Bed type change. Structural enough that a full re-render is fine
+// (the user is interacting with a select, not a text input, so focus
+// loss is not a concern).
+function updateUnitRowBedType(idx, value) {
+  if (!unitMix[idx]) return;
+  unitMix[idx].bed_type = value;
   renderUnitMixBlock();
   autosave('unit_mix');
   if (typeof recompute === 'function') recompute();
   updateDashboard();
+}
+
+// Refresh the GPR cell on each row and the footer totals without
+// re-rendering the inputs. Called by updateUnitRowField.
+function _refreshUnitMixDerived() {
+  let totalUnits = 0;
+  let totalGpr = 0;
+  for (let i = 0; i < unitMix.length; i++) {
+    const u = unitMix[i];
+    const c = Number(u.count) || 0;
+    const r = Number(u.rent) || 0;
+    const gpr = c * r;
+    totalUnits += c;
+    totalGpr += gpr;
+    const cell = document.querySelector(`[data-um-cell="gpr-${i}"]`);
+    if (cell) cell.textContent = (c && r) ? f$(gpr) : '-';
+  }
+  const tUnits = document.querySelector('[data-um-cell="total-units"]');
+  if (tUnits) tUnits.innerHTML = `<strong>${totalUnits}</strong>`;
+  const tGprM = document.querySelector('[data-um-cell="total-gpr-monthly"]');
+  if (tGprM) tGprM.innerHTML = `<strong>${f$(totalGpr)}</strong>`;
+  const tGprA = document.querySelector('[data-um-cell="total-gpr-annual"]');
+  if (tGprA) tGprA.innerHTML = `<strong>${f$(totalGpr * 12)}</strong>`;
+}
+
+// Backward-compat shim: anything that still calls the old
+// updateUnitRow(idx, field, value) entry point gets routed to the
+// new pair. Kept defensively for any HTML/code I might have missed.
+function updateUnitRow(idx, field, value) {
+  if (field === 'bed_type') {
+    updateUnitRowBedType(idx, value);
+  } else {
+    updateUnitRowField(idx, field, value);
+  }
 }
 
 function removeUnitRow(idx) {
