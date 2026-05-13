@@ -176,6 +176,8 @@
       <div class="print-page print-page-compact">
         ${_header(h, 'Recommendation · Thesis')}
 
+        ${typeof disclaimerInternalMemoMark === 'function' ? disclaimerInternalMemoMark() : ''}
+
         <div class="print-title pb-avoid">
           <div class="print-title-eyebrow">Internal Deal Memo</div>
           <h1 class="print-title-h1">${_esc(dealName)}</h1>
