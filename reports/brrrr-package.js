@@ -159,7 +159,7 @@
   function _narrative(deal, R, inputs, market, h) {
     const units = R.total_unit_count || 0;
     const purchase = inputs.purchase_price || 0;
-    const reno = inputs.reno_budget || 0;
+    const reno = inputs.capex_budget || 0;
     const tpc = R.total_project_cost || 0;
     const arv = R.stabilized_arv || 0;
     const noi = R.stabilized_noi || 0;
@@ -212,7 +212,7 @@
     const units = R.total_unit_count || 0;
     const ppu = units > 0 ? (inputs.purchase_price || 0) / units : 0;
     filler.push(`<strong>Acquisition basis.</strong> ${h.fmtMoney(inputs.purchase_price)} purchase price (${h.fmtMoney(ppu)} per unit) on a ${units}-unit asset.`);
-    filler.push(`<strong>Renovation scope.</strong> ${h.fmtMoney(inputs.reno_budget)} renovation budget over ${inputs.target_refi_months || 9}-month value-add hold.`);
+    filler.push(`<strong>Renovation scope.</strong> ${h.fmtMoney(inputs.capex_budget)} renovation budget over ${inputs.target_refi_months || 9}-month value-add hold.`);
     filler.push(`<strong>Exit assumptions.</strong> ${h.fmtPct(inputs.exit_cap, 2)} exit cap supports ${h.fmtMoneyK(R.stabilized_arv)} stabilized valuation.`);
     if (market && market.derived && market.derived.market_strength_grade) {
       filler.push(`<strong>Submarket grade.</strong> Grade ${market.derived.market_strength_grade} composite score in the ${market.cbsa_name || 'subject MSA'}.`);
@@ -241,11 +241,11 @@
     const totalSources = initialLoan + (R.initial_investor_equity || 0);
 
     const purchase = inputs.purchase_price || 0;
-    const reno = inputs.reno_budget || 0;
+    const reno = inputs.capex_budget || 0;
     const closing = R.closing_costs || 0;
     const consulting = R.consulting || 0;
     const carry = R.debt_service_pre_refi || 0;
-    const contingency = inputs.mobilization_contingency || 0;
+    const contingency = inputs.gc_contingency || 0;
     const totalUses = purchase + reno + closing + consulting + carry + contingency;
 
     // Closing cost breakdown
@@ -273,11 +273,11 @@
             <thead><tr><th>Uses</th><th class="num">Amount</th><th class="num">%</th></tr></thead>
             <tbody>
               <tr><td>Purchase Price</td><td class="num">${h.fmtMoney(purchase)}</td><td class="num">${h.fmtPct(purchase / Math.max(1, totalUses))}</td></tr>
-              <tr><td>Renovation Budget</td><td class="num">${h.fmtMoney(reno)}</td><td class="num">${h.fmtPct(reno / Math.max(1, totalUses))}</td></tr>
+              <tr><td>Capex Budget</td><td class="num">${h.fmtMoney(reno)}</td><td class="num">${h.fmtPct(reno / Math.max(1, totalUses))}</td></tr>
               <tr><td>Closing Costs</td><td class="num">${h.fmtMoney(closing)}</td><td class="num">${h.fmtPct(closing / Math.max(1, totalUses))}</td></tr>
               <tr><td>Consulting</td><td class="num">${h.fmtMoney(consulting)}</td><td class="num">${h.fmtPct(consulting / Math.max(1, totalUses))}</td></tr>
               <tr><td>Carry (DS pre-refi)</td><td class="num">${h.fmtMoney(carry)}</td><td class="num">${h.fmtPct(carry / Math.max(1, totalUses))}</td></tr>
-              <tr><td>Mobilization Contingency</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, totalUses))}</td></tr>
+              <tr><td>GC Contingency</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, totalUses))}</td></tr>
               <tr class="totals"><td>Total Uses</td><td class="num">${h.fmtMoney(totalUses)}</td><td class="num">100.0%</td></tr>
             </tbody>
           </table>
@@ -318,7 +318,7 @@
           <div class="pl-row"><span class="pl-lbl">Rate</span><span class="pl-val">${h.fmtPct(inputs.initial_rate, 2)}</span></div>
           <div class="pl-row"><span class="pl-lbl">Interest Type</span><span class="pl-val">${_esc(inputs.initial_interest_type || 'IO')}</span></div>
           <div class="pl-row"><span class="pl-lbl">LTV (Purchase)</span><span class="pl-val">${h.fmtPct(inputs.initial_loan_ltv)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">LTC + Reno</span><span class="pl-val">${h.fmtPct(inputs.initial_loan_ltc_reno)}</span></div>
+          <div class="pl-row"><span class="pl-lbl">LTC + Capex</span><span class="pl-val">${h.fmtPct(inputs.initial_loan_ltc_capex)}</span></div>
           <div class="pl-row"><span class="pl-lbl">Monthly DS</span><span class="pl-val">${h.fmtMoney(R.initial_monthly_ds)}</span></div>
           <div class="pl-row"><span class="pl-lbl">Annual DS</span><span class="pl-val">${h.fmtMoney(R.initial_annual_ds || R.initial_monthly_ds * 12)}</span></div>
           <div class="pl-row"><span class="pl-lbl">Refi Target</span><span class="pl-val">Month ${inputs.target_refi_months || 9}</span></div>
