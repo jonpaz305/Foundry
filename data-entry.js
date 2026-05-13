@@ -203,11 +203,9 @@ function renderDealSetupForm() {
             <input type="number" step="0.0001" value="${i.exit_cap ?? 0.0895}" oninput="onInputChange('exit_cap', this.value)"
                    ${(i.arv_source && i.arv_source !== 'income_approach') ? 'disabled style="opacity:0.55"' : ''}/>
             <div class="hint">${(i.arv_source && i.arv_source !== 'income_approach')
-              ? 'Disabled: ARV source is overridden below. The implied cap rate is shown next to the ARV field.'
+              ? 'Disabled: ARV source override is active. Change ARV source on the Capital tab to re-enable.'
               : 'Stabilized ARV = NOI / exit cap.'}</div></div>
         </div>
-
-        ${_renderArvSourceSection(i, typeof R === 'object' && R ? R : {}, typeof comps === 'object' && comps ? comps : [])}
       ` : `
         <div class="g3" style="margin-bottom:1rem">
           <div class="field"><label>Target hold period (months)</label>
@@ -903,6 +901,8 @@ function renderCapitalBlock() {
       ` : ''}
 
       ${mode === 'brrrr' ? `
+      ${_renderArvSourceSection(i, typeof R === 'object' && R ? R : {}, typeof comps === 'object' && comps ? comps : [])}
+
       <div class="ssub">Refinance (Takeout)</div>
       <div class="g3" style="margin-bottom:1rem">
         <div class="field"><label>Target refi LTV</label>
