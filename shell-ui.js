@@ -503,6 +503,9 @@ function renderReportsPage() {
       <div class="panel-sub" style="margin-bottom:1rem">
         Each report opens in a new tab and triggers your browser's print dialog. Choose "Save as PDF" to download. Filename auto-fills with deal and report metadata.
       </div>
+      <div class="panel-sub" style="margin-bottom:1rem;font-size:10px;color:var(--text3)">
+        Print tip: in the print dialog, expand "More settings" and uncheck "Headers and footers" to remove the default URL and timestamp from the PDF margins.
+      </div>
       <div class="report-grid">${cards}</div>
     </div>`;
 }
