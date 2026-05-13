@@ -827,6 +827,88 @@ function runM6_4() {
 }
 
 // ════════════════════════════════════════════════════════════════
+// M6.5 - INTERNAL DEAL MEMO (12 tests)
+// ════════════════════════════════════════════════════════════════
+function runM6_5() {
+  const g = group('M6.5 Memo');
+
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/internal-memo.js'), 'utf8'), ctx, { filename: 'reports/internal-memo.js' });
+
+  const HELPERS_SRC = `({
+    fmtMoney: (x, dec) => x == null || !isFinite(x) ? '-' : '$' + Number(x).toLocaleString(undefined, { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 }),
+    fmtMoneyK: (x) => x == null || !isFinite(x) ? '-' : (Math.abs(x) >= 1e6 ? '$' + (x/1e6).toFixed(2) + 'M' : (Math.abs(x) >= 1e3 ? '$' + (x/1e3).toFixed(0) + 'K' : '$' + Math.round(x))),
+    fmtPct: (x, dec) => x == null || !isFinite(x) ? '-' : (x*100).toFixed(dec == null ? 1 : dec) + '%',
+    fmtX: (x, dec) => x == null || !isFinite(x) ? '-' : Number(x).toFixed(dec == null ? 2 : dec) + 'x',
+    fmtInt: (x) => x == null || !isFinite(x) ? '-' : Math.round(x).toLocaleString(),
+    todayLong: () => 'May 13, 2026',
+    foundryLogo: () => ''
+  })`;
+
+  // ── BRRRR (clean 2048 deal)
+  loadBRRRR();
+  const brrrrHtml = vm.runInContext(`renderReport_internal_memo(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
+  check(g, 'BRRRR memo: renders without throwing', typeof brrrrHtml === 'string' && brrrrHtml.length > 0 ? 1 : 0, 1);
+  check(g, 'BRRRR memo: page count = 4 (no market/sponsor)', (brrrrHtml.match(/class="print-page print-page-compact"/g) || []).length, 4);
+  check(g, 'BRRRR memo: Internal Deal Memo eyebrow', brrrrHtml.includes('Internal Deal Memo') ? 1 : 0, 1);
+  check(g, 'BRRRR memo: recommendation banner present', brrrrHtml.includes('im-rec') ? 1 : 0, 1);
+  // 2048 fires 1 medium (contingency) - should be CONDITIONAL or PROCEED
+  check(g, 'BRRRR memo: recommendation is PROCEED or CONDITIONAL',
+    (brrrrHtml.includes('PROCEED') || brrrrHtml.includes('CONDITIONAL')) ? 1 : 0, 1);
+  check(g, 'BRRRR memo: deal facts sidebar', brrrrHtml.includes('im-facts-title') && brrrrHtml.includes('DEAL FACTS') ? 1 : 0, 1);
+  check(g, 'BRRRR memo: thesis paragraphs (bp-narrative)', (brrrrHtml.match(/bp-narrative/g) || []).length >= 3 ? 1 : 0, 1);
+  check(g, 'BRRRR memo: Devil\'s Advocate section', brrrrHtml.includes("Devil") ? 1 : 0, 1);
+  check(g, 'BRRRR memo: IC Questions numbered list', brrrrHtml.includes('im-questions') ? 1 : 0, 1);
+  check(g, 'BRRRR memo: stabilized NOI in facts ($130,442)', brrrrHtml.includes('$130,442') ? 1 : 0, 1);
+
+  // ── F&F (clean 2455 deal)
+  loadFF();
+  const ffHtml = vm.runInContext(`renderReport_internal_memo(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
+  check(g, 'F&F memo: renders without throwing', typeof ffHtml === 'string' && ffHtml.length > 0 ? 1 : 0, 1);
+  check(g, 'F&F memo: ARV $550K in facts sidebar', ffHtml.includes('$550,000') || ffHtml.includes('$550K') ? 1 : 0, 1);
+}
+
+// ════════════════════════════════════════════════════════════════
+// M6.6 - LENDER PACKAGE (14 tests, both modes)
+// ════════════════════════════════════════════════════════════════
+function runM6_6() {
+  const g = group('M6.6 Lender');
+
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/lender-package.js'), 'utf8'), ctx, { filename: 'reports/lender-package.js' });
+
+  const HELPERS_SRC = `({
+    fmtMoney: (x, dec) => x == null || !isFinite(x) ? '-' : '$' + Number(x).toLocaleString(undefined, { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 }),
+    fmtMoneyK: (x) => x == null || !isFinite(x) ? '-' : (Math.abs(x) >= 1e6 ? '$' + (x/1e6).toFixed(2) + 'M' : (Math.abs(x) >= 1e3 ? '$' + (x/1e3).toFixed(0) + 'K' : '$' + Math.round(x))),
+    fmtPct: (x, dec) => x == null || !isFinite(x) ? '-' : (x*100).toFixed(dec == null ? 1 : dec) + '%',
+    fmtX: (x, dec) => x == null || !isFinite(x) ? '-' : Number(x).toFixed(dec == null ? 2 : dec) + 'x',
+    fmtInt: (x) => x == null || !isFinite(x) ? '-' : Math.round(x).toLocaleString(),
+    todayLong: () => 'May 13, 2026',
+    foundryLogo: () => ''
+  })`;
+
+  // ── BRRRR mode (2048 deal)
+  loadBRRRR();
+  const brrrrHtml = vm.runInContext(`renderReport_lender_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
+  check(g, 'BRRRR: renders without throwing', typeof brrrrHtml === 'string' && brrrrHtml.length > 0 ? 1 : 0, 1);
+  check(g, 'BRRRR: page count = 6', (brrrrHtml.match(/class="print-page print-page-compact"/g) || []).length, 6);
+  check(g, 'BRRRR: header reads "Lender Package · BRRRR Bridge / Agency"', brrrrHtml.includes('BRRRR Bridge / Agency') ? 1 : 0, 1);
+  check(g, 'BRRRR: 6 debt metric tiles on cover', (brrrrHtml.match(/pk-tile-lbl/g) || []).length >= 6 ? 1 : 0, 1);
+  check(g, 'BRRRR: refi takeout section', brrrrHtml.includes('Refinance Takeout Sizing') ? 1 : 0, 1);
+  check(g, 'BRRRR: NOI build with Stabilized NOI $130,442', brrrrHtml.includes('$130,442') ? 1 : 0, 1);
+  check(g, 'BRRRR: stress scenarios table', brrrrHtml.includes('Refi Rate +50bp') && brrrrHtml.includes('Refi Rate +100bp') ? 1 : 0, 1);
+  check(g, 'BRRRR: Sponsor + Asset + Disclosures page', brrrrHtml.includes('Sponsor Profile') && brrrrHtml.includes('Asset Summary') && brrrrHtml.includes('Disclosures') ? 1 : 0, 1);
+
+  // ── F&F mode (2455 deal)
+  loadFF();
+  const ffHtml = vm.runInContext(`renderReport_lender_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
+  check(g, 'F&F: renders without throwing', typeof ffHtml === 'string' && ffHtml.length > 0 ? 1 : 0, 1);
+  check(g, 'F&F: page count = 6', (ffHtml.match(/class="print-page print-page-compact"/g) || []).length, 6);
+  check(g, 'F&F: header reads "Fix & Flip Bridge"', ffHtml.includes('Fix &amp; Flip Bridge') ? 1 : 0, 1);
+  check(g, 'F&F: ARV Defense section', ffHtml.includes('ARV Defense') ? 1 : 0, 1);
+  check(g, 'F&F: stress scenarios with sale price', ffHtml.includes('Sale Price -5%') && ffHtml.includes('Sale Price -10%') ? 1 : 0, 1);
+  check(g, 'F&F: comp grid in renovation/comp page', ffHtml.includes('ff-comp-table') ? 1 : 0, 1);
+}
+
+// ════════════════════════════════════════════════════════════════
 // Run
 // ════════════════════════════════════════════════════════════════
 runM2();
@@ -837,6 +919,8 @@ runM6();
 runM6_2();
 runM6_3();
 runM6_4();
+runM6_5();
+runM6_6();
 
 // ── Report ────────────────────────────────────────────────────
 console.log('');

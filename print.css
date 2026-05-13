@@ -1027,3 +1027,122 @@ html, body {
   color: #888;
   margin-top: 1pt;
 }
+
+
+/* ════════════════════════════════════════════════════════════════
+   M6.5 - Internal Deal Memo specifics
+   ════════════════════════════════════════════════════════════════ */
+
+/* Recommendation banner (color-coded per tier) */
+.im-rec {
+  padding: 14pt 18pt;
+  border-radius: 4pt;
+  border-left: 4pt solid;
+  margin-bottom: 10pt;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.im-rec-proceed {
+  background: rgba(26,102,48,0.08);
+  border-left-color: #1a6630;
+}
+.im-rec-conditional {
+  background: rgba(184,138,26,0.10);
+  border-left-color: #b88a1a;
+}
+.im-rec-reconsider {
+  background: rgba(160,24,24,0.08);
+  border-left-color: #a01818;
+}
+.im-rec-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11pt;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  margin-bottom: 5pt;
+}
+.im-rec-proceed .im-rec-label    { color: #1a6630; }
+.im-rec-conditional .im-rec-label { color: #6a4a00; }
+.im-rec-reconsider .im-rec-label  { color: #801010; }
+.im-rec-summary {
+  font-size: 9pt;
+  line-height: 1.55;
+  color: #1a1a1f;
+}
+
+/* Two-column layout for thesis (left) + deal facts sidebar (right) */
+.im-two-col {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 14pt;
+}
+.im-col-main {
+  /* sections inside flow naturally */
+}
+.im-col-side {
+  padding: 10pt 12pt;
+  background: #fafaf7;
+  border-left: 2pt solid #C9A84C;
+  align-self: start;
+}
+.im-facts-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #806008;
+  margin-bottom: 6pt;
+  padding-bottom: 4pt;
+  border-bottom: 0.5pt solid #d0c089;
+}
+.im-facts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2pt;
+}
+.im-fact-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 8pt;
+  padding: 1pt 0;
+  border-bottom: 0.3pt dotted #d0d0d6;
+  gap: 6pt;
+}
+.im-fact-lbl {
+  color: #555;
+}
+.im-fact-val {
+  font-family: 'IBM Plex Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #0a0a0b;
+  text-align: right;
+}
+
+/* Numbered IC questions / next steps */
+.im-questions {
+  margin: 0;
+  padding-left: 18pt;
+  font-size: 9pt;
+  line-height: 1.6;
+  color: #1a1a1f;
+}
+.im-questions li {
+  margin-bottom: 4pt;
+}
+.im-questions li::marker {
+  color: #C9A84C;
+  font-weight: 700;
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+   M6.6 - Lender Package specifics
+   ════════════════════════════════════════════════════════════════ */
+
+/* Stress scenario cell colors (matches sensitivity grid tone palette) */
+.lender-stress-good { color: #155028; background: rgba(26,102,48,0.10); font-weight: 700; }
+.lender-stress-warn { color: #6a4a00; background: rgba(184,138,26,0.12); font-weight: 700; }
+.lender-stress-bad  { color: #801010; background: rgba(160,24,24,0.10); font-weight: 700; }
+.lender-stress-neutral { color: #555; }
