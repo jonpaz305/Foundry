@@ -44,32 +44,59 @@
   }
 
   // ── Headline KPIs (4 tiles, mode-aware) ──
+  // Each tile carries a 'tone' (good/warn/bad/neutral) so the value renders
+  // in a color that matches the threshold (M5-aligned). Tone is computed
+  // against the same thresholds the Risk Register uses, so the snapshot
+  // and the register agree on what counts as a flag.
   function _kpiTiles(mode, R, h) {
     let tiles;
     if (mode === 'brrrr') {
       tiles = [
-        { lbl: 'Refi DSCR',         val: h.fmtX(R.dscr, 2),                  sub: 'Stabilized NOI / Refi DS' },
-        { lbl: 'Stabilized ARV',    val: h.fmtMoneyK(R.stabilized_arv),      sub: 'NOI / Exit Cap' },
-        { lbl: 'Capital Recapture', val: h.fmtPct(R.capital_recaptured_pct), sub: 'Refi proceeds / equity in' },
-        { lbl: 'Equity Multiple',   val: h.fmtX(R.equity_multiple, 2),       sub: 'Institutional (Y1-Y10)' }
+        { lbl: 'Refi DSCR',         val: h.fmtX(R.dscr, 2),                  sub: 'Stabilized NOI / Refi DS',
+          tone: _toneAbove(R.dscr, 1.05, 1.20) },
+        { lbl: 'Stabilized ARV',    val: h.fmtMoneyK(R.stabilized_arv),      sub: 'NOI / Exit Cap',
+          tone: 'neutral' },
+        { lbl: 'Capital Recapture', val: h.fmtPct(R.capital_recaptured_pct), sub: 'Refi proceeds / equity in',
+          tone: _toneAbove(_pctNorm(R.capital_recaptured_pct), 0.60, 0.80) },
+        { lbl: 'Equity Multiple',   val: h.fmtX(R.equity_multiple, 2),       sub: 'Institutional (Y1-Y10)',
+          tone: _toneAbove(R.equity_multiple, 1.5, 2.0) }
       ];
     } else {
       tiles = [
-        { lbl: 'ARV',           val: h.fmtMoneyK(R.arv),                sub: R.arv_source === 'override' ? 'Manual override' : 'Comp-derived' },
-        { lbl: 'Total Project', val: h.fmtMoneyK(R.total_project_cost), sub: 'Purchase + reno + carry' },
-        { lbl: 'Investor ROI',  val: h.fmtPct(R.investor_roi),          sub: 'Net proceeds / equity in' },
-        { lbl: 'Hold',          val: (inputs && inputs.target_hold_months ? inputs.target_hold_months + ' mo' : '-'), sub: 'Target sale window' }
+        { lbl: 'ARV',           val: h.fmtMoneyK(R.arv),                sub: R.arv_source === 'override' ? 'Manual override' : 'Comp-derived',
+          tone: 'neutral' },
+        { lbl: 'Total Project', val: h.fmtMoneyK(R.total_project_cost), sub: 'Purchase + reno + carry',
+          tone: 'neutral' },
+        { lbl: 'Investor ROI',  val: h.fmtPct(R.investor_roi),          sub: 'Net proceeds / equity in',
+          tone: _toneAbove(R.investor_roi, 0.10, 0.20) },
+        { lbl: 'Hold',          val: (inputs && inputs.target_hold_months ? inputs.target_hold_months + ' mo' : '-'), sub: 'Target sale window',
+          tone: 'neutral' }
       ];
     }
     return `
       <div class="print-kpis">
         ${tiles.map(t => `
-          <div class="pk-tile pb-avoid">
+          <div class="pk-tile pb-avoid pk-tone-${t.tone}">
             <div class="pk-tile-lbl">${_esc(t.lbl)}</div>
             <div class="pk-tile-val">${_esc(t.val)}</div>
             <div class="pk-tile-sub">${_esc(t.sub)}</div>
           </div>`).join('')}
       </div>`;
+  }
+
+  // Tone helpers: classify a value against a (high-warn, good-floor) pair.
+  // For "higher is better" metrics: value >= good is good, between is warn,
+  // below high-warn is bad.
+  function _toneAbove(v, highWarn, goodFloor) {
+    if (v == null || !isFinite(v)) return 'neutral';
+    if (v >= goodFloor) return 'good';
+    if (v >= highWarn) return 'warn';
+    return 'bad';
+  }
+  function _pctNorm(x) {
+    // capital_recaptured_pct may be 0..1 or 0..100; normalize to 0..1.
+    if (x == null || !isFinite(x)) return null;
+    return x > 1.5 ? x / 100 : x;
   }
 
   // ── Deal economics (2-col data list, mode-aware) ──
@@ -237,6 +264,12 @@
   function renderReport_deal_snapshot(deal, R, inputs, market, helpers) {
     const h = helpers || {};
     const mode = (deal && deal.deal_mode) || 'brrrr';
+    const dealName = (deal && deal.name) ? deal.name : 'Untitled Deal';
+    const addrLine = _addressLine(deal, inputs);
+
+    // If the deal name already includes the full address (a common pattern
+    // for raw acquisitions), don't repeat it as a subtitle.
+    const showAddrSub = addrLine && !_normalizeForCompare(dealName).includes(_normalizeForCompare(addrLine));
 
     return `
       <div class="print-page">
@@ -245,8 +278,8 @@
 
         <div class="print-title pb-avoid">
           <div class="print-title-eyebrow">Internal Deal Snapshot</div>
-          <h1 class="print-title-h1">${_esc(deal && deal.name ? deal.name : 'Untitled Deal')}</h1>
-          <div class="print-title-sub">${_esc(_addressLine(deal, inputs))} ${_modeBadge(mode)}</div>
+          <h1 class="print-title-h1">${_esc(dealName)}</h1>
+          <div class="print-title-sub">${showAddrSub ? _esc(addrLine) + ' ' : ''}${_modeBadge(mode)}</div>
         </div>
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Headline Metrics</div>
@@ -265,6 +298,10 @@
 
       </div>
     `;
+  }
+
+  function _normalizeForCompare(s) {
+    return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   }
 
   // Expose globally so print.js can dispatch into it.
