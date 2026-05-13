@@ -236,22 +236,38 @@
   // ── PAGE 2: SOURCES & USES + CAPITAL STACK + CLOSING COSTS ────
   function _page2(deal, R, inputs, market, h, pageNum, totalPages) {
     const initialLoan = R.initial_loan_amt || 0;
+    // M0.2: surface the two bridge tranches separately.
+    const acqTranche = R.acquisition_tranche || 0;
+    const conTranche = R.construction_tranche || 0;
+    const sponsorMob = R.sponsor_mobilization || 0;
+    const capexGap = R.capex_funding_gap || 0;
+    const capexDur = R.capex_duration_months_resolved || 6;
+
     const sponsorEquity = (R.initial_investor_equity || 0) * (1 - (inputs.investor_ownership || 0));
     const lpEquity = (R.initial_investor_equity || 0) * (inputs.investor_ownership || 0);
     const totalSources = initialLoan + (R.initial_investor_equity || 0);
 
     const purchase = inputs.purchase_price || 0;
-    const reno = inputs.capex_budget || 0;
+    const capex = inputs.capex_budget || 0;
     const closing = R.closing_costs || 0;
     const consulting = R.consulting || 0;
     const carry = R.debt_service_pre_refi || 0;
     const contingency = inputs.gc_contingency || 0;
-    const totalUses = purchase + reno + closing + consulting + carry + contingency;
+    const totalUses = purchase + capex + closing + consulting + carry + contingency;
 
     // Closing cost breakdown
     const ccBaseline = inputs.closing_cost_baseline || 0;
     const ccLoan = (inputs.closing_cost_loan_pct || 0) * initialLoan;
     const ccTransfer = inputs.closing_cost_transfer_addon || 0;
+
+    // Capital Stack segment widths. The two debt segments are sized
+    // proportional to their tranche dollars. Sponsor + LP equity stack
+    // above. Defensive math so all four segments sum to 100%.
+    const acqPct = (acqTranche / Math.max(1, totalSources)) * 100;
+    const conPct = (conTranche / Math.max(1, totalSources)) * 100;
+    const spPct  = (sponsorEquity / Math.max(1, totalSources)) * 100;
+    const lpPct  = (lpEquity / Math.max(1, totalSources)) * 100;
+    const debtPct = (initialLoan / Math.max(1, totalSources));
 
     return `
       <div class="print-page print-page-compact">
@@ -262,7 +278,9 @@
           <table class="print-table pb-avoid">
             <thead><tr><th>Sources</th><th class="num">Amount</th><th class="num">%</th></tr></thead>
             <tbody>
-              <tr><td>Senior Debt (Bridge)</td><td class="num">${h.fmtMoney(initialLoan)}</td><td class="num">${h.fmtPct(initialLoan / Math.max(1, totalSources))}</td></tr>
+              <tr><td>Senior Debt: Acquisition Tranche</td><td class="num">${h.fmtMoney(acqTranche)}</td><td class="num">${h.fmtPct(acqTranche / Math.max(1, totalSources))}</td></tr>
+              <tr><td>Senior Debt: Construction Tranche</td><td class="num">${h.fmtMoney(conTranche)}</td><td class="num">${h.fmtPct(conTranche / Math.max(1, totalSources))}</td></tr>
+              <tr><td style="padding-left:1.5em">Total Bridge</td><td class="num">${h.fmtMoney(initialLoan)}</td><td class="num">${h.fmtPct(debtPct)}</td></tr>
               <tr><td>Sponsor Equity</td><td class="num">${h.fmtMoney(sponsorEquity)}</td><td class="num">${h.fmtPct(sponsorEquity / Math.max(1, totalSources))}</td></tr>
               <tr><td>LP Equity</td><td class="num">${h.fmtMoney(lpEquity)}</td><td class="num">${h.fmtPct(lpEquity / Math.max(1, totalSources))}</td></tr>
               <tr class="totals"><td>Total Sources</td><td class="num">${h.fmtMoney(totalSources)}</td><td class="num">100.0%</td></tr>
@@ -273,7 +291,7 @@
             <thead><tr><th>Uses</th><th class="num">Amount</th><th class="num">%</th></tr></thead>
             <tbody>
               <tr><td>Purchase Price</td><td class="num">${h.fmtMoney(purchase)}</td><td class="num">${h.fmtPct(purchase / Math.max(1, totalUses))}</td></tr>
-              <tr><td>Capex Budget</td><td class="num">${h.fmtMoney(reno)}</td><td class="num">${h.fmtPct(reno / Math.max(1, totalUses))}</td></tr>
+              <tr><td>Capex Budget</td><td class="num">${h.fmtMoney(capex)}</td><td class="num">${h.fmtPct(capex / Math.max(1, totalUses))}</td></tr>
               <tr><td>Closing Costs</td><td class="num">${h.fmtMoney(closing)}</td><td class="num">${h.fmtPct(closing / Math.max(1, totalUses))}</td></tr>
               <tr><td>Consulting</td><td class="num">${h.fmtMoney(consulting)}</td><td class="num">${h.fmtPct(consulting / Math.max(1, totalUses))}</td></tr>
               <tr><td>Carry (DS pre-refi)</td><td class="num">${h.fmtMoney(carry)}</td><td class="num">${h.fmtPct(carry / Math.max(1, totalUses))}</td></tr>
@@ -283,21 +301,37 @@
           </table>
         </div>
 
+        <div class="bp-capex-note pb-avoid" style="font-size:9pt;color:var(--print-muted);margin-top:6pt;line-height:1.4">
+          Sponsor mobilization (capex pre-funding): <strong>${h.fmtMoney(sponsorMob)}</strong>.
+          Construction tranche funds ${h.fmtPct(inputs.initial_loan_ltc_capex)} of capex via draws over a ${capexDur}-month execution window.
+          ${capexGap > 0 ? `Capex funding gap: <strong>${h.fmtMoney(capexGap)}</strong> covered by sponsor equity above mobilization.` : 'Construction tranche fully funds capex (no sponsor capex gap).'}
+        </div>
+
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Capital Structure</div>
         <div class="bp-capstack pb-avoid">
           <div class="bp-capstack-bar">
-            <div class="bp-capstack-seg bp-seg-debt" style="width:${(initialLoan / Math.max(1, totalSources) * 100).toFixed(1)}%">
-              <span class="bp-seg-lbl">Debt</span>
-              <span class="bp-seg-val">${h.fmtPct(initialLoan / Math.max(1, totalSources), 0)}</span>
+            <div class="bp-capstack-seg bp-seg-debt-acq" style="width:${acqPct.toFixed(1)}%">
+              <span class="bp-seg-lbl">Acq</span>
+              <span class="bp-seg-val">${h.fmtPct(acqTranche / Math.max(1, totalSources), 0)}</span>
             </div>
-            <div class="bp-capstack-seg bp-seg-sponsor" style="width:${(sponsorEquity / Math.max(1, totalSources) * 100).toFixed(1)}%">
+            <div class="bp-capstack-seg bp-seg-debt-con" style="width:${conPct.toFixed(1)}%">
+              <span class="bp-seg-lbl">Con</span>
+              <span class="bp-seg-val">${h.fmtPct(conTranche / Math.max(1, totalSources), 0)}</span>
+            </div>
+            <div class="bp-capstack-seg bp-seg-sponsor" style="width:${spPct.toFixed(1)}%">
               <span class="bp-seg-lbl">Sponsor</span>
               <span class="bp-seg-val">${h.fmtPct(sponsorEquity / Math.max(1, totalSources), 0)}</span>
             </div>
-            <div class="bp-capstack-seg bp-seg-lp" style="width:${(lpEquity / Math.max(1, totalSources) * 100).toFixed(1)}%">
+            <div class="bp-capstack-seg bp-seg-lp" style="width:${lpPct.toFixed(1)}%">
               <span class="bp-seg-lbl">LP</span>
               <span class="bp-seg-val">${h.fmtPct(lpEquity / Math.max(1, totalSources), 0)}</span>
             </div>
+          </div>
+          <div class="bp-capstack-legend" style="display:flex;gap:1.5em;font-size:8.5pt;color:var(--print-muted);margin-top:6pt;flex-wrap:wrap">
+            <span><span class="bp-legend-swatch bp-seg-debt-acq"></span> Senior Debt: Acquisition Tranche</span>
+            <span><span class="bp-legend-swatch bp-seg-debt-con"></span> Senior Debt: Construction Tranche</span>
+            <span><span class="bp-legend-swatch bp-seg-sponsor"></span> Sponsor Equity</span>
+            <span><span class="bp-legend-swatch bp-seg-lp"></span> LP Equity</span>
           </div>
         </div>
 
@@ -314,13 +348,13 @@
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Initial Debt Terms (Bridge)</div>
         <div class="print-list pb-avoid">
-          <div class="pl-row"><span class="pl-lbl">Loan Amount</span><span class="pl-val">${h.fmtMoney(initialLoan)}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Acquisition Tranche</span><span class="pl-val">${h.fmtMoney(acqTranche)} (${h.fmtPct(inputs.initial_loan_ltv)} of purchase)</span></div>
+          <div class="pl-row"><span class="pl-lbl">Construction Tranche</span><span class="pl-val">${h.fmtMoney(conTranche)} (${h.fmtPct(inputs.initial_loan_ltc_capex)} of capex, draws over ${capexDur} mo)</span></div>
+          <div class="pl-row"><span class="pl-lbl">Total Bridge</span><span class="pl-val">${h.fmtMoney(initialLoan)}</span></div>
           <div class="pl-row"><span class="pl-lbl">Rate</span><span class="pl-val">${h.fmtPct(inputs.initial_rate, 2)}</span></div>
           <div class="pl-row"><span class="pl-lbl">Interest Type</span><span class="pl-val">${_esc(inputs.initial_interest_type || 'IO')}</span></div>
-          <div class="pl-row"><span class="pl-lbl">LTV (Purchase)</span><span class="pl-val">${h.fmtPct(inputs.initial_loan_ltv)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">LTC + Capex</span><span class="pl-val">${h.fmtPct(inputs.initial_loan_ltc_capex)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Monthly DS</span><span class="pl-val">${h.fmtMoney(R.initial_monthly_ds)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Annual DS</span><span class="pl-val">${h.fmtMoney(R.initial_annual_ds || R.initial_monthly_ds * 12)}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Monthly DS (full balance)</span><span class="pl-val">${h.fmtMoney(R.initial_monthly_ds)}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Total Carry to Refi</span><span class="pl-val">${h.fmtMoney(carry)}</span></div>
           <div class="pl-row"><span class="pl-lbl">Refi Target</span><span class="pl-val">Month ${inputs.target_refi_months || 9}</span></div>
         </div>
 
