@@ -1,24 +1,27 @@
 // ════════════════════════════════════════════════════════════════
-// FOUNDRY M6.5 - Internal Deal Memo Report
+// FOUNDRY M6.6.1 - Lender Package Report (5-page consolidated)
 // ════════════════════════════════════════════════════════════════
-// Mode-aware internal IC memo. 3-5 pages. Narrative-heavy, lighter
-// on tables than the BRRRR/F&F packages. For internal use only:
-// you, Jorge, Vladi, Ruby, Alexei deciding whether to commit capital.
+// Mode-aware debt-sizing-focused deliverable for bridge or agency
+// lenders. BRRRR mode emphasizes refi takeout + stabilized DSCR;
+// F&F mode emphasizes ARV defense + sale-velocity stress.
 //
-// Opens with a recommendation banner auto-derived from M5 risk
-// register. Then: thesis, business plan, key risks, Devil's Advocate
-// section, what we'd need to believe, IC questions, next steps.
+// Audience: hard money lender (F&F bridge), bridge lender (BRRRR
+// acquisition phase), or agency lender (BRRRR takeout). Less prose,
+// more institutional tables. No "investment thesis" narrative since
+// lenders don't care about the equity story.
 //
 // CONTRACT
-//   window.renderReport_internal_memo(deal, R, inputs, market, helpers)
+//   window.renderReport_lender_package(deal, R, inputs, market, helpers)
 //     -> HTML string (multiple .print-page elements)
 //
-// PAGES
-//   1  Cover + Recommendation + Headline KPIs + Executive Summary
-//   2  Investment Thesis + Business Plan + Deal Facts sidebar
-//   3  Key Risks + Devil's Advocate + Mitigation Strategy
-//   4  What We'd Need to Believe + IC Questions + Next Steps
-//   5  Market Strength + Sponsor (combined, conditional)
+// PAGES (mode-aware, 5 pages)
+//   1  Cover + Executive Summary + Loan Request + Debt Metrics
+//   2  S&U + Capital Stack + Sponsor Skin + Initial Debt Terms
+//   3  BRRRR: Refi Takeout + Bridge Payoff + Refi Position
+//      F&F:   ARV Defense + Disposition + Exit Velocity
+//   4  BRRRR: Unit Mix + Operating Build + Stress Scenarios
+//      F&F:   Reno Scope + Comp Set + Stress Scenarios
+//   5  Sponsor + Asset + Market + Disclosures
 // ════════════════════════════════════════════════════════════════
 
 (function () {
@@ -54,14 +57,22 @@
   }
 
   function _modeLabel(mode) {
-    if (mode === 'brrrr') return 'BRRRR';
-    if (mode === 'fix_and_flip') return 'Fix & Flip';
-    return 'Deal';
+    if (mode === 'brrrr') return 'BRRRR Bridge / Agency';
+    if (mode === 'fix_and_flip') return 'Fix & Flip Bridge';
+    return 'Loan';
+  }
+
+  // Per-door helpers (Path C UX). Returns just the per-unit figure for
+  // dropping into a "$/Door" table column. Returns empty string when
+  // units = 0 so column cells stay clean.
+  function _perDoorOnly(value, units) {
+    if (!units || units <= 0 || value == null || !isFinite(value) || value === 0) return '';
+    return '$' + Math.round(Number(value) / units).toLocaleString() + '/door';
   }
 
 
   // ── HEADER + FOOTER ───────────────────────────────────────────
-  function _header(h, pageLabel) {
+  function _header(h, pageLabel, mode) {
     const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
     const coName = co && co.name ? co.name : 'ASJP';
     const coSub = co && co.subtitle ? co.subtitle : '';
@@ -76,7 +87,7 @@
           ${coSub ? `<div class="ph-co-sub">${_esc(coSub)}</div>` : ''}
         </div>
         <div class="ph-meta">
-          <div><strong>Internal Deal Memo</strong></div>
+          <div><strong>Lender Package</strong> · ${_esc(_modeLabel(mode))}</div>
           <div>${_esc(pageLabel || '')}</div>
           <div>${_esc(h.todayLong())}</div>
         </div>
@@ -86,470 +97,718 @@
   function _footer(pageNum, totalPages) {
     const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
     const coName = co && co.name ? co.name : 'ASJP';
-    // Engine version stamp (Layer 2 audit Finding 1). Even though this
-    // is an internal IC document, a snapshot or accidental external
-    // forward needs to be traceable back to a specific engine version
-    // and its CHANGELOG entry.
-    const v = (typeof FOUNDRY_ENGINE_VERSION === 'string' && FOUNDRY_ENGINE_VERSION) ? FOUNDRY_ENGINE_VERSION : 'unversioned';
-    const d = (typeof FOUNDRY_ENGINE_VERSION_DATE === 'string' && FOUNDRY_ENGINE_VERSION_DATE) ? FOUNDRY_ENGINE_VERSION_DATE : '';
-    const versionStamp = `Engine ${_esc(v)}${d ? ' (' + _esc(d) + ')' : ''}`;
     return `
       <div class="print-footer pb-avoid">
-        <div class="pf-conf">Internal Use Only · ${_esc(coName)} IC · <span style="font-style:italic;color:var(--print-muted)">${versionStamp}</span></div>
+        <div class="pf-conf">Confidential · ${_esc(coName)}</div>
         <div class="pf-page">${pageNum} of ${totalPages}</div>
       </div>`;
   }
 
 
-  // ── RECOMMENDATION ENGINE ─────────────────────────────────────
-  // Auto-derive an IC recommendation from the M5 risk register + key
-  // engine outputs. Three tiers:
-  //   PROCEED      - 0 high-severity risks, deal economics within targets
-  //   CONDITIONAL  - 0-1 high risks, mitigation required
-  //   RECONSIDER   - 2+ high risks or core economics fail (DSCR<1.05,
-  //                  recapture<60%, negative value creation, EM<1.5x)
-  // The recommendation is a starting point for IC discussion, never
-  // a binding call. Marked DRAFT.
-  function _computeRecommendation(R, mode, risks) {
-    const high = risks.filter(r => r.severity === 'high' && !r.resolved).length;
-    const medium = risks.filter(r => r.severity === 'medium' && !r.resolved).length;
-
-    const vc = _pctNorm(R.value_creation_pct);
-    const em = R.equity_multiple;
-    const roi = R.investor_roi;
-
-    let coreFailed = false;
-    let reasons = [];
-
-    if (mode === 'brrrr') {
-      if (R.dscr != null && R.dscr < 1.05) { coreFailed = true; reasons.push('DSCR below 1.05'); }
-      if (R.capital_recaptured_pct != null && _pctNorm(R.capital_recaptured_pct) < 0.60) { coreFailed = true; reasons.push('capital recapture below 60%'); }
-      if (vc != null && vc < 0.05) { coreFailed = true; reasons.push('value creation below 5%'); }
-      if (em != null && em < 1.5) { coreFailed = true; reasons.push('equity multiple below 1.5x'); }
-    } else {
-      if (roi != null && roi < 0.10) { coreFailed = true; reasons.push('ROI below 10%'); }
-      if (vc != null && vc < 0.05) { coreFailed = true; reasons.push('value creation below 5%'); }
-      if (R.comp_count_sales != null && R.comp_count_sales < 2) { coreFailed = true; reasons.push('insufficient comp coverage'); }
-    }
-
-    if (high >= 2 || coreFailed) {
-      return {
-        tier: 'reconsider',
-        label: 'RECONSIDER',
-        summary: `${high} high-severity risk${high === 1 ? '' : 's'} flagged${coreFailed ? '; core economics fail (' + reasons.join(', ') + ')' : ''}. Deal as currently structured does not meet institutional underwriting standards. Restructure or pass.`
-      };
-    }
-    if (high === 1 || medium >= 3) {
-      return {
-        tier: 'conditional',
-        label: 'CONDITIONAL',
-        summary: `${high} high-severity and ${medium} medium-severity risk${medium === 1 ? '' : 's'} flagged. Proceed subject to documented mitigation on each open item before capital commitment.`
-      };
-    }
-    return {
-      tier: 'proceed',
-      label: 'PROCEED',
-      summary: `Engine and market modules ran ${high === 0 && medium === 0 ? 'clean' : 'with only ' + medium + ' medium-severity flag' + (medium === 1 ? '' : 's')}. Recommend advancing to LOI / acquisition diligence.`
-    };
-  }
-
-
-  // ── PAGE 1: COVER + RECOMMENDATION + KPIs + EXEC SUMMARY ──────
-  // ── PAGE 1: COVER + RECOMMENDATION + KPIs + EXEC + THESIS ─────
-  function _page1(deal, R, inputs, market, h, pageNum, totalPages) {
+  // ── PAGE 1: COVER + EXEC SUMMARY + LOAN REQUEST + DEBT METRICS
+  function _page1(deal, R, inputs, market, h, mode, pageNum, totalPages) {
     const dealName = (deal && deal.name) ? deal.name : 'Untitled Deal';
     const addrLine = _addressLine(deal, inputs);
     const showAddrSub = addrLine && !_normForCmp(dealName).includes(_normForCmp(addrLine));
-    const mode = (deal && deal.deal_mode) || 'brrrr';
     const modeLbl = _modeLabel(mode);
 
-    let risks = [];
-    if (typeof assembleRisks === 'function') risks = assembleRisks();
-    const rec = _computeRecommendation(R, mode, risks);
+    const tiles = [];
+    if (mode === 'brrrr') {
+      const refi_ltv = (R.refi_loan_amount > 0 && R.stabilized_arv > 0) ? R.refi_loan_amount / R.stabilized_arv : null;
+      const debt_yield_initial = (R.stabilized_noi > 0 && R.initial_loan_amt > 0) ? R.stabilized_noi / R.initial_loan_amt : null;
+      const debt_yield_refi = (R.stabilized_noi > 0 && R.refi_loan_amount > 0) ? R.stabilized_noi / R.refi_loan_amount : null;
+      const initial_ltc = (R.initial_loan_amt > 0 && R.total_project_cost > 0) ? R.initial_loan_amt / R.total_project_cost : null;
 
-    const tiles = mode === 'brrrr' ? [
-      { lbl: 'Refi DSCR',         val: h.fmtX(R.dscr, 2),                  tone: _toneAbove(R.dscr, 1.05, 1.20) },
-      { lbl: 'Capital Recapture', val: h.fmtPct(R.capital_recaptured_pct), tone: _toneAbove(_pctNorm(R.capital_recaptured_pct), 0.60, 0.80) },
-      { lbl: 'Equity Multiple',   val: h.fmtX(R.equity_multiple, 2),       tone: _toneAbove(R.equity_multiple, 1.5, 2.0) },
-      { lbl: 'Investor IRR',      val: h.fmtPct(R.investor_irr),           tone: _toneAbove(R.investor_irr, 0.12, 0.18) }
-    ] : [
-      { lbl: 'ARV',               val: h.fmtMoneyK(R.arv),                  tone: 'neutral' },
-      { lbl: 'Total Project',     val: h.fmtMoneyK(R.total_project_cost),   tone: 'neutral' },
-      { lbl: 'Investor ROI',      val: h.fmtPct(R.investor_roi),            tone: _toneAbove(R.investor_roi, 0.10, 0.20) },
-      { lbl: 'Annualized Return', val: h.fmtPct(R.annualized_return),       tone: _toneAbove(R.annualized_return, 0.20, 0.35) }
-    ];
+      tiles.push({ lbl: 'Loan Amount',          val: h.fmtMoneyK(R.initial_loan_amt),     sub: 'Bridge (Acquisition + Reno)', tone: 'neutral' });
+      tiles.push({ lbl: 'Refi DSCR',            val: h.fmtX(R.dscr, 2),                   sub: 'Stabilized NOI / Refi DS',    tone: _toneAbove(R.dscr, 1.05, 1.20) });
+      tiles.push({ lbl: 'Refi Debt Yield',      val: h.fmtPct(debt_yield_refi),           sub: 'NOI / Refi Loan',             tone: _toneAbove(debt_yield_refi, 0.085, 0.10) });
+      tiles.push({ lbl: 'Refi LTV',             val: h.fmtPct(refi_ltv),                  sub: 'Refi Loan / ARV',             tone: _toneBelow(refi_ltv, 0.80, 0.75) });
+      tiles.push({ lbl: 'Initial LTC',          val: h.fmtPct(initial_ltc),               sub: 'Bridge / TPC',                tone: _toneBelow(initial_ltc, 0.85, 0.75) });
+      tiles.push({ lbl: 'Initial Debt Yield',   val: h.fmtPct(debt_yield_initial),        sub: 'NOI / Bridge Loan',           tone: _toneAbove(debt_yield_initial, 0.085, 0.10) });
+    } else {
+      const ltv = (R.initial_loan_amt > 0 && R.arv > 0) ? R.initial_loan_amt / R.arv : null;
+      const ltc = (R.initial_loan_amt > 0 && R.total_project_cost > 0) ? R.initial_loan_amt / R.total_project_cost : null;
+      const in_basis = (R.total_project_cost > 0 && R.arv > 0) ? R.total_project_cost / R.arv : null;
+
+      tiles.push({ lbl: 'Loan Amount',          val: h.fmtMoneyK(R.initial_loan_amt),     sub: 'Acquisition + Reno Bridge',   tone: 'neutral' });
+      tiles.push({ lbl: 'LTV (vs ARV)',         val: h.fmtPct(ltv),                       sub: 'Loan / Final ARV',            tone: _toneBelow(ltv, 0.75, 0.65) });
+      tiles.push({ lbl: 'LTC',                  val: h.fmtPct(ltc),                       sub: 'Loan / TPC',                  tone: _toneBelow(ltc, 0.85, 0.75) });
+      tiles.push({ lbl: 'In-Basis',             val: h.fmtPct(in_basis),                  sub: 'TPC / ARV',                   tone: _toneBelow(in_basis, 0.80, 0.70) });
+      tiles.push({ lbl: 'Sponsor Equity',       val: h.fmtMoneyK(R.investor_equity),      sub: 'Cash at risk',                tone: 'neutral' });
+      tiles.push({ lbl: 'Hold Period',          val: (inputs.target_hold_months || 0) + ' mo', sub: 'Acquisition to sale',     tone: 'neutral' });
+    }
 
     return `
       <div class="print-page print-page-compact">
-        ${_header(h, 'Recommendation · Thesis')}
-
-        ${typeof disclaimerInternalMemoMark === 'function' ? disclaimerInternalMemoMark() : ''}
+        ${_header(h, 'Cover · Loan Request', mode)}
 
         <div class="print-title pb-avoid">
-          <div class="print-title-eyebrow">Internal Deal Memo</div>
+          <div class="print-title-eyebrow">Lender Package · ${_esc(modeLbl)}</div>
           <h1 class="print-title-h1">${_esc(dealName)}</h1>
           <div class="print-title-sub">
-            ${showAddrSub ? _esc(addrLine) + ' · ' : ''}${_esc(_assetTypeLabel(inputs.asset_type))} · <span class="ds-mode-pill">${modeLbl}</span>
+            ${showAddrSub ? _esc(addrLine) + ' · ' : ''}${_esc(_assetTypeLabel(inputs.asset_type))}${R.total_unit_count > 0 ? ' · ' + R.total_unit_count + ' units' : ''} · <span class="ds-mode-pill">${mode === 'brrrr' ? 'BRRRR' : 'Fix &amp; Flip'}</span>
           </div>
         </div>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>IC Recommendation <span class="bp-draft-tag">DRAFT</span></div>
-        <div class="im-rec im-rec-${rec.tier} pb-avoid">
-          <div class="im-rec-label">${rec.label}</div>
-          <div class="im-rec-summary">${rec.summary}</div>
-        </div>
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Executive Summary</div>
+        ${_execSummary(deal, R, inputs, mode, market, h)}
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Headline Metrics</div>
-        <div class="print-kpis">
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Loan Request</div>
+        ${_loanRequest(R, inputs, mode, h)}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Debt Metrics</div>
+        <div class="print-kpis cols-3">
           ${tiles.map(t => `
             <div class="pk-tile pb-avoid pk-tone-${t.tone}">
               <div class="pk-tile-lbl">${_esc(t.lbl)}</div>
               <div class="pk-tile-val">${_toneGlyph(t.tone)}${_esc(t.val)}</div>
+              <div class="pk-tile-sub">${_esc(t.sub)}</div>
             </div>`).join('')}
         </div>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Executive Summary <span class="bp-draft-tag">DRAFT</span></div>
-        ${_executiveSummary(R, inputs, mode, market, h)}
-
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Investment Thesis <span class="bp-draft-tag">DRAFT</span></div>
-        ${_thesis(R, inputs, mode, market, h)}
-
         ${_footer(pageNum, totalPages)}
       </div>`;
   }
 
-  // ── PAGE 2: BUSINESS PLAN + RISKS + DEVIL'S ADVOCATE + DEAL FACTS
-  function _page2(deal, R, inputs, market, h, pageNum, totalPages) {
-    const mode = (deal && deal.deal_mode) || 'brrrr';
-    let risks = [];
-    if (typeof assembleRisks === 'function') risks = assembleRisks();
-    const top5 = risks.filter(r => !r.resolved).slice(0, 5);
 
-    const renderRow = (r) => `
-      <div class="print-risk-row risk-${_esc(r.severity || 'medium')}">
-        <div class="print-risk-row-meta">
-          <span>${_esc((r.severity || 'medium').toUpperCase())}</span>
-          <span> · </span>
-          <span>${_esc(r.source || 'engine')}</span>
-          <span> · </span>
-          <span>${_esc(r.category || '-')}</span>
-        </div>
-        <div class="print-risk-row-title">${_esc(r.title || 'Untitled risk')}</div>
-        <div class="ds-risk-detail">${_esc(r.detail || '')}</div>
-      </div>`;
-
-    return `
-      <div class="print-page print-page-compact">
-        ${_header(h, 'Business Plan · Risks · Devil\'s Advocate')}
-
-        <div class="im-two-col pb-avoid">
-          <div class="im-col-main">
-            <div class="print-section pb-avoid"><span class="ps-accent"></span>Business Plan <span class="bp-draft-tag">DRAFT</span></div>
-            ${_businessPlan(R, inputs, mode, h)}
-
-            <div class="print-section pb-avoid"><span class="ps-accent"></span>Top Risks</div>
-            ${top5.length > 0 ? `
-              <div class="ds-risks-list">${top5.map(renderRow).join('')}</div>
-            ` : `
-              <div class="ds-risks-clear pb-avoid">
-                <span class="ds-risks-clear-icon">✓</span>
-                <span class="ds-risks-clear-text">No unresolved risks flagged. Confirm with diligence findings before final commitment.</span>
-              </div>
-            `}
-
-            <div class="print-section pb-avoid"><span class="ps-accent"></span>Devil's Advocate <span class="bp-draft-tag">DRAFT</span></div>
-            ${_devilsAdvocate(R, inputs, mode, risks, h)}
-          </div>
-
-          <div class="im-col-side">
-            <div class="im-facts-title">DEAL FACTS</div>
-            ${_dealFacts(R, inputs, mode, h)}
-          </div>
-        </div>
-
-        ${_footer(pageNum, totalPages)}
-      </div>`;
-  }
-
-  // ── PAGE 3: WWNTB + IC QUESTIONS + NEXT STEPS + MARKET CONTEXT
-  function _page3(deal, R, inputs, market, h, pageNum, totalPages) {
-    const mode = (deal && deal.deal_mode) || 'brrrr';
-    const d = market && market.derived;
-    const c = market && market.census;
-    const hasMarket = d && d.market_strength_score != null;
-
-    return `
-      <div class="print-page print-page-compact">
-        ${_header(h, 'IC Action Items')}
-
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>What We'd Need to Believe</div>
-        ${_wwntb(R, inputs, mode, market, h)}
-
-        <div class="im-two-col pb-avoid">
-          <div class="im-col-main">
-            <div class="print-section pb-avoid"><span class="ps-accent"></span>IC Questions</div>
-            ${_icQuestions(R, inputs, mode, h)}
-
-            <div class="print-section pb-avoid"><span class="ps-accent"></span>Next Steps</div>
-            ${_nextSteps(R, inputs, mode, h)}
-          </div>
-
-          <div class="im-col-side">
-            <div class="im-facts-title">MARKET CONTEXT</div>
-            ${hasMarket ? `
-              <div class="im-facts-list pb-avoid">
-                <div class="im-fact-row"><span class="im-fact-lbl">Grade</span><span class="im-fact-val">${_esc(d.market_strength_grade || '-')}</span></div>
-                <div class="im-fact-row"><span class="im-fact-lbl">Score</span><span class="im-fact-val">${Math.round(d.market_strength_score)} / 100</span></div>
-                <div class="im-fact-row"><span class="im-fact-lbl">MSA</span><span class="im-fact-val">${_esc(market.cbsa_name || 'Unknown')}</span></div>
-                ${c ? `
-                <div class="im-fact-row"><span class="im-fact-lbl">Median HH Income</span><span class="im-fact-val">${h.fmtMoney(c.median_household_income)}</span></div>
-                <div class="im-fact-row"><span class="im-fact-lbl">Median Rent</span><span class="im-fact-val">${h.fmtMoney(c.median_rent)}</span></div>
-                <div class="im-fact-row"><span class="im-fact-lbl">Rental Vacancy</span><span class="im-fact-val">${h.fmtPct(c.rental_vacancy_rate)}</span></div>
-                <div class="im-fact-row"><span class="im-fact-lbl">Unemployment</span><span class="im-fact-val">${h.fmtPct(c.unemployment_rate)}</span></div>
-                <div class="im-fact-row"><span class="im-fact-lbl">Poverty Rate</span><span class="im-fact-val">${h.fmtPct(c.poverty_rate)}</span></div>
-                <div class="im-fact-row"><span class="im-fact-lbl">Bachelors+</span><span class="im-fact-val">${h.fmtPct(c.bachelors_or_higher_pct)}</span></div>
-                <div class="im-fact-row"><span class="im-fact-lbl">Owner-Occupied</span><span class="im-fact-val">${h.fmtPct(c.owner_occupied_pct)}</span></div>
-                <div class="im-fact-row"><span class="im-fact-lbl">Median Home Value</span><span class="im-fact-val">${h.fmtMoney(c.median_home_value)}</span></div>
-                ` : ''}
-              </div>
-            ` : `
-              <div style="font-size:8pt;color:#888;font-style:italic;padding:6pt 0">Market data not fetched for this deal.</div>
-            `}
-          </div>
-        </div>
-
-        ${_footer(pageNum, totalPages)}
-      </div>`;
-  }
-
-  function _executiveSummary(R, inputs, mode, market, h) {
+  function _execSummary(deal, R, inputs, mode, market, h) {
     const units = R.total_unit_count || 0;
-    const purchase = inputs.purchase_price || 0;
-    const reno = inputs.capex_budget || 0;
-    const tpc = R.total_project_cost || 0;
     const city = inputs.city || '';
     const state = inputs.state || '';
     const grade = market && market.derived ? market.derived.market_strength_grade : null;
 
     let para;
     if (mode === 'brrrr') {
-      para = `${units}-unit ${_assetTypeLabel(inputs.asset_type).toLowerCase()} acquisition in ${_esc(city)}${state ? ', ' + _esc(state) : ''} at ${h.fmtMoney(purchase)} (${h.fmtMoney(purchase / Math.max(1, units))}/unit), with ${h.fmtMoney(reno)} of value-add capex. Project totals ${h.fmtMoney(tpc)}. Stabilized NOI of ${h.fmtMoney(R.stabilized_noi)} supports ${h.fmtMoneyK(R.stabilized_arv)} ARV at the ${h.fmtPct(inputs.exit_cap, 2)} exit cap. Refi sizes to ${h.fmtMoneyK(R.refi_loan_amount)} at ${h.fmtX(R.dscr, 2)} DSCR, returning ${h.fmtPct(_pctNorm(R.capital_recaptured_pct))} of initial equity. ${h.fmtX(R.equity_multiple, 2)} EM and ${h.fmtPct(R.investor_irr)} IRR over a ${inputs.target_hold_years || 10}-year hold${grade ? ' in a Grade ' + _esc(grade) + ' submarket' : ''}.`;
+      para = `${h.fmtMoneyK(R.initial_loan_amt)} bridge facility against a ${units}-unit ${_assetTypeLabel(inputs.asset_type).toLowerCase()} acquisition in ${_esc(city)}${state ? ', ' + _esc(state) : ''} (${h.fmtMoneyK(R.total_project_cost)} TPC). Takeout strategy: agency refinance in month ${inputs.target_refi_months || 9} at ${h.fmtPct(inputs.target_refi_ltv, 0)} LTV (${h.fmtMoneyK(R.refi_loan_amount)} sized to ${h.fmtX(R.dscr, 2)} DSCR), retiring the bridge in full${R.dscr >= 1.20 ? ' with coverage cushion above the agency 1.20x floor' : '; coverage runs thin and may require a rate buydown or extended IO period at the bridge level'}.${grade ? ' Submarket grade: ' + _esc(grade) + '.' : ''}`;
     } else {
-      para = `${_assetTypeLabel(inputs.asset_type)} acquisition in ${_esc(city)}${state ? ', ' + _esc(state) : ''} at ${h.fmtMoney(purchase)}, with ${h.fmtMoney(reno)} of renovation budget over a ${inputs.target_hold_months || 0}-month hold. Total project cost ${h.fmtMoney(tpc)} against ${h.fmtMoney(R.arv)} ARV${R.arv_source === 'override' ? ' (manual override)' : ' (' + (R.comp_count_sales || 0) + ' comps)'}. Projected ${h.fmtPct(R.investor_roi)} investor ROI (${h.fmtPct(R.annualized_return)} annualized) on ${h.fmtMoney(R.investor_equity)} of equity${grade ? ' in a Grade ' + _esc(grade) + ' submarket' : ''}.`;
+      const ltv = (R.initial_loan_amt > 0 && R.arv > 0) ? R.initial_loan_amt / R.arv : null;
+      para = `${h.fmtMoneyK(R.initial_loan_amt)} acquisition + reno bridge against a ${_assetTypeLabel(inputs.asset_type).toLowerCase()} in ${_esc(city)}${state ? ', ' + _esc(state) : ''}${R.subject_area_sf > 0 ? ' (' + Number(R.subject_area_sf).toLocaleString() + ' SF)' : ''}. Exit strategy: sale at ${h.fmtMoneyK(R.arv)} ARV${R.arv_source === 'override' ? ' (manual override)' : ' (' + (R.comp_count_sales || 0) + '-comp set)'} over a ${inputs.target_hold_months || 0}-month hold, generating ${h.fmtMoneyK(R.gross_proceeds)} in gross proceeds against ${h.fmtPct(ltv)} LTV at origination.${grade ? ' Submarket grade: ' + _esc(grade) + '.' : ''}`;
     }
 
     return `<div class="bp-narrative pb-avoid"><p>${para}</p></div>`;
   }
 
 
-  function _thesis(R, inputs, mode, market, h) {
-    // Auto-derive a 2-paragraph thesis. Real underwriters edit this
-    // before circulating; the auto-text is a starting point.
-    const city = inputs.city || '';
-    const grade = market && market.derived ? market.derived.market_strength_grade : null;
-    const submarket = market && market.cbsa_name ? market.cbsa_name : city || 'the subject submarket';
-
-    let p1, p2;
-
+  function _loanRequest(R, inputs, mode, h) {
+    const rows = [];
     if (mode === 'brrrr') {
-      const vc = _pctNorm(R.value_creation_pct);
-      const recap = _pctNorm(R.capital_recaptured_pct);
-      p1 = `The acquisition basis of ${h.fmtMoney(inputs.purchase_price)} sits below the stabilized valuation of ${h.fmtMoneyK(R.stabilized_arv)}, creating ${h.fmtPct(vc)} in projected value uplift through the renovation phase. The ${h.fmtPct(inputs.exit_cap, 2)} exit cap reflects ${grade ? 'a Grade ' + _esc(grade) + ' submarket' : 'submarket dynamics'} and is supported by ${submarket} fundamentals.`;
-      p2 = `Refinance proceeds return ${h.fmtPct(recap)} of initial equity, ${recap >= 0.80 ? 'enabling capital recycle into the next acquisition' : recap >= 0.50 ? 'partially recycling sponsor capital' : 'leaving substantial equity trapped in the asset'}. The 10-year levered return profile (${h.fmtX(R.equity_multiple, 2)} EM, ${h.fmtPct(R.investor_irr)} IRR) ${R.equity_multiple >= 2.0 ? 'meets institutional thresholds for value-add multifamily' : R.equity_multiple >= 1.5 ? 'is below institutional targets but acceptable given the recapture profile' : 'is below institutional standards and warrants restructuring before commitment'}.`;
+      const acqTranche = R.acquisition_tranche || 0;
+      const conTranche = R.construction_tranche || 0;
+      const capexDur = R.capex_duration_months_resolved || 6;
+      rows.push(['Loan Type',          'Bridge (with refi takeout)']);
+      rows.push(['Requested Amount',   h.fmtMoney(R.initial_loan_amt)]);
+      rows.push(['Acquisition Tranche', `${h.fmtMoney(acqTranche)} (${h.fmtPct(inputs.initial_loan_ltv)} of purchase)`]);
+      rows.push(['Construction Tranche', `${h.fmtMoney(conTranche)} (${h.fmtPct(inputs.initial_loan_ltc_capex)} of capex, draws over ${capexDur} mo)`]);
+      rows.push(['Rate',               h.fmtPct(inputs.initial_rate, 2)]);
+      rows.push(['Interest Type',      _esc(inputs.initial_interest_type || 'IO')]);
+      rows.push(['Term to Refi',       (inputs.target_refi_months || 9) + ' months']);
+      rows.push(['Takeout Strategy',   `${h.fmtPct(inputs.target_refi_ltv)} agency at ${h.fmtPct(inputs.refi_rate, 2)} ${_esc(inputs.refi_interest_type || 'PI')}`]);
     } else {
-      const vc = _pctNorm(R.value_creation_pct);
-      p1 = `The acquisition basis of ${h.fmtMoney(inputs.purchase_price)} against an underwritten ARV of ${h.fmtMoney(R.arv)} ${R.arv_source === 'override' ? '(manual override)' : 'derived from ' + (R.comp_count_sales || 0) + ' sales comparables'} produces ${h.fmtPct(vc)} value creation gross of execution. ${submarket} provides comparable trading data at ${R.comp_avg_psf ? h.fmtMoney(R.comp_avg_psf) + '/SF average' : 'limited frequency'}${R.comp_avg_dom != null ? ' and ' + Math.round(R.comp_avg_dom) + '-day average DOM' : ''}.`;
-      p2 = `Net of renovation, carry, and disposition costs, projected investor returns are ${h.fmtPct(R.investor_roi)} on a ${inputs.target_hold_months || 0}-month hold (${h.fmtPct(R.annualized_return)} annualized). ${R.investor_roi >= 0.25 ? 'Return profile is strong and warrants execution discipline rather than thesis revision' : R.investor_roi >= 0.15 ? 'Return profile is acceptable but leaves limited cushion for renovation or schedule slippage' : 'Return profile is thin and IC should challenge whether the basis, ARV, or scope is appropriately conservative'}.`;
-    }
-
-    return `<div class="bp-narrative pb-avoid"><p>${p1}</p><p>${p2}</p></div>`;
-  }
-
-
-  function _businessPlan(R, inputs, mode, h) {
-    if (mode === 'brrrr') {
-      return `
-        <div class="bp-narrative pb-avoid">
-          <p>Acquire at month 0 using ${h.fmtMoney(R.initial_loan_amt)} of bridge debt at ${h.fmtPct(inputs.initial_rate, 2)} ${_esc(inputs.initial_interest_type || 'IO')}. Execute ${h.fmtMoney(inputs.capex_budget)} renovation program over months 0-${(inputs.target_refi_months || 9) - 1}, achieving stabilized rent roll by month ${inputs.target_refi_months || 9}. Refinance into ${h.fmtPct(inputs.target_refi_ltv, 0)} agency takeout at ${h.fmtPct(inputs.refi_rate, 2)} ${_esc(inputs.refi_interest_type || 'PI')}, returning sponsor equity. Hold for ${inputs.target_hold_years || 10}-year operating period at ${h.fmtPct(inputs.rent_growth_pct, 1)} rent growth and ${h.fmtPct(inputs.appreciation_pct, 1)} appreciation. Dispose at year ${inputs.target_hold_years || 10} at ${h.fmtPct(inputs.exit_cap, 2)} exit cap.</p>
-        </div>`;
-    } else {
-      const renoMonths = inputs.ff_reno_months || Math.round((inputs.target_hold_months || 7) * 0.7);
-      const saleMonths = inputs.ff_sale_months || Math.max(1, (inputs.target_hold_months || 7) - renoMonths);
-      return `
-        <div class="bp-narrative pb-avoid">
-          <p>Acquire at month 0 using ${h.fmtMoney(R.initial_loan_amt)} of acquisition + reno bridge debt at ${h.fmtPct(inputs.initial_rate, 2)} ${_esc(inputs.initial_interest_type || 'IO')}. Execute ${h.fmtMoney(inputs.capex_budget)} renovation over months 0-${renoMonths}. Market and dispose over months ${renoMonths}-${(inputs.target_hold_months || 7)} at ${h.fmtMoney(R.arv)} target sale price. Distribute net proceeds to investor after ${h.fmtPct(inputs.sale_cost_pct)} sale costs and remaining loan payoff. ${inputs.lp_gp_split_ff ? h.fmtPct(inputs.lp_gp_split_ff, 0) + ' to LP per split.' : ''}</p>
-        </div>`;
-    }
-  }
-
-
-  function _dealFacts(R, inputs, mode, h) {
-    const facts = [];
-    if (mode === 'brrrr') {
-      facts.push(['Units', String(R.total_unit_count || 0)]);
-      facts.push(['Purchase Price', h.fmtMoney(inputs.purchase_price)]);
-      facts.push(['Reno Budget', h.fmtMoney(inputs.capex_budget)]);
-      facts.push(['Total Project Cost', h.fmtMoney(R.total_project_cost)]);
-      facts.push(['Initial Loan', h.fmtMoney(R.initial_loan_amt)]);
-      facts.push(['Refi Loan', h.fmtMoney(R.refi_loan_amount)]);
-      facts.push(['Stabilized NOI', h.fmtMoney(R.stabilized_noi)]);
-      facts.push(['Stabilized ARV', h.fmtMoneyK(R.stabilized_arv)]);
-      facts.push(['Exit Cap', h.fmtPct(inputs.exit_cap, 2)]);
-      facts.push(['Hold Years', String(inputs.target_hold_years || 10)]);
-      facts.push(['Initial Equity', h.fmtMoney(R.initial_investor_equity)]);
-      facts.push(['Capital Recapture', h.fmtPct(_pctNorm(R.capital_recaptured_pct))]);
-    } else {
-      facts.push(['Subject Area', R.subject_area_sf ? Number(R.subject_area_sf).toLocaleString() + ' SF' : '-']);
-      facts.push(['Purchase Price', h.fmtMoney(inputs.purchase_price)]);
-      facts.push(['Reno Budget', h.fmtMoney(inputs.capex_budget)]);
-      facts.push(['Total Project Cost', h.fmtMoney(R.total_project_cost)]);
-      facts.push(['Initial Loan', h.fmtMoney(R.initial_loan_amt)]);
-      facts.push(['ARV', h.fmtMoney(R.arv)]);
-      facts.push(['ARV Source', _esc((R.arv_source || 'comps').charAt(0).toUpperCase() + (R.arv_source || 'comps').slice(1))]);
-      facts.push(['Sales Comps', String(R.comp_count_sales || 0)]);
-      facts.push(['Avg Comp $/SF', R.comp_avg_psf ? h.fmtMoney(R.comp_avg_psf) : '-']);
-      facts.push(['Avg DOM', R.comp_avg_dom != null ? Math.round(R.comp_avg_dom) + ' days' : '-']);
-      facts.push(['Hold Months', String(inputs.target_hold_months || 0)]);
-      facts.push(['Investor Equity', h.fmtMoney(R.investor_equity)]);
+      rows.push(['Loan Type',          'Acquisition + Reno Bridge']);
+      rows.push(['Requested Amount',   h.fmtMoney(R.initial_loan_amt)]);
+      rows.push(['LTV',                h.fmtPct(inputs.initial_loan_ltv) + ' of Purchase']);
+      rows.push(['Rate',               h.fmtPct(inputs.initial_rate, 2)]);
+      rows.push(['Interest Type',      _esc(inputs.initial_interest_type || 'IO')]);
+      rows.push(['Term',               (inputs.target_hold_months || 0) + ' months']);
+      rows.push(['Exit Strategy',      `Sale at ARV ${h.fmtMoney(R.arv)}${R.arv_source === 'override' ? ' (manual)' : ' (comp-derived)'}`]);
+      rows.push(['Sale Costs',         h.fmtPct(inputs.sale_cost_pct) + ' of disposition']);
     }
 
     return `
-      <div class="im-facts-list pb-avoid">
-        ${facts.map(([lbl, val]) => `
-          <div class="im-fact-row">
-            <span class="im-fact-lbl">${_esc(lbl)}</span>
-            <span class="im-fact-val">${_esc(val)}</span>
-          </div>`).join('')}
+      <div class="print-list pb-avoid">
+        ${rows.map(([lbl, val]) => `<div class="pl-row"><span class="pl-lbl">${_esc(lbl)}</span><span class="pl-val">${val}</span></div>`).join('')}
       </div>`;
   }
 
 
-  function _devilsAdvocate(R, inputs, mode, risks, h) {
-    const high = risks.filter(r => r.severity === 'high' && !r.resolved);
-    const medium = risks.filter(r => r.severity === 'medium' && !r.resolved);
+  // ── PAGE 2: S&U + CAP STACK + SKIN + INITIAL DEBT TERMS ───────
+  function _page2(deal, R, inputs, market, h, mode, pageNum, totalPages) {
+    const _units = R.total_unit_count || 0;
+    const _pd = (v) => _perDoorOnly(v, _units);
 
-    let counter;
+    const initialLoan = R.initial_loan_amt || 0;
+    const investorEquity = mode === 'brrrr' ? (R.initial_investor_equity || 0) : (R.investor_equity || 0);
+    const totalSources = initialLoan + investorEquity;
 
-    // Mode-specific counters, ordered by severity
-    if (mode === 'brrrr') {
-      // Worst case: refi can't happen / equity trapped
-      if (R.capital_recaptured_pct != null && _pctNorm(R.capital_recaptured_pct) < 0.60) {
-        counter = `<strong>The recycle thesis fails.</strong> Refi only returns ${h.fmtPct(_pctNorm(R.capital_recaptured_pct))} of initial equity, meaning ${h.fmtMoney((R.initial_investor_equity || 0) * (1 - _pctNorm(R.capital_recaptured_pct)))} of sponsor capital stays trapped in this asset until year-10 disposition. If the next 2-3 acquisitions all show this profile, capital recycle dies and we revert to a hold-and-pray fund rather than a value-add operator. Question: <em>is the ARV/exit cap combination genuinely supportable, or are we underwriting to make the recapture math work?</em>`;
-      }
-      // High refi LTV → agency takeout risk
-      else if (R.refi_loan_amount > 0 && R.stabilized_arv > 0 && (R.refi_loan_amount / R.stabilized_arv) > 0.80) {
-        counter = `<strong>Agency takeout is fragile.</strong> Refi LTV of ${h.fmtPct(R.refi_loan_amount / R.stabilized_arv)} pushes against the agency 80% ceiling. A 50bp exit cap softening drops ARV by ~6% and pushes effective LTV through the cap, requiring a bridge extension or equity infusion. Question: <em>what's the contingency plan if appraised ARV at refi comes in 5-10% below underwriting?</em>`;
-      }
-      // Thin DSCR → coverage risk
-      else if (R.dscr != null && R.dscr < 1.20) {
-        counter = `<strong>Coverage cushion is thin.</strong> DSCR of ${h.fmtX(R.dscr, 2)} sits below the institutional 1.20x floor. A 5% vacancy spike or modest rate reset on refi makes the loan non-conforming. Question: <em>have we stressed the deal at 10% vacancy and +50bp refi rate to confirm coverage holds under realistic adverse scenarios?</em>`;
-      }
-      // Value creation thin
-      else if (_pctNorm(R.value_creation_pct) != null && _pctNorm(R.value_creation_pct) < 0.20) {
-        counter = `<strong>Value creation margin is too thin.</strong> ${h.fmtPct(_pctNorm(R.value_creation_pct))} value creation provides limited cushion for construction overruns or schedule slippage. A 10% reno overrun or 3-month delay erases most of the margin. Question: <em>is the renovation budget institutional-grade or rough-cut, and what's the GC's track record on schedule discipline?</em>`;
-      }
-      // Default counter when nothing major fires
-      else {
-        counter = `<strong>The market call is doing a lot of work.</strong> The deal underwrites cleanly at the stated assumptions, but the ${h.fmtPct(inputs.exit_cap, 2)} exit cap and ${h.fmtPct(inputs.rent_growth_pct, 1)} rent growth assumptions are the load-bearing inputs. A 75bp exit cap softening or rent-growth disappointment compresses returns materially. Question: <em>what's our basis for confidence in those two specific numbers, beyond comparable submarket trades?</em>`;
-      }
-    } else {
-      // F&F mode counters
-      if (R.comp_count_sales != null && R.comp_count_sales < 3) {
-        counter = `<strong>The ARV is unsupported.</strong> Only ${R.comp_count_sales} valid sales comp${R.comp_count_sales === 1 ? '' : 's'} backs the ${h.fmtMoney(R.arv)} ARV. With this comp depth, the ARV is functionally an estimate rather than a defensible underwriting. Question: <em>can we expand the search radius, relax the date band, or accept a lower-confidence ARV with corresponding return haircut?</em>`;
-      }
-      else if (R.arv_source === 'override' && R.comp_derived_arv > 0) {
-        const diff = (R.arv - R.comp_derived_arv) / R.comp_derived_arv;
-        if (diff > 0.10) {
-          counter = `<strong>The ARV override is a leap.</strong> Manual ARV of ${h.fmtMoney(R.arv)} is ${h.fmtPct(diff)} above the comp-derived ${h.fmtMoney(R.comp_derived_arv)}. If actual sale comes in at the comp-derived level, ROI drops from ${h.fmtPct(R.investor_roi)} to roughly ${h.fmtPct(R.investor_roi * 0.4)}. Question: <em>what's the specific evidence the subject commands a premium to the comp set, and are we willing to take a haircut at sale if buyers disagree?</em>`;
-        } else {
-          counter = `<strong>The market call is doing a lot of work.</strong> The deal underwrites cleanly, but the ${h.fmtPct(inputs.sale_cost_pct)} sale cost and ${inputs.target_hold_months || 0}-month timeline assumptions are the load-bearing inputs. A 60-day marketing extension and modest price haircut compress returns materially. Question: <em>what's our marketing strategy and our acceptable price-cut threshold if the first 30 days produce no qualified offers?</em>`;
-        }
-      }
-      else if (R.investor_roi != null && R.investor_roi < 0.20) {
-        counter = `<strong>Return margin is too thin for a fix-and-flip.</strong> Projected ROI of ${h.fmtPct(R.investor_roi)} provides limited cushion for execution slippage. A 5% reno overrun or 60-day marketing extension can drop returns into single digits. Question: <em>is the basis genuinely a deal, or are we chasing volume at thin returns?</em>`;
-      }
-      else if (R.comp_avg_dom != null && R.comp_avg_dom > 75) {
-        counter = `<strong>Market liquidity is questionable.</strong> Average comp DOM of ${Math.round(R.comp_avg_dom)} days signals slow turn velocity in this submarket. Our ${inputs.target_hold_months || 0}-month hold assumes a tighter window than the data supports. Question: <em>should we extend the carry budget by 60-90 days to reflect realistic marketing timelines, and what does that do to returns?</em>`;
-      }
-      else {
-        counter = `<strong>The basis and ARV are the whole deal.</strong> The arithmetic is clean at stated inputs, but a 5% miss on either side compresses returns disproportionately on a short-hold flip. Question: <em>have we genuinely tested the basis against off-market alternatives, and have we genuinely stressed the ARV against the weakest comp in the set?</em>`;
-      }
-    }
+    const purchase = inputs.purchase_price || 0;
+    const capex = inputs.capex_budget || 0;
+    const closing = R.closing_costs || 0;
+    const consulting = R.consulting || 0;
+    const carry = mode === 'brrrr' ? (R.debt_service_pre_refi || 0) : (R.debt_service_pre_sale || 0);
+    const contingency = inputs.gc_contingency || 0;
+    const totalUses = purchase + capex + closing + consulting + carry + contingency;
 
-    return `<div class="bp-narrative pb-avoid"><p>${counter}</p></div>`;
+    const sponsorPct = totalSources > 0 ? investorEquity / totalSources : 0;
+    const loanPct = totalSources > 0 ? initialLoan / totalSources : 0;
+
+    // M0.2 BRRRR: surface the two bridge tranches in Sources.
+    const acqTranche = R.acquisition_tranche || 0;
+    const conTranche = R.construction_tranche || 0;
+    const acqPct = totalSources > 0 ? acqTranche / totalSources : 0;
+    const conPct = totalSources > 0 ? conTranche / totalSources : 0;
+
+    const sourcesBlock = mode === 'brrrr' ? `
+      <table class="print-table pb-avoid">
+        <thead><tr><th>Sources</th><th class="num">Amount</th><th class="num">$/Door</th><th class="num">%</th></tr></thead>
+        <tbody>
+          <tr><td>Senior Debt: Acquisition Tranche</td><td class="num">${h.fmtMoney(acqTranche)}</td><td class="num">${_pd(acqTranche)}</td><td class="num">${h.fmtPct(acqPct)}</td></tr>
+          <tr><td>Senior Debt: Construction Tranche</td><td class="num">${h.fmtMoney(conTranche)}</td><td class="num">${_pd(conTranche)}</td><td class="num">${h.fmtPct(conPct)}</td></tr>
+          <tr><td style="padding-left:1.5em">Total Bridge</td><td class="num">${h.fmtMoney(initialLoan)}</td><td class="num">${_pd(initialLoan)}</td><td class="num">${h.fmtPct(loanPct)}</td></tr>
+          <tr><td>Sponsor / Investor Equity</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${_pd(investorEquity)}</td><td class="num">${h.fmtPct(sponsorPct)}</td></tr>
+          <tr class="totals"><td>Total Sources</td><td class="num">${h.fmtMoney(totalSources)}</td><td class="num">${_pd(totalSources)}</td><td class="num">100.0%</td></tr>
+        </tbody>
+      </table>
+    ` : `
+      <table class="print-table pb-avoid">
+        <thead><tr><th>Sources</th><th class="num">Amount</th><th class="num">$/Door</th><th class="num">%</th></tr></thead>
+        <tbody>
+          <tr><td>Requested Loan</td><td class="num">${h.fmtMoney(initialLoan)}</td><td class="num">${_pd(initialLoan)}</td><td class="num">${h.fmtPct(loanPct)}</td></tr>
+          <tr><td>Sponsor / Investor Equity</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${_pd(investorEquity)}</td><td class="num">${h.fmtPct(sponsorPct)}</td></tr>
+          <tr class="totals"><td>Total Sources</td><td class="num">${h.fmtMoney(totalSources)}</td><td class="num">${_pd(totalSources)}</td><td class="num">100.0%</td></tr>
+        </tbody>
+      </table>
+    `;
+
+    return `
+      <div class="print-page print-page-compact">
+        ${_header(h, 'Sources & Uses · Capital Stack · Initial Debt', mode)}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Sources & Uses</div>
+        <div class="bp-su-grid">
+          ${sourcesBlock}
+
+          <table class="print-table pb-avoid">
+            <thead><tr><th>Uses</th><th class="num">Amount</th><th class="num">$/Door</th><th class="num">%</th></tr></thead>
+            <tbody>
+              <tr><td>Purchase Price</td><td class="num">${h.fmtMoney(purchase)}</td><td class="num">${_pd(purchase)}</td><td class="num">${h.fmtPct(purchase / Math.max(1, totalUses))}</td></tr>
+              <tr><td>Capex Budget</td><td class="num">${h.fmtMoney(capex)}</td><td class="num">${_pd(capex)}</td><td class="num">${h.fmtPct(capex / Math.max(1, totalUses))}</td></tr>
+              <tr><td>Closing Costs</td><td class="num">${h.fmtMoney(closing)}</td><td class="num">${_pd(closing)}</td><td class="num">${h.fmtPct(closing / Math.max(1, totalUses))}</td></tr>
+              <tr><td>Consulting</td><td class="num">${h.fmtMoney(consulting)}</td><td class="num">${_pd(consulting)}</td><td class="num">${h.fmtPct(consulting / Math.max(1, totalUses))}</td></tr>
+              <tr><td>Carry (DS through ${mode === 'brrrr' ? 'Refi' : 'Sale'})</td><td class="num">${h.fmtMoney(carry)}</td><td class="num">${_pd(carry)}</td><td class="num">${h.fmtPct(carry / Math.max(1, totalUses))}</td></tr>
+              <tr><td>Sponsor Mobilization</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${_pd(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, totalUses))}</td></tr>
+              <tr class="totals"><td>Total Uses</td><td class="num">${h.fmtMoney(totalUses)}</td><td class="num">${_pd(totalUses)}</td><td class="num">100.0%</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Capital Structure</div>
+        <div class="bp-capstack pb-avoid">
+          <div class="bp-capstack-bar">
+            <div class="bp-capstack-seg bp-seg-debt" style="width:${(loanPct * 100).toFixed(1)}%">
+              <span class="bp-seg-lbl">Requested Loan</span>
+              <span class="bp-seg-val">${h.fmtPct(loanPct, 0)}</span>
+            </div>
+            <div class="bp-capstack-seg bp-seg-sponsor" style="width:${(sponsorPct * 100).toFixed(1)}%">
+              <span class="bp-seg-lbl">Sponsor Equity</span>
+              <span class="bp-seg-val">${h.fmtPct(sponsorPct, 0)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="lender-twocol pb-avoid">
+          <div>
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Sponsor Skin-in-the-Game</div>
+            <table class="print-table">
+              <thead><tr><th>Component</th><th class="num">Amount</th><th class="num">% TPC</th></tr></thead>
+              <tbody>
+                <tr><td>Cash Equity at Closing</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${h.fmtPct(investorEquity / Math.max(1, R.total_project_cost))}</td></tr>
+                <tr><td>Sponsor Mobilization</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, R.total_project_cost))}</td></tr>
+                <tr class="totals"><td>Total Capital at Risk</td><td class="num">${h.fmtMoney(investorEquity + contingency)}</td><td class="num">${h.fmtPct((investorEquity + contingency) / Math.max(1, R.total_project_cost))}</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div>
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Initial Debt Terms</div>
+            <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
+              ${mode === 'brrrr' ? `
+              <div class="pl-row"><span class="pl-lbl">Acquisition Tranche</span><span class="pl-val">${h.fmtMoney(R.acquisition_tranche || 0)} (${h.fmtPct(inputs.initial_loan_ltv)} of purchase)</span></div>
+              <div class="pl-row"><span class="pl-lbl">Construction Tranche</span><span class="pl-val">${h.fmtMoney(R.construction_tranche || 0)} (${h.fmtPct(inputs.initial_loan_ltc_capex)} of capex)</span></div>
+              <div class="pl-row"><span class="pl-lbl">Total Bridge</span><span class="pl-val">${h.fmtMoney(R.initial_loan_amt)}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Rate / Type</span><span class="pl-val">${h.fmtPct(inputs.initial_rate, 2)} ${_esc(inputs.initial_interest_type || 'IO')}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Monthly DS (full balance)</span><span class="pl-val">${h.fmtMoney(R.initial_monthly_ds)}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Capex Execution Window</span><span class="pl-val">${R.capex_duration_months_resolved || 6} months</span></div>
+              <div class="pl-row"><span class="pl-lbl">Term to Refi</span><span class="pl-val">${inputs.target_refi_months || 9} months</span></div>
+              <div class="pl-row"><span class="pl-lbl">Total Carry to Refi</span><span class="pl-val">${h.fmtMoney(R.debt_service_pre_refi)}</span></div>
+              ` : `
+              <div class="pl-row"><span class="pl-lbl">Loan Amount</span><span class="pl-val">${h.fmtMoney(R.initial_loan_amt)}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Rate / Type</span><span class="pl-val">${h.fmtPct(inputs.initial_rate, 2)} ${_esc(inputs.initial_interest_type || 'IO')}</span></div>
+              <div class="pl-row"><span class="pl-lbl">LTV (Purchase)</span><span class="pl-val">${h.fmtPct(inputs.initial_loan_ltv)}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Monthly DS</span><span class="pl-val">${h.fmtMoney(R.initial_monthly_ds)}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Term</span><span class="pl-val">${(inputs.target_hold_months || 0) + ' mo to sale'}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Total DS Through Sale</span><span class="pl-val">${h.fmtMoney(R.debt_service_pre_sale)}</span></div>
+              `}
+            </div>
+          </div>
+        </div>
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
   }
 
 
-  function _wwntb(R, inputs, mode, market, h) {
-    const items = [];
-    if (mode === 'brrrr') {
-      items.push(`<strong>Stabilized rents</strong> achievable at ${h.fmtMoney(R.gpr_monthly)} monthly GPR (${h.fmtMoney(R.gpr_annual)} annual), supported by submarket comparables and post-reno asset quality.`);
-      items.push(`<strong>Exit cap rate</strong> of ${h.fmtPct(inputs.exit_cap, 2)} holds through the ${inputs.target_hold_years || 10}-year hold period, with no material softening even in a higher-rate environment.`);
-      items.push(`<strong>Renovation execution</strong> on time and on budget at ${h.fmtMoney(inputs.capex_budget)}, with the asset stabilized by month ${inputs.target_refi_months || 9} for refi qualification.`);
-      items.push(`<strong>Operating expense ratio</strong> stabilizes at ${h.fmtPct(R.expense_ratio)} (${h.fmtMoney(R.total_operating_expenses)}/year), with no material tax reassessment, insurance step-function, or utility inflation surprises.`);
-      items.push(`<strong>Refinance market</strong> receptive at ${h.fmtPct(inputs.refi_rate, 2)} for ${h.fmtPct(inputs.target_refi_ltv, 0)} agency takeout in month ${inputs.target_refi_months || 9}, with the asset DSCR-qualified.`);
-    } else {
-      items.push(`<strong>ARV</strong> achievable at ${h.fmtMoney(R.arv)}${R.arv_source === 'override' ? ' (above comp-derived ' + h.fmtMoney(R.comp_derived_arv) + ')' : ''}, with the comp set defensible as we approach listing.`);
-      items.push(`<strong>Renovation scope</strong> executed at ${h.fmtMoney(inputs.capex_budget)} budget within the planned ${Math.round((inputs.target_hold_months || 7) * 0.7)}-month renovation window.`);
-      items.push(`<strong>Marketing window</strong> closes within the planned ${(inputs.target_hold_months || 7) - Math.round((inputs.target_hold_months || 7) * 0.7)} months, with carry burden manageable if extended.`);
-      items.push(`<strong>Sale execution</strong> at full asking price (or near it), with sale costs of ${h.fmtPct(inputs.sale_cost_pct)} reflecting realistic buyer agent + closing splits.`);
+  // ── PAGE 3: REFI TAKEOUT (BRRRR) or ARV DEFENSE (F&F) ─────────
+  function _page3(deal, R, inputs, market, h, mode, pageNum, totalPages) {
+    if (mode === 'brrrr') return _page3Brrrr(deal, R, inputs, market, h, pageNum, totalPages);
+    return _page3Ff(deal, R, inputs, market, h, pageNum, totalPages);
+  }
+
+
+  function _page3Brrrr(deal, R, inputs, market, h, pageNum, totalPages) {
+    const _units = R.total_unit_count || 0;
+    const _pd = (v) => _perDoorOnly(v, _units);
+
+    const refi_ltv = (R.refi_loan_amount > 0 && R.stabilized_arv > 0) ? R.refi_loan_amount / R.stabilized_arv : null;
+    const debt_yield = (R.stabilized_noi > 0 && R.refi_loan_amount > 0) ? R.stabilized_noi / R.refi_loan_amount : null;
+    return `
+      <div class="print-page print-page-compact">
+        ${_header(h, 'Refinance Takeout', 'brrrr')}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Refinance Takeout Sizing</div>
+        <table class="print-table pb-avoid">
+          <thead><tr><th>Component</th><th class="num">Value</th><th class="num">$/Door</th></tr></thead>
+          <tbody>
+            <tr><td>Stabilized NOI</td><td class="num">${h.fmtMoney(R.stabilized_noi)}</td><td class="num">${_pd(R.stabilized_noi)}</td></tr>
+            <tr><td>Exit Cap Rate</td><td class="num">${h.fmtPct(inputs.exit_cap, 2)}</td><td class="num"></td></tr>
+            <tr class="totals"><td>Stabilized ARV (NOI / Exit Cap)</td><td class="num">${h.fmtMoney(R.stabilized_arv)}</td><td class="num">${_pd(R.stabilized_arv)}</td></tr>
+            <tr><td>Target Refi LTV</td><td class="num">${h.fmtPct(inputs.target_refi_ltv)}</td><td class="num"></td></tr>
+            <tr class="totals"><td>Refi Loan Amount</td><td class="num">${h.fmtMoney(R.refi_loan_amount)}</td><td class="num">${_pd(R.refi_loan_amount)}</td></tr>
+            <tr><td>Effective Refi LTV</td><td class="num">${h.fmtPct(refi_ltv)}</td><td class="num"></td></tr>
+            <tr><td>Refi Rate / Type</td><td class="num">${h.fmtPct(inputs.refi_rate, 2)} ${_esc(inputs.refi_interest_type || 'PI')}</td><td class="num"></td></tr>
+            <tr><td>Refi Monthly DS</td><td class="num">${h.fmtMoney(R.refi_monthly_ds)}</td><td class="num"></td></tr>
+            <tr><td>Refi Annual DS</td><td class="num">${h.fmtMoney(R.refi_annual_ds)}</td><td class="num">${_pd(R.refi_annual_ds)}</td></tr>
+            <tr class="totals"><td>DSCR (NOI / Refi DS)</td><td class="num">${h.fmtX(R.dscr, 2)}</td><td class="num"></td></tr>
+            <tr class="totals"><td>Debt Yield (NOI / Refi Loan)</td><td class="num">${h.fmtPct(debt_yield)}</td><td class="num"></td></tr>
+          </tbody>
+        </table>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Bridge Payoff at Refi</div>
+        <table class="print-table pb-avoid">
+          <thead><tr><th>Step</th><th class="num">Amount</th><th class="num">$/Door</th></tr></thead>
+          <tbody>
+            <tr><td>New Refi Loan Proceeds</td><td class="num">${h.fmtMoney(R.refi_loan_amount)}</td><td class="num">${_pd(R.refi_loan_amount)}</td></tr>
+            <tr><td>Less: Bridge Loan Payoff</td><td class="num">(${h.fmtMoney(R.payoff_existing_debt || R.initial_loan_amt)})</td><td class="num">${_pd(R.payoff_existing_debt || R.initial_loan_amt)}</td></tr>
+            <tr><td>Less: Refi Closing Costs (${h.fmtPct(inputs.refi_closing_cost_pct || 0, 1)})</td><td class="num">(${h.fmtMoney(R.refi_closing_costs)})</td><td class="num">${_pd(R.refi_closing_costs)}</td></tr>
+            <tr class="totals"><td>Net Cash Out to Sponsor</td><td class="num">${h.fmtMoney(R.net_cash_out)}</td><td class="num">${_pd(R.net_cash_out)}</td></tr>
+          </tbody>
+        </table>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Refi Position Indicators</div>
+        <div class="print-list pb-avoid">
+          <div class="pl-row"><span class="pl-lbl">Post-Refi In-Basis</span><span class="pl-val">${h.fmtPct(_pctNorm(R.post_refi_in_basis_pct))}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Capital Recapture</span><span class="pl-val">${h.fmtPct(_pctNorm(R.capital_recaptured_pct))}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Refi Price per Unit</span><span class="pl-val">${h.fmtMoney(R.refi_price_per_unit)}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Investor Equity Remaining</span><span class="pl-val">${h.fmtMoney(R.investor_equity_remaining)}</span></div>
+        </div>
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
+  }
+
+
+  function _page3Ff(deal, R, inputs, market, h, pageNum, totalPages) {
+    const _units = R.total_unit_count || 0;
+    const _pd = (v) => _perDoorOnly(v, _units);
+
+    const sqft = R.subject_area_sf || 0;
+    const compARV = R.comp_derived_arv || 0;
+    const finalARV = R.arv || 0;
+    const override_diff = (compARV > 0 && R.arv_source === 'override')
+      ? (finalARV - compARV) / compARV : null;
+
+    return `
+      <div class="print-page print-page-compact">
+        ${_header(h, 'ARV Defense · Disposition', 'fix_and_flip')}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>ARV Defense</div>
+        <table class="print-table pb-avoid">
+          <thead><tr><th>Component</th><th class="num">Value</th></tr></thead>
+          <tbody>
+            <tr><td>Subject Area</td><td class="num">${sqft ? Number(sqft).toLocaleString() + ' SF' : '-'}</td></tr>
+            <tr><td>Sales Comp Count</td><td class="num">${R.comp_count_sales || 0}</td></tr>
+            <tr><td>Renovated-Only Comps</td><td class="num">${R.comp_count_sales_renovated || 0}</td></tr>
+            <tr><td>Comp Avg $/SF (Institutional)</td><td class="num">${R.comp_avg_psf ? h.fmtMoney(R.comp_avg_psf) : '-'}</td></tr>
+            <tr><td>Comp Avg DOM</td><td class="num">${R.comp_avg_dom != null ? Math.round(R.comp_avg_dom) + ' days' : '-'}</td></tr>
+            <tr class="totals"><td>Comp-Derived ARV</td><td class="num">${h.fmtMoney(compARV)}</td></tr>
+            <tr><td>ARV Source</td><td class="num">${_esc((R.arv_source || 'comps').charAt(0).toUpperCase() + (R.arv_source || 'comps').slice(1))}</td></tr>
+            <tr class="totals"><td>Final ARV (Used in Loan Sizing)</td><td class="num">${h.fmtMoney(finalARV)}</td></tr>
+            ${override_diff != null ? `<tr><td>Override Premium vs Comp-Derived</td><td class="num">${override_diff >= 0 ? '+' : ''}${h.fmtPct(override_diff)}</td></tr>` : ''}
+            <tr><td>Target $/SF</td><td class="num">${(sqft > 0 && finalARV > 0) ? h.fmtMoney(finalARV / sqft) : '-'}</td></tr>
+          </tbody>
+        </table>
+
+        ${override_diff != null && Math.abs(override_diff) > 0.10 ? `
+          <div class="print-callout pb-avoid">
+            <div class="pc-title">ARV Override Above Comp-Derived</div>
+            Manual ARV is ${h.fmtPct(override_diff)} above the comp-derived value. Lender appraiser may default to the comp-derived figure; sponsor should be prepared to accept loan sizing against the lower of the two.
+          </div>` : ''}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Disposition Mechanics</div>
+        <table class="print-table pb-avoid">
+          <thead><tr><th>Step</th><th class="num">Amount</th><th class="num">$/Door</th></tr></thead>
+          <tbody>
+            <tr><td>Disposition Value (Final ARV)</td><td class="num">${h.fmtMoney(R.disposition_value)}</td><td class="num">${_pd(R.disposition_value)}</td></tr>
+            <tr><td>Less: Sale Cost (${h.fmtPct(inputs.sale_cost_pct)})</td><td class="num">(${h.fmtMoney(R.sale_cost)})</td><td class="num">${_pd(R.sale_cost)}</td></tr>
+            <tr><td>Less: Loan Payoff</td><td class="num">(${h.fmtMoney(R.remaining_loan_balance)})</td><td class="num">${_pd(R.remaining_loan_balance)}</td></tr>
+            <tr class="totals"><td>Gross Proceeds to Sponsor</td><td class="num">${h.fmtMoney(R.gross_proceeds)}</td><td class="num">${_pd(R.gross_proceeds)}</td></tr>
+          </tbody>
+        </table>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Exit Velocity Indicators</div>
+        <div class="print-list pb-avoid">
+          <div class="pl-row"><span class="pl-lbl">Average Comp DOM</span><span class="pl-val">${R.comp_avg_dom != null ? Math.round(R.comp_avg_dom) + ' days' : '-'}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Planned Sale Window</span><span class="pl-val">${Math.max(1, (inputs.target_hold_months || 7) - Math.round((inputs.target_hold_months || 7) * 0.7))} months</span></div>
+          <div class="pl-row"><span class="pl-lbl">Sale Cost %</span><span class="pl-val">${h.fmtPct(inputs.sale_cost_pct)}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Subject $/SF Target</span><span class="pl-val">${(sqft > 0 && R.arv > 0) ? h.fmtMoney(R.arv / sqft) : '-'}</span></div>
+        </div>
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
+  }
+
+
+  // ── PAGE 4: OPERATING + STRESS (BRRRR) or RENO + COMPS + STRESS (F&F)
+  function _page4(deal, R, inputs, market, h, mode, pageNum, totalPages) {
+    if (mode === 'brrrr') return _page4Brrrr(deal, R, inputs, market, h, pageNum, totalPages);
+    return _page4Ff(deal, R, inputs, market, h, pageNum, totalPages);
+  }
+
+
+  function _page4Brrrr(deal, R, inputs, market, h, pageNum, totalPages) {
+    const um = (typeof unitMix === 'object' && Array.isArray(unitMix)) ? unitMix : [];
+    const units = R.total_unit_count || 0;
+    const egi = R.egi || 0;
+
+    const opex = [
+      ['Property Management', R.pm_dollars, inputs.pm_pct, 'of EGI'],
+      ['Maintenance & Turnover', R.maint_turnover, inputs.maint_pct_of_egi, 'of EGI'],
+      ['Real Estate Taxes', R.taxes, null, 'Tax-roll resolved'],
+      ['Insurance', R.insurance, inputs.insurance_pct_of_egi, 'of EGI'],
+      ['Utilities', R.utilities, inputs.utilities_pct_of_egi, 'of EGI'],
+      ['Reserves', R.reserves, null, `$${inputs.reserves_per_unit_year || 0}/unit/yr`]
+    ];
+
+    const baseNOI = R.stabilized_noi || 0;
+    const baseRefiLoan = R.refi_loan_amount || 0;
+    const baseRate = inputs.refi_rate || 0;
+    const baseExitCap = inputs.exit_cap || 0;
+    const refiIsPI = (inputs.refi_interest_type || 'PI') === 'PI';
+    const baseEGI = R.egi || 0;
+    const baseVac = inputs.vacancy_pct || 0;
+    const baseExpRatio = (baseEGI > 0) ? (R.total_operating_expenses / baseEGI) : 0;
+    const baseGpr = R.gpr_annual || 0;
+
+    function _amortDS(loan, annualRate, months) {
+      if (!refiIsPI || annualRate <= 0 || months <= 0) return loan * annualRate;
+      const m = annualRate / 12;
+      const monthly = loan * (m * Math.pow(1 + m, months)) / (Math.pow(1 + m, months) - 1);
+      return monthly * 12;
+    }
+
+    const baseDS = R.refi_annual_ds || _amortDS(baseRefiLoan, baseRate, 360);
+    const baseDY = baseRefiLoan > 0 ? baseNOI / baseRefiLoan : null;
+    const baseDSCR = baseDS > 0 ? baseNOI / baseDS : null;
+
+    const scenarios = [];
+    scenarios.push((function() {
+      const ds = _amortDS(baseRefiLoan, baseRate + 0.005, 360);
+      return { label: 'Refi Rate +50bp', noi: baseNOI, ds, dscr: ds > 0 ? baseNOI / ds : null, dy: baseDY };
+    })());
+    scenarios.push((function() {
+      const ds = _amortDS(baseRefiLoan, baseRate + 0.01, 360);
+      return { label: 'Refi Rate +100bp', noi: baseNOI, ds, dscr: ds > 0 ? baseNOI / ds : null, dy: baseDY };
+    })());
+    scenarios.push((function() {
+      const vacRate = Math.min(0.95, baseVac + 0.05);
+      const egi2 = baseGpr * (1 - vacRate);
+      const noi = egi2 - egi2 * baseExpRatio;
+      return { label: 'Vacancy +5pp', noi, ds: baseDS, dscr: baseDS > 0 ? noi / baseDS : null, dy: baseRefiLoan > 0 ? noi / baseRefiLoan : null };
+    })());
+    scenarios.push((function() {
+      const noi = baseNOI * 0.9;
+      return { label: 'NOI -10%', noi, ds: baseDS, dscr: baseDS > 0 ? noi / baseDS : null, dy: baseRefiLoan > 0 ? noi / baseRefiLoan : null };
+    })());
+    scenarios.push((function() {
+      const newArv = baseNOI / (baseExitCap + 0.005);
+      const newLoan = newArv * (inputs.target_refi_ltv || 0.7);
+      const ds = _amortDS(newLoan, baseRate, 360);
+      return { label: `Exit Cap +50bp (Loan→${h.fmtMoneyK(newLoan)})`, noi: baseNOI, ds, dscr: ds > 0 ? baseNOI / ds : null, dy: newLoan > 0 ? baseNOI / newLoan : null };
+    })());
+
+    function _toneDSCR(d) { if (d == null) return 'neutral'; if (d >= 1.25) return 'good'; if (d >= 1.10) return 'warn'; return 'bad'; }
+    function _toneDY(d)   { if (d == null) return 'neutral'; if (d >= 0.10) return 'good'; if (d >= 0.085) return 'warn'; return 'bad'; }
+
+    return `
+      <div class="print-page print-page-compact">
+        ${_header(h, 'NOI Build · Stress Scenarios', 'brrrr')}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Unit Mix & Stabilized Operations</div>
+        <div class="lender-twocol pb-avoid">
+          <table class="print-table">
+            <thead><tr><th>Bed</th><th class="num">Units</th><th class="num">Rent</th><th class="num">Annual GPR</th></tr></thead>
+            <tbody>
+              ${um.map(u => `
+                <tr>
+                  <td>${_esc((u.bed_type || '').toUpperCase())}</td>
+                  <td class="num">${u.count || 0}</td>
+                  <td class="num">${h.fmtMoney(u.rent)}</td>
+                  <td class="num">${h.fmtMoney((u.count || 0) * (u.rent || 0) * 12)}</td>
+                </tr>`).join('')}
+              <tr class="totals"><td>Total</td><td class="num">${units}</td><td></td><td class="num">${h.fmtMoney(R.gpr_annual)}</td></tr>
+            </tbody>
+          </table>
+
+          <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
+            <div class="pl-row"><span class="pl-lbl">Stabilized NOI</span><span class="pl-val">${h.fmtMoney(R.stabilized_noi)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">NOI Margin</span><span class="pl-val">${h.fmtPct(R.noi_margin)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">Expense Ratio</span><span class="pl-val">${h.fmtPct(R.expense_ratio)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">Breakeven Occupancy</span><span class="pl-val">${h.fmtPct(R.breakeven_occupancy)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">NOI per Unit</span><span class="pl-val">${h.fmtMoney(R.stabilized_noi / Math.max(1, units))}</span></div>
+          </div>
+        </div>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Operating Expense Detail</div>
+        <table class="print-table pb-avoid lender-opex-compact">
+          <thead><tr><th>Line Item</th><th>Basis</th><th class="num">Amount</th><th class="num">% of EGI</th></tr></thead>
+          <tbody>
+            <tr><td>GPR</td><td>-</td><td class="num">${h.fmtMoney(R.gpr_annual)}</td><td class="num">${h.fmtPct(R.gpr_annual / Math.max(1, egi))}</td></tr>
+            <tr><td>Vacancy Loss</td><td>${h.fmtPct(inputs.vacancy_pct)}</td><td class="num">(${h.fmtMoney(R.vacancy_loss)})</td><td class="num">-${h.fmtPct(R.vacancy_loss / Math.max(1, egi))}</td></tr>
+            <tr class="totals"><td>EGI</td><td></td><td class="num">${h.fmtMoney(egi)}</td><td class="num">100.0%</td></tr>
+            ${opex.map(([lbl, amt, pct, note]) => `
+              <tr>
+                <td>${_esc(lbl)}</td>
+                <td>${pct != null ? h.fmtPct(pct) + ' ' + _esc(note) : _esc(note)}</td>
+                <td class="num">(${h.fmtMoney(amt)})</td>
+                <td class="num">${h.fmtPct((amt || 0) / Math.max(1, egi))}</td>
+              </tr>`).join('')}
+            <tr class="totals"><td>Total OpEx</td><td></td><td class="num">(${h.fmtMoney(R.total_operating_expenses)})</td><td class="num">${h.fmtPct(R.expense_ratio)}</td></tr>
+            <tr class="totals"><td>NOI</td><td></td><td class="num">${h.fmtMoney(R.stabilized_noi)}</td><td class="num">${h.fmtPct(R.noi_margin)}</td></tr>
+          </tbody>
+        </table>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Stress Scenarios (Base: ${h.fmtX(baseDSCR, 2)} DSCR · ${h.fmtPct(baseDY)} DY)</div>
+        <table class="print-table pb-avoid">
+          <thead><tr><th>Scenario</th><th class="num">NOI</th><th class="num">Annual DS</th><th class="num">DSCR</th><th class="num">Debt Yield</th></tr></thead>
+          <tbody>
+            ${scenarios.map(s => `
+              <tr>
+                <td>${_esc(s.label)}</td>
+                <td class="num">${h.fmtMoney(s.noi)}</td>
+                <td class="num">${h.fmtMoney(s.ds)}</td>
+                <td class="num lender-stress-${_toneDSCR(s.dscr)}">${h.fmtX(s.dscr, 2)}</td>
+                <td class="num lender-stress-${_toneDY(s.dy)}">${h.fmtPct(s.dy)}</td>
+              </tr>`).join('')}
+          </tbody>
+          <caption>Red &lt; 1.10x DSCR or &lt; 8.5% DY · amber 1.10-1.25x or 8.5-10% · green ≥ 1.25x or ≥ 10%.</caption>
+        </table>
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
+  }
+
+
+  function _page4Ff(deal, R, inputs, market, h, pageNum, totalPages) {
+    const cs = (typeof comps === 'object' && Array.isArray(comps)) ? comps : [];
+    const sales = cs.filter(c => c && (c.comp_type || 'sales') === 'sales');
+    const sqft = R.subject_area_sf || 0;
+
+    const baseARV = R.arv || 0;
+    const saleCostPct = inputs.sale_cost_pct || 0;
+    const remLoan = R.remaining_loan_balance || 0;
+    const initEq = R.investor_equity || 1;
+    const baseHold = inputs.target_hold_months || 7;
+    const annualRate = inputs.initial_rate || 0;
+    const baseLoan = R.initial_loan_amt || 0;
+    const baseMonthlyCarry = (baseLoan * annualRate) / 12;
+
+    function _scenario(label, arvAdj, holdAdj, renoAdj) {
+      const adjARV = baseARV * (1 + arvAdj);
+      const adjReno = (inputs.capex_budget || 0) * (1 + renoAdj);
+      const adjSaleCost = adjARV * saleCostPct;
+      const extraReno = adjReno - (inputs.capex_budget || 0);
+      const extraCarry = baseMonthlyCarry * holdAdj;
+      const adjGross = adjARV - adjSaleCost - remLoan - extraReno - extraCarry;
+      const adjROI = initEq > 0 ? (adjGross - initEq) / initEq : null;
+      return { label, arv: adjARV, gross: adjGross, roi: adjROI };
+    }
+
+    const scenarios = [
+      _scenario('Sale Price -5%', -0.05, 0, 0),
+      _scenario('Sale Price -10%', -0.10, 0, 0),
+      _scenario('DOM +60 days', 0, 2, 0),
+      _scenario('DOM +90 days', 0, 3, 0),
+      _scenario('Reno Overrun +10%', 0, 0, 0.10),
+      _scenario('Combined: Sale -5% + DOM +60', -0.05, 2, 0)
+    ];
+
+    function _toneROI(r) { if (r == null) return 'neutral'; if (r >= 0.15) return 'good'; if (r >= 0.05) return 'warn'; return 'bad'; }
+    function _toneCoverage(g) {
+      if (g == null) return 'neutral';
+      if (g >= initEq) return 'good';
+      if (g >= 0) return 'warn';
+      return 'bad';
     }
 
     return `
-      <ul class="bp-highlights pb-avoid">
-        ${items.map(i => `<li><span class="bp-bullet">▸</span> ${i}</li>`).join('')}
-      </ul>`;
+      <div class="print-page print-page-compact">
+        ${_header(h, 'Renovation · Comps · Stress', 'fix_and_flip')}
+
+        <div class="lender-twocol pb-avoid">
+          <div>
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Renovation Scope</div>
+            <table class="print-table">
+              <thead><tr><th>Line</th><th class="num">Amount</th><th class="num">$/SF</th></tr></thead>
+              <tbody>
+                <tr><td>Capex Budget</td><td class="num">${h.fmtMoney(inputs.capex_budget)}</td><td class="num">${(sqft > 0 && inputs.capex_budget > 0) ? h.fmtMoney(inputs.capex_budget / sqft) : '-'}</td></tr>
+                <tr><td>Sponsor Mobilization</td><td class="num">${h.fmtMoney(inputs.gc_contingency)}</td><td class="num">${(sqft > 0 && inputs.gc_contingency > 0) ? h.fmtMoney(inputs.gc_contingency / sqft) : '-'}</td></tr>
+                <tr><td>Consulting</td><td class="num">${h.fmtMoney(R.consulting)}</td><td class="num">${(sqft > 0 && R.consulting > 0) ? h.fmtMoney(R.consulting / sqft) : '-'}</td></tr>
+                <tr class="totals"><td>Total Envelope</td><td class="num">${h.fmtMoney((inputs.capex_budget || 0) + (inputs.gc_contingency || 0) + (R.consulting || 0))}</td><td class="num">${(sqft > 0) ? h.fmtMoney(((inputs.capex_budget || 0) + (inputs.gc_contingency || 0) + (R.consulting || 0)) / sqft) : '-'}</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div>
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Exit Velocity</div>
+            <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
+              <div class="pl-row"><span class="pl-lbl">Avg Comp DOM</span><span class="pl-val">${R.comp_avg_dom != null ? Math.round(R.comp_avg_dom) + ' days' : '-'}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Sale Window</span><span class="pl-val">${Math.max(1, baseHold - Math.round(baseHold * 0.7))} months</span></div>
+              <div class="pl-row"><span class="pl-lbl">Sale Cost %</span><span class="pl-val">${h.fmtPct(inputs.sale_cost_pct)}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Subject $/SF Target</span><span class="pl-val">${(sqft > 0 && R.arv > 0) ? h.fmtMoney(R.arv / sqft) : '-'}</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Top Sales Comps</div>
+        ${sales.length === 0 ? `
+          <div class="print-callout pb-avoid">
+            <div class="pc-title">No Sales Comps</div>
+            ARV is sourced from manual override without comp support. Lender appraiser will derive their own value.
+          </div>
+        ` : `
+          <table class="print-table ff-comp-table pb-avoid">
+            <thead>
+              <tr>
+                <th>Address</th>
+                <th class="num">Sale Price</th>
+                <th class="num">SF</th>
+                <th class="num">$/SF</th>
+                <th class="num">DOM</th>
+                <th>Renov.</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sales.slice(0, 5).map(c => {
+                const psf = (c.sales_price > 0 && c.area_sf > 0) ? c.sales_price / c.area_sf : null;
+                return `
+                  <tr>
+                    <td>${_esc(c.address || '-')}</td>
+                    <td class="num">${h.fmtMoney(c.sales_price)}</td>
+                    <td class="num">${c.area_sf ? Number(c.area_sf).toLocaleString() : '-'}</td>
+                    <td class="num">${psf ? h.fmtMoney(psf) : '-'}</td>
+                    <td class="num">${c.dom != null ? Math.round(c.dom) : '-'}</td>
+                    <td>${c.renovated ? 'Yes' : 'No'}</td>
+                  </tr>`;
+              }).join('')}
+              <tr class="totals">
+                <td>Average</td>
+                <td class="num">-</td>
+                <td class="num">-</td>
+                <td class="num">${R.comp_avg_psf ? h.fmtMoney(R.comp_avg_psf) : '-'}</td>
+                <td class="num">${R.comp_avg_dom != null ? Math.round(R.comp_avg_dom) : '-'}</td>
+                <td>-</td>
+              </tr>
+            </tbody>
+          </table>
+        `}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Stress Scenarios (Base: ${h.fmtPct(R.investor_roi)} ROI)</div>
+        <table class="print-table pb-avoid">
+          <thead><tr><th>Scenario</th><th class="num">Adj. ARV</th><th class="num">Net Gross</th><th class="num">ROI</th><th class="num">Loan Recovery</th></tr></thead>
+          <tbody>
+            ${scenarios.map(s => `
+              <tr>
+                <td>${_esc(s.label)}</td>
+                <td class="num">${h.fmtMoney(s.arv)}</td>
+                <td class="num">${h.fmtMoney(s.gross)}</td>
+                <td class="num lender-stress-${_toneROI(s.roi)}">${h.fmtPct(s.roi)}</td>
+                <td class="num lender-stress-${_toneCoverage(s.gross)}">${s.gross >= initEq ? 'Full' : (s.gross >= 0 ? 'Loan only' : 'Underwater')}</td>
+              </tr>`).join('')}
+          </tbody>
+          <caption>Sale-price scenarios hold reno and carry constant; DOM scenarios add carry at the underwritten rate; reno overrun holds sale price constant. ROI: red &lt; 5% · amber 5-15% · green ≥ 15%.</caption>
+        </table>
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
   }
 
 
-  function _icQuestions(R, inputs, mode, h) {
-    // Auto-curated IC questions based on which thresholds the deal sits
-    // near or fails. These are the things the team should challenge,
-    // not boilerplate.
-    const qs = [];
-
-    if (mode === 'brrrr') {
-      const refi_ltv = (R.refi_loan_amount > 0 && R.stabilized_arv > 0) ? R.refi_loan_amount / R.stabilized_arv : null;
-      if (refi_ltv != null && refi_ltv > 0.70) qs.push(`Refi LTV is ${h.fmtPct(refi_ltv)}. What's the plan if appraised value at refi comes in below underwriting?`);
-      if (_pctNorm(R.capital_recaptured_pct) < 0.80) qs.push(`Capital recapture is ${h.fmtPct(_pctNorm(R.capital_recaptured_pct))}. Is the recycle thesis still intact, or does this asset become a long-term hold?`);
-      if (R.dscr < 1.30) qs.push(`DSCR cushion is ${(R.dscr - 1.20).toFixed(2)}x above the 1.20x floor. What stress test makes us comfortable?`);
-      if (inputs.target_refi_months && inputs.target_refi_months < 12) qs.push(`Refi target is month ${inputs.target_refi_months}. What's the contingency if stabilization slips by 90-180 days?`);
-      qs.push(`What's the property management strategy through stabilization, and who's the operator?`);
-      qs.push(`Has the tax basis assumption been validated against the actual post-sale reassessment risk in this jurisdiction?`);
-    } else {
-      if (R.comp_count_sales < 5) qs.push(`Comp set is ${R.comp_count_sales} sales. What additional comps could be added, and would they change the ARV?`);
-      if (R.arv_source === 'override') qs.push(`ARV is a manual override. What specific market evidence supports the override, and would a buyer's appraiser see the same evidence?`);
-      if (R.comp_avg_dom > 60) qs.push(`Average DOM is ${Math.round(R.comp_avg_dom)} days. Should the hold budget include a 60-day marketing extension reserve?`);
-      qs.push(`Who is the GC, what's the prior track record, and what's the change-order discipline?`);
-      qs.push(`Have we walked the most recent renovated comp, and does the subject post-reno match that quality tier?`);
-    }
+  // ── PAGE 5: SPONSOR + ASSET + MARKET + DISCLOSURES ────────────
+  function _page5(deal, R, inputs, market, h, mode, pageNum, totalPages) {
+    const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
+    const coName = co && co.name ? co.name : 'ASJP';
+    const coSub = co && co.subtitle ? co.subtitle : '';
+    const contact = (co && co.contact_info) || {};
+    const addrLine = _addressLine(deal, inputs);
 
     return `
-      <ol class="im-questions pb-avoid">
-        ${qs.map(q => `<li>${q}</li>`).join('')}
-      </ol>`;
+      <div class="print-page print-page-compact">
+        ${_header(h, 'Sponsor · Asset · Notices and Disclaimers', mode)}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Sponsor Profile</div>
+        <div class="bp-sponsor pb-avoid">
+          <div class="bp-sponsor-name">${_esc(coName)}</div>
+          ${coSub ? `<div class="bp-sponsor-sub">${_esc(coSub)}</div>` : ''}
+          ${(contact.email || contact.phone || contact.website || contact.address) ? `
+            <div class="bp-sponsor-contact">
+              ${contact.email ? `<div><span class="bp-sponsor-lbl">Email</span> ${_esc(contact.email)}</div>` : ''}
+              ${contact.phone ? `<div><span class="bp-sponsor-lbl">Phone</span> ${_esc(contact.phone)}</div>` : ''}
+              ${contact.website ? `<div><span class="bp-sponsor-lbl">Web</span> ${_esc(contact.website)}</div>` : ''}
+              ${contact.address ? `<div><span class="bp-sponsor-lbl">Office</span> ${_esc(contact.address)}</div>` : ''}
+            </div>
+          ` : ''}
+        </div>
+
+        <div class="lender-twocol pb-avoid">
+          <div>
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Asset Summary</div>
+            <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
+              <div class="pl-row"><span class="pl-lbl">Property Address</span><span class="pl-val">${_esc(addrLine || 'Not specified')}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Asset Type</span><span class="pl-val">${_esc(_assetTypeLabel(inputs.asset_type))}</span></div>
+              ${R.total_unit_count > 0 ? `<div class="pl-row"><span class="pl-lbl">Unit Count</span><span class="pl-val">${R.total_unit_count}</span></div>` : ''}
+              ${R.subject_area_sf > 0 ? `<div class="pl-row"><span class="pl-lbl">Building Area</span><span class="pl-val">${Number(R.subject_area_sf).toLocaleString()} SF</span></div>` : ''}
+              ${mode === 'brrrr' ? `
+                <div class="pl-row"><span class="pl-lbl">Purchase / Unit</span><span class="pl-val">${h.fmtMoney((inputs.purchase_price || 0) / Math.max(1, R.total_unit_count))}</span></div>
+                <div class="pl-row"><span class="pl-lbl">ARV / Unit</span><span class="pl-val">${h.fmtMoney(R.arv_per_unit)}</span></div>
+              ` : `
+                <div class="pl-row"><span class="pl-lbl">Acquisition $/SF</span><span class="pl-val">${(R.subject_area_sf > 0 && inputs.purchase_price > 0) ? h.fmtMoney(inputs.purchase_price / R.subject_area_sf) : '-'}</span></div>
+                <div class="pl-row"><span class="pl-lbl">Exit $/SF (ARV)</span><span class="pl-val">${(R.subject_area_sf > 0 && R.arv > 0) ? h.fmtMoney(R.arv / R.subject_area_sf) : '-'}</span></div>
+              `}
+            </div>
+          </div>
+
+          ${market && market.cbsa_name ? `
+          <div>
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Market Context</div>
+            <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
+              <div class="pl-row"><span class="pl-lbl">MSA</span><span class="pl-val">${_esc(market.cbsa_name)}</span></div>
+              ${market.derived && market.derived.market_strength_grade ? `<div class="pl-row"><span class="pl-lbl">Market Strength</span><span class="pl-val">Grade ${_esc(market.derived.market_strength_grade)} (${Math.round(market.derived.market_strength_score)}/100)</span></div>` : ''}
+              ${market.census && market.census.rental_vacancy_rate != null ? `<div class="pl-row"><span class="pl-lbl">Rental Vacancy</span><span class="pl-val">${h.fmtPct(market.census.rental_vacancy_rate)}</span></div>` : ''}
+              ${market.census && market.census.unemployment_rate != null ? `<div class="pl-row"><span class="pl-lbl">Unemployment</span><span class="pl-val">${h.fmtPct(market.census.unemployment_rate)}</span></div>` : ''}
+              ${market.census && market.census.median_household_income != null ? `<div class="pl-row"><span class="pl-lbl">Median HH Income</span><span class="pl-val">${h.fmtMoney(market.census.median_household_income)}</span></div>` : ''}
+              ${market.census && market.census.poverty_rate != null ? `<div class="pl-row"><span class="pl-lbl">Poverty Rate</span><span class="pl-val">${h.fmtPct(market.census.poverty_rate)}</span></div>` : ''}
+            </div>
+          </div>
+          ` : '<div></div>'}
+        </div>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Notices and Disclaimers</div>
+        <div class="bp-disclaimer">
+          ${typeof disclaimersForLenderPackage === 'function' ? disclaimersForLenderPackage() : ''}
+        </div>
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
   }
-
-
-  function _nextSteps(R, inputs, mode, h) {
-    const items = [];
-    items.push(`Walk the property and surrounding submarket within 7 days; confirm asset condition matches underwriting.`);
-    items.push(`Pull comparable sales and rent comps independent of seller package; validate ${mode === 'brrrr' ? 'GPR and stabilized rents' : 'ARV and DOM'} against a refreshed comp set.`);
-    if (mode === 'brrrr') {
-      items.push(`Engage GC for binding renovation scope and timeline at ${h.fmtMoney(inputs.capex_budget)} budget; identify any scope items requiring add-alternates.`);
-      items.push(`Confirm refi market appetite at ${h.fmtPct(inputs.refi_rate, 2)} for ${h.fmtPct(inputs.target_refi_ltv, 0)} LTV; source 2-3 quotes from preferred takeout lenders.`);
-    } else {
-      items.push(`Engage GC for binding renovation scope at ${h.fmtMoney(inputs.capex_budget)}; lock in start date and substantial-completion milestone.`);
-      items.push(`Engage listing agent and confirm marketing strategy; pre-MLS preview and pricing approach.`);
-    }
-    items.push(`File documented mitigation for each open risk on the register before capital commitment.`);
-
-    return `
-      <ol class="im-questions pb-avoid">
-        ${items.map(i => `<li>${i}</li>`).join('')}
-      </ol>`;
-  }
-
 
 
   // ── TONE HELPERS ──────────────────────────────────────────────
@@ -557,6 +816,12 @@
     if (v == null || !isFinite(v)) return 'neutral';
     if (v >= goodFloor) return 'good';
     if (v >= highWarn) return 'warn';
+    return 'bad';
+  }
+  function _toneBelow(v, highWarn, goodCeil) {
+    if (v == null || !isFinite(v)) return 'neutral';
+    if (v <= goodCeil) return 'good';
+    if (v <= highWarn) return 'warn';
     return 'bad';
   }
   function _pctNorm(x) {
@@ -569,30 +834,44 @@
     if (tone === 'good') return '<span class="pk-glyph pk-glyph-good">▲ </span>';
     return '';
   }
-  function _gradeClass(grade) {
-    if (!grade) return '';
-    if (grade.startsWith('A')) return 'ds-grade-a';
-    if (grade.startsWith('B')) return 'ds-grade-b';
-    if (grade.startsWith('C')) return 'ds-grade-c';
-    if (grade === 'D') return 'ds-grade-d';
-    return 'ds-grade-f';
-  }
 
 
   // ── MAIN ENTRY ────────────────────────────────────────────────
-  function renderReport_internal_memo(deal, R, inputs, market, helpers) {
+  // ── PAGE: MODEL ASSUMPTIONS AND METHODOLOGY (Path A Pass 3) ──
+  function _pageModelAssumptionsLender(deal, R, inputs, market, h, mode, pageNum, totalPages) {
+    return `
+      <div class="print-page print-page-compact">
+        ${_header(h, 'Model Assumptions and Methodology', mode)}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Model Assumptions and Methodology</div>
+        <div style="font-size:9pt;color:var(--print-muted);margin-bottom:6pt;line-height:1.45">
+          The following inventory of inputs, derived values, and methodological choices was used to produce the figures elsewhere in this report. Lender-facing variant: focused on valuation, debt structure, operating expenses, and methodology. Full investor-return assumptions are disclosed in the equity offering materials.
+        </div>
+
+        ${typeof modelAssumptionsForLenderPackage === 'function' ? modelAssumptionsForLenderPackage(R, inputs, market, mode) : ''}
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
+  }
+
+
+  function renderReport_lender_package(deal, R, inputs, market, helpers) {
     const h = helpers || {};
-    const totalPages = 3;
+    const mode = (deal && deal.deal_mode) || 'brrrr';
+    const totalPages = 6;  // +1 Model Assumptions
 
     const pages = [
-      _page1(deal, R, inputs, market, h, 1, totalPages),
-      _page2(deal, R, inputs, market, h, 2, totalPages),
-      _page3(deal, R, inputs, market, h, 3, totalPages)
+      _page1(deal, R, inputs, market, h, mode, 1, totalPages),
+      _page2(deal, R, inputs, market, h, mode, 2, totalPages),
+      _page3(deal, R, inputs, market, h, mode, 3, totalPages),
+      _page4(deal, R, inputs, market, h, mode, 4, totalPages),
+      _pageModelAssumptionsLender(deal, R, inputs, market, h, mode, 5, totalPages),
+      _page5(deal, R, inputs, market, h, mode, 6, totalPages)
     ];
 
     return pages.join('\n');
   }
 
-  window.renderReport_internal_memo = renderReport_internal_memo;
+  window.renderReport_lender_package = renderReport_lender_package;
 
 })();
