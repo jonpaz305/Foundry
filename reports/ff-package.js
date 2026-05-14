@@ -52,6 +52,20 @@
     return t || 'Single Family';
   }
 
+  // Per-door helpers (Path C UX). For F&F: typically single-family
+  // or 2-4 unit residential; engine sets total_unit_count to 1 minimum
+  // (from inputs.total_units_ff). When units=1 the /door figure equals
+  // the headline value, so we suppress the per-door line for SF assets
+  // by skipping when units <= 1 (it's redundant).
+  function _perDoorOnly(value, units) {
+    if (!units || units <= 1 || value == null || !isFinite(value) || value === 0) return '';
+    return '$' + Math.round(Number(value) / units).toLocaleString() + '/door';
+  }
+  function _withPerDoor(formattedValue, rawValue, units) {
+    if (!units || units <= 1 || rawValue == null || !isFinite(rawValue) || rawValue === 0) return formattedValue;
+    return formattedValue + ' | $' + Math.round(Number(rawValue) / units).toLocaleString() + '/door';
+  }
+
 
   // ── HEADER + FOOTER ───────────────────────────────────────────
   function _header(h, pageLabel) {
@@ -463,6 +477,10 @@
 
   // ── PAGE 5: RETURNS + DISPOSITION + TIMELINE ──────────────────
   function _page5(deal, R, inputs, market, h, pageNum, totalPages) {
+    const _units = R.total_unit_count || 0;
+    const _pd = (v) => _perDoorOnly(v, _units);
+    const showDoorCol = _units > 1;
+
     const holdMonths = inputs.target_hold_months || 0;
     // Default phase split: ~70% renovation, ~30% marketing/sale.
     // Tunable per-deal via inputs.ff_reno_months / inputs.ff_sale_months if set.
@@ -497,14 +515,14 @@
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Disposition Mechanics</div>
         <table class="print-table pb-avoid">
-          <thead><tr><th>Step</th><th class="num">Amount</th></tr></thead>
+          <thead><tr><th>Step</th><th class="num">Amount</th>${showDoorCol ? '<th class="num">$/Door</th>' : ''}</tr></thead>
           <tbody>
-            <tr><td>Disposition Value (ARV)</td><td class="num">${h.fmtMoney(R.disposition_value)}</td></tr>
-            <tr><td>Less: Sale Cost (${h.fmtPct(inputs.sale_cost_pct)})</td><td class="num">(${h.fmtMoney(R.sale_cost)})</td></tr>
-            <tr><td>Less: Remaining Loan Balance</td><td class="num">(${h.fmtMoney(R.remaining_loan_balance)})</td></tr>
-            <tr class="totals"><td>Gross Proceeds to Investor</td><td class="num">${h.fmtMoney(R.gross_proceeds)}</td></tr>
-            <tr><td>LP/GP Split (${h.fmtPct(inputs.lp_gp_split_ff || 0)} to LP)</td><td class="num"></td></tr>
-            <tr class="totals"><td>Net Investor Proceeds</td><td class="num">${h.fmtMoney(R.net_investor_proceeds)}</td></tr>
+            <tr><td>Disposition Value (ARV)</td><td class="num">${h.fmtMoney(R.disposition_value)}</td>${showDoorCol ? `<td class="num">${_pd(R.disposition_value)}</td>` : ''}</tr>
+            <tr><td>Less: Sale Cost (${h.fmtPct(inputs.sale_cost_pct)})</td><td class="num">(${h.fmtMoney(R.sale_cost)})</td>${showDoorCol ? `<td class="num">${_pd(R.sale_cost)}</td>` : ''}</tr>
+            <tr><td>Less: Remaining Loan Balance</td><td class="num">(${h.fmtMoney(R.remaining_loan_balance)})</td>${showDoorCol ? `<td class="num">${_pd(R.remaining_loan_balance)}</td>` : ''}</tr>
+            <tr class="totals"><td>Gross Proceeds to Investor</td><td class="num">${h.fmtMoney(R.gross_proceeds)}</td>${showDoorCol ? `<td class="num">${_pd(R.gross_proceeds)}</td>` : ''}</tr>
+            <tr><td>LP/GP Split (${h.fmtPct(inputs.lp_gp_split_ff || 0)} to LP)</td><td class="num"></td>${showDoorCol ? '<td class="num"></td>' : ''}</tr>
+            <tr class="totals"><td>Net Investor Proceeds</td><td class="num">${h.fmtMoney(R.net_investor_proceeds)}</td>${showDoorCol ? `<td class="num">${_pd(R.net_investor_proceeds)}</td>` : ''}</tr>
           </tbody>
         </table>
 
