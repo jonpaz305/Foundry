@@ -1029,9 +1029,12 @@ function runM6_3() {
   check(g, 'P7: market empty fallback (no data fetched)',
     html.includes('Market analysis was not run') ? 1 : 0, 1);
 
-  // Page 8 combined methodology + disclosures
-  check(g, 'P8: Methodology & Disclosures combined page (Milestone 1)',
-    html.includes('Methodology & Disclosures') || html.includes('Methodology &amp; Disclosures') ? 1 : 0, 1);
+  // Page 8 combined sponsor + methodology + disclosures
+  // (M2 follow-up: sponsor info folded into top of this page; no
+  // standalone Sponsor page anymore)
+  check(g, 'P8: combined Sponsor · Methodology · Disclosures page (M2)',
+    html.includes('Sponsor &middot; Methodology &middot; Disclosures')
+    || html.includes('Sponsor · Methodology · Disclosures') ? 1 : 0, 1);
   check(g, 'P8: Underwriting Methodology section header present',
     html.includes('Underwriting Methodology') ? 1 : 0, 1);
   check(g, 'P8: Notices & Disclaimers section header present',
@@ -1575,8 +1578,9 @@ function runM6_10() {
   // variant. Internal Memo and Lender Package retain the full page.)
   loadBRRRR();
   const brrrrHtml = vm.runInContext(`renderReport_brrrr_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
-  check(g, 'BRRRR: Methodology & Disclosures compact page header present',
-    brrrrHtml.includes('Methodology & Disclosures') || brrrrHtml.includes('Methodology &amp; Disclosures') ? 1 : 0, 1);
+  check(g, 'BRRRR: Sponsor + Methodology + Disclosures combined page header present',
+    brrrrHtml.includes('Sponsor &middot; Methodology &middot; Disclosures')
+    || brrrrHtml.includes('Sponsor · Methodology · Disclosures') ? 1 : 0, 1);
   check(g, 'BRRRR: Underwriting Methodology section present',
     brrrrHtml.includes('Underwriting Methodology') ? 1 : 0, 1);
   check(g, 'BRRRR: Notices & Disclaimers section header present',
