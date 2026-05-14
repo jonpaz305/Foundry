@@ -353,7 +353,20 @@
           </div>
         </div>
 
-        ${_ownershipDistributionBlock(R, inputs, h)}
+        ${/* Ownership & Distribution Structure block intentionally
+            omitted from Lender Package. It was producing two issues:
+            (1) the block was overflowing page 2, orphaning to page 3
+            with only a footer and ~75% blank space, and (2) the block
+            exposed equity-partner content (Capital Partner ownership
+            split, Sponsor Closing Contribution $0, waterfall absence)
+            that is strategically inappropriate for a debt audience.
+            Lenders care about borrowing entity, recourse exposure, and
+            capital at risk against the loan -- those are already
+            covered on this page in the "Equity at Risk" block which
+            correctly frames the same underlying numbers from a lender
+            perspective ($162K capital at risk, recourse exposure noted).
+            The Ownership & Distribution block remains on the BRRRR
+            Package where equity partners actually need to see it. */ ''}
 
         ${_footer(pageNum, totalPages)}
       </div>`;
