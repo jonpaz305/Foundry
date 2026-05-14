@@ -946,16 +946,101 @@
   }
 
 
+  // ── PROPERTY PHOTOS PAGE (M2) ─────────────────────────────────
+  // Adaptive grid based on how many photos the user uploaded.
+  // Page is only rendered when DEAL_PHOTOS has at least one entry;
+  // suppressed entirely when no photos are uploaded so the report
+  // does not pad with placeholder pages.
+  //
+  // Layout cascade:
+  //   1 photo  -> single hero (full width)
+  //   2 photos -> side-by-side (2 cols)
+  //   3-4      -> single row of 3 or 4 cols (or 2x2 for 4)
+  //   5-6      -> 2 rows of 3 (2x3 grid)
+  //   7-8      -> 2 rows of 4 (2x4 grid)
+  function _pagePhotos(deal, R, inputs, h, pageNum, totalPages) {
+    const photos = (typeof DEAL_PHOTOS !== 'undefined' && Array.isArray(DEAL_PHOTOS)) ? DEAL_PHOTOS : [];
+    if (photos.length === 0) return ''; // suppress page entirely
+
+    // Determine grid columns
+    let cols;
+    if (photos.length === 1) cols = 1;
+    else if (photos.length === 2) cols = 2;
+    else if (photos.length === 3) cols = 3;
+    else if (photos.length === 4) cols = 2;
+    else if (photos.length <= 6) cols = 3;
+    else cols = 4;
+
+    // Determine tile heights based on count (let photos breathe)
+    let tileHeight;
+    if (photos.length === 1) tileHeight = '380pt';
+    else if (photos.length === 2) tileHeight = '300pt';
+    else if (photos.length <= 4) tileHeight = '230pt';
+    else if (photos.length <= 6) tileHeight = '200pt';
+    else tileHeight = '170pt';
+
+    const typeLabel = (t) => {
+      // Mirror PHOTO_TYPES mapping from media.js (kept inline to avoid
+      // a hard dependency on media.js being loaded in this context)
+      const map = {
+        exterior: 'Exterior', interior: 'Interior', kitchen: 'Kitchen',
+        bathroom: 'Bathroom', living_room: 'Living Room',
+        bedroom: 'Bedroom', common_area: 'Common Area', other: 'Other'
+      };
+      return map[t] || 'Photo';
+    };
+
+    const tilesHtml = photos.map(p => {
+      const label = p.caption && p.caption.trim()
+        ? p.caption
+        : typeLabel(p.photo_type);
+      return `
+        <div class="bp-photo-tile pb-avoid" style="display:flex;flex-direction:column;border:1px solid #ddd;border-radius:4pt;overflow:hidden">
+          <div style="flex:1;background:#f5f5f5;display:flex;align-items:center;justify-content:center;overflow:hidden">
+            <img src="${p.image_base64}" alt="${_esc(label)}" style="width:100%;height:${tileHeight};object-fit:cover;display:block"/>
+          </div>
+          <div style="padding:4pt 6pt;font-size:8pt;color:#555;background:#fafafa;border-top:1px solid #eee">${_esc(label)}</div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="print-page print-page-compact">
+        ${_header(h, 'Property Photos')}
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Property Photos</div>
+        <div class="bp-photo-grid pb-avoid" style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:8pt;margin-top:6pt">
+          ${tilesHtml}
+        </div>
+        ${_footer(pageNum, totalPages)}
+      </div>`;
+  }
+
+
   // ── PAGE 8: MARKET STRENGTH ───────────────────────────────────
+  // M2: Neighborhood map embedded at the top when deal has one uploaded.
+  // Sits above existing composite score and demographic data.
   function _page8(deal, R, inputs, market, h, pageNum, totalPages) {
     const d = market && market.derived;
     const c = market && market.census;
     const fmr = market && market.fmr;
 
+    // M2: neighborhood map block. Only renders if uploaded for this deal.
+    // Top half of page; demographic data follows below.
+    const mapBase64 = (deal && deal.neighborhood_map_base64)
+      || (typeof currentDeal === 'object' && currentDeal && currentDeal.neighborhood_map_base64)
+      || null;
+    const mapBlock = mapBase64
+      ? `
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Neighborhood</div>
+        <div class="bp-map-wrap pb-avoid" style="margin-bottom:8pt;text-align:center">
+          <img src="${mapBase64}" alt="Neighborhood map" class="bp-map-img" style="max-width:100%;max-height:240pt;width:auto;height:auto;border:1px solid #ddd;border-radius:4pt"/>
+        </div>`
+      : '';
+
     if (!d || d.market_strength_score == null) {
       return `
         <div class="print-page print-page-compact">
           ${_header(h, 'Market Strength')}
+          ${mapBlock}
           <div class="print-section pb-avoid"><span class="ps-accent"></span>Market Analysis</div>
           <div class="print-callout pb-avoid">
             <div class="pc-title">No market data fetched</div>
@@ -970,6 +1055,8 @@
     return `
       <div class="print-page print-page-compact">
         ${_header(h, 'Market Strength')}
+
+        ${mapBlock}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Composite Score</div>
         <div class="ds-market-strip pb-avoid">
@@ -1193,31 +1280,43 @@
     const h = helpers || {};
     const pages = [];
 
-    // Equity-partner-optimized layout (Milestone 1 trim):
+    // Equity-partner-optimized layout (Milestone 1 trim + Milestone 2 media):
     //   - Top risks moved into Cover page (Investment Highlights area)
     //   - Standalone Risk Register page removed
+    //   - Property Photos page added between S&U and Income (M2; only
+    //     renders when at least one photo is uploaded)
+    //   - Neighborhood map embedded on Market Strength page (M2; only
+    //     renders when uploaded)
     //   - Full Model Assumptions + Notices pages collapsed into one
     //     compact "Methodology & Disclosures" page at the end
-    // Net: ~10 pages → 7 pages with all material info preserved.
+    // Net (no media): 7 pages. With photos: 8. Both: same 8 (map embedded).
     const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
     const hasSponsorPage = !!(co && (co.subtitle || (co.contact_info && (co.contact_info.email || co.contact_info.phone || co.contact_info.website || co.contact_info.address))));
-    // Pages: Cover, S&U, Income/OPEX, Stab/Refi, 10-yr CF, Returns, Market, [Sponsor], Methodology+Disclosures
-    const totalPages = 7 + (hasSponsorPage ? 1 : 0) + 1;
+    const hasPhotos = (typeof DEAL_PHOTOS !== 'undefined' && Array.isArray(DEAL_PHOTOS) && DEAL_PHOTOS.length > 0);
 
-    pages.push(_page1(deal, R, inputs, market, h, 1, totalPages));
-    pages.push(_page2(deal, R, inputs, market, h, 2, totalPages));
-    pages.push(_page3(deal, R, inputs, market, h, 3, totalPages));
-    pages.push(_page4(deal, R, inputs, market, h, 4, totalPages));
-    pages.push(_page5(deal, R, inputs, market, h, 5, totalPages));
-    pages.push(_page6(deal, R, inputs, market, h, 6, totalPages));
-    // _page7 (Risk Register) intentionally omitted - moved to Cover
-    pages.push(_page8(deal, R, inputs, market, h, 7, totalPages));
-    let nextPage = 8;
-    if (hasSponsorPage) {
-      const p9 = _page9(deal, R, inputs, market, h, nextPage, totalPages);
-      if (p9) { pages.push(p9); nextPage++; }
+    // Base 7 pages: Cover, S&U, Income/OPEX, Stab/Refi, 10-yr CF, Returns, Market, Methodology
+    // (Methodology counts as the 7th; Market is the 7th in render order but
+    // Methodology renders last)
+    const basePages = 7;
+    const totalPages = basePages + (hasPhotos ? 1 : 0) + (hasSponsorPage ? 1 : 0) + 1; // +1 for Methodology
+
+    let n = 1;
+    pages.push(_page1(deal, R, inputs, market, h, n++, totalPages));
+    pages.push(_page2(deal, R, inputs, market, h, n++, totalPages));
+    if (hasPhotos) {
+      pages.push(_pagePhotos(deal, R, inputs, h, n++, totalPages));
     }
-    pages.push(_pageMethodologyAndDisclosures(deal, R, inputs, market, h, nextPage, totalPages));
+    pages.push(_page3(deal, R, inputs, market, h, n++, totalPages));
+    pages.push(_page4(deal, R, inputs, market, h, n++, totalPages));
+    pages.push(_page5(deal, R, inputs, market, h, n++, totalPages));
+    pages.push(_page6(deal, R, inputs, market, h, n++, totalPages));
+    // _page7 (Risk Register) intentionally omitted - moved to Cover
+    pages.push(_page8(deal, R, inputs, market, h, n++, totalPages));
+    if (hasSponsorPage) {
+      const p9 = _page9(deal, R, inputs, market, h, n, totalPages);
+      if (p9) { pages.push(p9); n++; }
+    }
+    pages.push(_pageMethodologyAndDisclosures(deal, R, inputs, market, h, n, totalPages));
 
     return pages.join('\n');
   }
