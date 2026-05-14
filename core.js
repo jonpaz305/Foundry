@@ -680,6 +680,23 @@ async function loadDeal(id) {
     _loadingDeal = false;
   }
 
+  // Engine 1.2.0: backfill tax_district from city for legacy deals that
+  // pre-date the city-auto-populate feature. If the deal has a city that
+  // exactly matches a known Cuyahoga district AND tax_district is empty,
+  // populate tax_district and persist the change. Critical fix because
+  // a deal with empty tax_district silently computes taxes to $0,
+  // overstating NOI/ARV/IRR across all downstream metrics.
+  if (getDealMode() === 'brrrr'
+      && typeof CUYAHOGA_TAX_RATES !== 'undefined'
+      && (inputs.city || '').trim()
+      && !(inputs.tax_district || '').trim()
+      && CUYAHOGA_TAX_RATES[(inputs.city || '').trim()]) {
+    inputs.tax_district = (inputs.city || '').trim();
+    // Persist the backfill so it survives the next load and so the
+    // engine consistently reads the corrected value going forward.
+    autosave('inputs');
+  }
+
   // M1: Restore the deal's company assignment. Each deal has a
   // company_id pointing at the foundry_companies row that should be
   // active while this deal is loaded. If the deal's company exists in

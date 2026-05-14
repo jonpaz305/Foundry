@@ -870,11 +870,29 @@ function renderOperatingBlock() {
   const hasGpr = gprAnnual > 0;
   const hasUnits = totalUnits > 0;
 
+  // Tax warning: surface when taxes are $0 due to missing/unknown tax
+  // district. Loud banner because this silently overstates NOI/ARV/IRR
+  // across the whole report stack. Engine 1.2.0.
+  const taxesAreZero = (typeof R === 'object' && R && (R.taxes === 0 || R.taxes == null));
+  const districtSet = (i.tax_district || '').trim();
+  const districtKnown = districtSet && typeof CUYAHOGA_TAX_RATES !== 'undefined' && CUYAHOGA_TAX_RATES[districtSet];
+  const showTaxWarning = taxesAreZero && !districtKnown && hasGpr;
+  const taxWarningHtml = showTaxWarning ? `
+    <div style="background:rgba(192,57,43,0.08);border:1px solid #c0392b;border-radius:6px;padding:12px 14px;margin-bottom:1rem;color:var(--text);font-size:13px;line-height:1.5">
+      <div style="font-weight:600;color:#e74c3c;margin-bottom:4px">⚠ Property taxes computing to $0</div>
+      ${!districtSet
+        ? 'No tax district is set. Set it on the Deal Setup page so taxes flow through to NOI, ARV, and refi sizing.'
+        : 'Tax district "' + escapeHtml(districtSet) + '" is not in the Cuyahoga rate table. Check spelling against autocomplete on the Deal Setup page.'}
+    </div>
+  ` : '';
+
   wrap.innerHTML = `
     <div class="panel">
       <div class="panel-title">Operating Assumptions
         <span class="panel-sub">Vacancy and opex - applied to stabilized EGI.</span>
       </div>
+
+      ${taxWarningHtml}
 
       <div class="ssub">Income</div>
       <div class="g3" style="margin-bottom:1rem">
