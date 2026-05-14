@@ -187,6 +187,9 @@
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Investment Highlights</div>
         ${_highlights(R, inputs, h, market)}
 
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Top Risks</div>
+        ${_topRisks(R, inputs)}
+
         ${_footer(pageNum, totalPages)}
       </div>`;
   }
@@ -224,6 +227,41 @@
         <p>${p2}</p>
         <p>${p3}</p>
       </div>`;
+  }
+
+
+  // ── COMPACT TOP RISKS (for cover, 3-4 line summary) ───────────
+  // Replaces the standalone Risk Register page in the equity-partner
+  // variant. Shows top 4 unresolved risks (high first, then medium),
+  // each on a single line with severity tag + title + brief detail.
+  function _topRisks(R, inputs) {
+    let risks = [];
+    if (typeof assembleRisks === 'function') {
+      risks = assembleRisks();
+    }
+    const unresolved = risks.filter(r => !r.resolved);
+    const sev = { high: 0, medium: 1, low: 2 };
+    unresolved.sort((a, b) => (sev[a.severity || 'medium'] || 1) - (sev[b.severity || 'medium'] || 1));
+    const top = unresolved.slice(0, 4);
+
+    if (top.length === 0) {
+      return `
+        <ul class="bp-highlights pb-avoid">
+          <li><span class="bp-bullet">✓</span> <strong>No flagged risks.</strong> Engine and market modules ran clean against the underwriting assumptions.</li>
+        </ul>`;
+    }
+
+    const tagColor = (sev) => sev === 'high' ? '#c0392b' : (sev === 'medium' ? '#b8860b' : '#666');
+
+    return `
+      <ul class="bp-highlights pb-avoid">
+        ${top.map(r => {
+          const s = r.severity || 'medium';
+          const tag = s.toUpperCase();
+          const detail = _truncate(r.detail || '', 130);
+          return `<li><span class="bp-bullet" style="color:${tagColor(s)};font-weight:700">${tag}</span> <strong>${_esc(r.title || 'Risk')}.</strong> ${_esc(detail)}</li>`;
+        }).join('')}
+      </ul>`;
   }
 
 
@@ -403,32 +441,15 @@
           </tbody>
         </table>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Closing Cost Detail</div>
-        <table class="print-table pb-avoid">
-          <thead><tr><th>Component</th><th class="num">Basis</th><th class="num">Amount</th></tr></thead>
-          <tbody>
-            <tr><td>Title / Escrow / Recording (Baseline)</td><td class="num">Flat</td><td class="num">${h.fmtMoney(ccBaseline)}</td></tr>
-            <tr><td>Insurance (First-Year Premium)</td><td class="num">Flat</td><td class="num">${h.fmtMoney(ccInsurance)}</td></tr>
-            <tr><td>Appraisal</td><td class="num">Flat</td><td class="num">${h.fmtMoney(ccAppraisal)}</td></tr>
-            <tr><td>Origination Fee</td><td class="num">${h.fmtPct(inputs.origination_pct || 0, 2)} of Loan</td><td class="num">${h.fmtMoney(ccOrig)}</td></tr>
-            <tr><td>Lender Points</td><td class="num">${h.fmtPct(inputs.lender_points_pct || 0, 2)} of Loan</td><td class="num">${h.fmtMoney(ccLenderPts)}</td></tr>
-            <tr><td>Broker Points</td><td class="num">${h.fmtPct(inputs.broker_points_pct || 0, 2)} of Loan</td><td class="num">${h.fmtMoney(ccBrokerPts)}</td></tr>
-            <tr><td>Lender Flat Fees (legal, environmental, processing)</td><td class="num">Flat</td><td class="num">${h.fmtMoney(ccFlatFees)}</td></tr>
-            <tr><td>Transfer Tax Add-On</td><td class="num">Flat</td><td class="num">${h.fmtMoney(ccTransfer)}</td></tr>
-            <tr class="totals"><td>Total Closing Costs</td><td></td><td class="num">${h.fmtMoney(closing)}</td></tr>
-          </tbody>
-        </table>
-
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Initial Debt Terms (Bridge)</div>
         <div class="print-list pb-avoid">
           <div class="pl-row"><span class="pl-lbl">Acquisition Tranche</span><span class="pl-val">${h.fmtMoney(acqTranche)} (${h.fmtPct(inputs.initial_loan_ltv)} of purchase)</span></div>
           <div class="pl-row"><span class="pl-lbl">Construction Tranche</span><span class="pl-val">${h.fmtMoney(conTranche)} (${h.fmtPct(inputs.initial_loan_ltc_capex)} of capex, draws over ${capexDur} mo)</span></div>
           <div class="pl-row"><span class="pl-lbl">Total Bridge</span><span class="pl-val">${h.fmtMoney(initialLoan)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Rate</span><span class="pl-val">${h.fmtPct(inputs.initial_rate, 2)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Interest Type</span><span class="pl-val">${_esc(inputs.initial_interest_type || 'IO')}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Rate / Type</span><span class="pl-val">${h.fmtPct(inputs.initial_rate, 2)} ${_esc(inputs.initial_interest_type || 'IO')}</span></div>
           <div class="pl-row"><span class="pl-lbl">Monthly DS (full balance)</span><span class="pl-val">${h.fmtMoney(R.initial_monthly_ds)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Total Carry to Refi</span><span class="pl-val">${h.fmtMoney(carry)}</span></div>
-          <div class="pl-row"><span class="pl-lbl">Refi Target</span><span class="pl-val">Month ${inputs.target_refi_months || 9}</span></div>
+          <div class="pl-row"><span class="pl-lbl">Total Carry to Refi</span><span class="pl-val">${h.fmtMoney(carry)} (Month ${inputs.target_refi_months || 9} target)</span></div>
+          <div class="pl-row"><span class="pl-lbl">Total Closing Costs</span><span class="pl-val">${h.fmtMoney(closing)} (origination, points, title, insurance, transfer; itemized detail available on request)</span></div>
         </div>
 
         ${_ownershipDistributionBlock(R, inputs, h)}
@@ -825,10 +846,12 @@
     // Y1 (refi proceeds + Y1 operating) is held constant
     const y1 = dist[1] || 0;
 
-    // Build 5 exit cap perturbations: -50bp, -25bp, base, +25bp, +50bp
-    const exitCaps = [baseEC - 0.005, baseEC - 0.0025, baseEC, baseEC + 0.0025, baseEC + 0.005];
-    // Rent growth: -1%, -0.5%, base, +0.5%, +1%
-    const rgs = [baseRG - 0.01, baseRG - 0.005, baseRG, baseRG + 0.005, baseRG + 0.01];
+    // Build 3 exit cap perturbations: -50bp, base, +50bp (compressed
+    // for equity-partner audience; full 5×5 grid available in dashboard
+    // or by request).
+    const exitCaps = [baseEC - 0.005, baseEC, baseEC + 0.005];
+    // Rent growth: -1%, base, +1%
+    const rgs = [baseRG - 0.01, baseRG, baseRG + 0.01];
 
     const rows = rgs.map(rg => {
       const cells = exitCaps.map(ec => {
@@ -1124,16 +1147,62 @@
   }
 
 
+  // ── COMBINED METHODOLOGY & DISCLOSURES (replaces 2 standalone pages)
+  // Compact final page: short methodology footnote + condensed legal
+  // disclaimers. Strips the equity-partner package from 2 pages to 1
+  // while preserving the institutional disclosure standard. Full
+  // methodology available on request (Internal Memo and Lender Package
+  // retain the full Model Assumptions disclosure for IC and lender
+  // audiences).
+  function _pageMethodologyAndDisclosures(deal, R, inputs, market, h, pageNum, totalPages) {
+    const engineV = (typeof FOUNDRY_ENGINE_VERSION === 'string' && FOUNDRY_ENGINE_VERSION) ? FOUNDRY_ENGINE_VERSION : 'unversioned';
+    const engineDate = (typeof FOUNDRY_ENGINE_VERSION_DATE === 'string' && FOUNDRY_ENGINE_VERSION_DATE) ? FOUNDRY_ENGINE_VERSION_DATE : '';
+    const arvSource = R.arv_source_resolved === 'manual_override' ? 'Sponsor manual override'
+                    : R.arv_source_resolved === 'comp_derived' ? 'Comp-derived ($/SF × subject SF)'
+                    : 'Income approach (NOI / Exit Cap)';
+    const taxMode = (inputs.tax_basis_mode || 'stabilized_arv') === 'stabilized_arv'
+      ? 'Stabilized ARV (institutional default)'
+      : 'Purchase Price (legacy spreadsheet parity)';
+
+    return `
+      <div class="print-page print-page-compact">
+        ${_header(h, 'Methodology & Disclosures')}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Underwriting Methodology</div>
+        <div class="bp-method-summary pb-avoid" style="font-size:9pt;line-height:1.5;color:#333;margin-bottom:14pt">
+          Standard institutional value-add multifamily underwriting conventions. Stabilized NOI computed from sponsor-input vacancy and operating expense ratios applied to unit-mix-derived GPR. Stabilized ARV resolved via ${_esc(arvSource.toLowerCase())}; property taxes computed against ${_esc(taxMode.toLowerCase())} using the tax district's effective rate. Initial debt sized at sponsor-input LTV/LTC; refi sized to sponsor-input LTV against stabilized ARV. 10-year cash flow projects rent growth and expense ratio held constant; Y10 disposition value at sponsor-input exit cap. IRR computed via Newton-Raphson on Y0 outflow + Y1-Y_hold inflows. Equity multiple per institutional convention (sum of positive distributions / equity in). Engine version ${_esc(engineV)} (${_esc(engineDate)}). Full methodology and assumption inventory available on request.
+        </div>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Notices &amp; Disclaimers</div>
+        <div class="bp-disclaimer-compact pb-avoid" style="font-size:8pt;line-height:1.4;color:#555">
+          <p style="margin:0 0 6pt 0"><strong>No Offer.</strong> This document is for informational purposes only and does not constitute an offer to sell or a solicitation of an offer to buy any securities. Any offer or solicitation will be made solely by means of a confidential Private Placement Memorandum and related subscription documents furnished to qualified prospective investors. In the event of any inconsistency between this document and the PPM, the PPM shall control.</p>
+          <p style="margin:0 0 6pt 0"><strong>Exemption from Registration.</strong> Any securities described will be offered in reliance upon Rule 506(b) of Regulation D, limited to accredited investors (Rule 501(a)) with a pre-existing substantive relationship with the sponsor. No public advertising or general solicitation will be employed.</p>
+          <p style="margin:0 0 6pt 0"><strong>Forward-Looking Statements.</strong> Projections of investment returns (IRR, equity multiple, capital recapture, DSCR, stabilized ARV, NOI, distributions, disposition proceeds) and sensitivity analyses are based on assumptions believed reasonable as of the date hereof. Actual results may differ materially due to changes in market conditions, capital availability, interest rates, construction costs, lease-up velocity, tax assessment outcomes, regulatory changes, and other factors outside the sponsor's control. No representation or warranty, express or implied, is made as to the accuracy or completeness of the forward-looking statements.</p>
+          <p style="margin:0 0 6pt 0"><strong>Past Performance.</strong> Past performance is not a guarantee or reliable indicator of future results.</p>
+          <p style="margin:0 0 6pt 0"><strong>Risk and Independent Diligence.</strong> Real estate investments involve substantial risk, including the possible loss of all invested capital. Prospective investors must conduct their own independent investigation and should consult their own legal, tax, accounting, and financial advisors. The sponsor and its affiliates make no representation or warranty as to the accuracy or completeness of this document and disclaim any liability based on reliance hereon.</p>
+          <p style="margin:0 0 0 0"><strong>Confidentiality.</strong> This document is confidential and furnished solely to the named recipient for evaluation of a potential investment. The recipient agrees to maintain confidentiality and not to disclose or distribute without the sponsor's prior written consent.</p>
+        </div>
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
+  }
+
+
   // ── MAIN ENTRY ────────────────────────────────────────────────
   function renderReport_brrrr_package(deal, R, inputs, market, helpers) {
     const h = helpers || {};
     const pages = [];
 
-    // First pass: determine total page count. Sponsor page is conditional.
-    // Model Assumptions and Notices and Disclaimers pages always render.
+    // Equity-partner-optimized layout (Milestone 1 trim):
+    //   - Top risks moved into Cover page (Investment Highlights area)
+    //   - Standalone Risk Register page removed
+    //   - Full Model Assumptions + Notices pages collapsed into one
+    //     compact "Methodology & Disclosures" page at the end
+    // Net: ~10 pages → 7 pages with all material info preserved.
     const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
     const hasSponsorPage = !!(co && (co.subtitle || (co.contact_info && (co.contact_info.email || co.contact_info.phone || co.contact_info.website || co.contact_info.address))));
-    const totalPages = 8 + (hasSponsorPage ? 1 : 0) + 2;  // +1 Model Assumptions, +1 Notices and Disclaimers
+    // Pages: Cover, S&U, Income/OPEX, Stab/Refi, 10-yr CF, Returns, Market, [Sponsor], Methodology+Disclosures
+    const totalPages = 7 + (hasSponsorPage ? 1 : 0) + 1;
 
     pages.push(_page1(deal, R, inputs, market, h, 1, totalPages));
     pages.push(_page2(deal, R, inputs, market, h, 2, totalPages));
@@ -1141,16 +1210,14 @@
     pages.push(_page4(deal, R, inputs, market, h, 4, totalPages));
     pages.push(_page5(deal, R, inputs, market, h, 5, totalPages));
     pages.push(_page6(deal, R, inputs, market, h, 6, totalPages));
-    pages.push(_page7(deal, R, inputs, market, h, 7, totalPages));
-    pages.push(_page8(deal, R, inputs, market, h, 8, totalPages));
-    let nextPage = 9;
+    // _page7 (Risk Register) intentionally omitted - moved to Cover
+    pages.push(_page8(deal, R, inputs, market, h, 7, totalPages));
+    let nextPage = 8;
     if (hasSponsorPage) {
       const p9 = _page9(deal, R, inputs, market, h, nextPage, totalPages);
       if (p9) { pages.push(p9); nextPage++; }
     }
-    pages.push(_pageModelAssumptions(deal, R, inputs, market, h, nextPage, totalPages));
-    nextPage++;
-    pages.push(_pageDisclaimers(deal, R, inputs, market, h, nextPage, totalPages));
+    pages.push(_pageMethodologyAndDisclosures(deal, R, inputs, market, h, nextPage, totalPages));
 
     return pages.join('\n');
   }
