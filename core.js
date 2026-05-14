@@ -709,6 +709,15 @@ async function loadDeal(id) {
       localStorage.setItem('foundry_active_company', dealCompany.id);
       applyTopbarLogo();
     }
+  } else if (CP.active && CP.active.id) {
+    // Backfill: deal has no company_id but user has an active company
+    // profile. Auto-link the deal so reports pick up the active company's
+    // logo and branding. Persists to Supabase via autosave('company').
+    // This catches legacy deals created before the user uploaded a logo
+    // or before company_id was being saved properly.
+    d.company_id = CP.active.id;
+    currentDeal.company_id = CP.active.id;
+    autosave('company');
   }
 
   // Surface deal name in topbar subtitle
