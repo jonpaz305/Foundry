@@ -384,33 +384,39 @@
 
 
   function _dealFacts(R, inputs, mode, h) {
+    const _units = R.total_unit_count || 0;
+    const _withPd = (val, raw) => {
+      if (!_units || _units <= 0 || raw == null || !isFinite(raw) || raw === 0) return val;
+      return val + ' | $' + Math.round(Number(raw) / _units).toLocaleString() + '/door';
+    };
+
     const facts = [];
     if (mode === 'brrrr') {
       facts.push(['Units', String(R.total_unit_count || 0)]);
-      facts.push(['Purchase Price', h.fmtMoney(inputs.purchase_price)]);
-      facts.push(['Reno Budget', h.fmtMoney(inputs.capex_budget)]);
-      facts.push(['Total Project Cost', h.fmtMoney(R.total_project_cost)]);
-      facts.push(['Initial Loan', h.fmtMoney(R.initial_loan_amt)]);
-      facts.push(['Refi Loan', h.fmtMoney(R.refi_loan_amount)]);
+      facts.push(['Purchase Price', _withPd(h.fmtMoney(inputs.purchase_price), inputs.purchase_price)]);
+      facts.push(['Reno Budget', _withPd(h.fmtMoney(inputs.capex_budget), inputs.capex_budget)]);
+      facts.push(['Total Project Cost', _withPd(h.fmtMoney(R.total_project_cost), R.total_project_cost)]);
+      facts.push(['Initial Loan', _withPd(h.fmtMoney(R.initial_loan_amt), R.initial_loan_amt)]);
+      facts.push(['Refi Loan', _withPd(h.fmtMoney(R.refi_loan_amount), R.refi_loan_amount)]);
       facts.push(['Stabilized NOI', h.fmtMoney(R.stabilized_noi)]);
-      facts.push(['Stabilized ARV', h.fmtMoneyK(R.stabilized_arv)]);
+      facts.push(['Stabilized ARV', _withPd(h.fmtMoneyK(R.stabilized_arv), R.stabilized_arv)]);
       facts.push(['Exit Cap', h.fmtPct(inputs.exit_cap, 2)]);
       facts.push(['Hold Years', String(inputs.target_hold_years || 10)]);
-      facts.push(['Initial Equity', h.fmtMoney(R.initial_investor_equity)]);
+      facts.push(['Initial Equity', _withPd(h.fmtMoney(R.initial_investor_equity), R.initial_investor_equity)]);
       facts.push(['Capital Recapture', h.fmtPct(_pctNorm(R.capital_recaptured_pct))]);
     } else {
       facts.push(['Subject Area', R.subject_area_sf ? Number(R.subject_area_sf).toLocaleString() + ' SF' : '-']);
-      facts.push(['Purchase Price', h.fmtMoney(inputs.purchase_price)]);
-      facts.push(['Reno Budget', h.fmtMoney(inputs.capex_budget)]);
-      facts.push(['Total Project Cost', h.fmtMoney(R.total_project_cost)]);
-      facts.push(['Initial Loan', h.fmtMoney(R.initial_loan_amt)]);
-      facts.push(['ARV', h.fmtMoney(R.arv)]);
+      facts.push(['Purchase Price', _withPd(h.fmtMoney(inputs.purchase_price), inputs.purchase_price)]);
+      facts.push(['Reno Budget', _withPd(h.fmtMoney(inputs.capex_budget), inputs.capex_budget)]);
+      facts.push(['Total Project Cost', _withPd(h.fmtMoney(R.total_project_cost), R.total_project_cost)]);
+      facts.push(['Initial Loan', _withPd(h.fmtMoney(R.initial_loan_amt), R.initial_loan_amt)]);
+      facts.push(['ARV', _withPd(h.fmtMoney(R.arv), R.arv)]);
       facts.push(['ARV Source', _esc((R.arv_source || 'comps').charAt(0).toUpperCase() + (R.arv_source || 'comps').slice(1))]);
       facts.push(['Sales Comps', String(R.comp_count_sales || 0)]);
       facts.push(['Avg Comp $/SF', R.comp_avg_psf ? h.fmtMoney(R.comp_avg_psf) : '-']);
       facts.push(['Avg DOM', R.comp_avg_dom != null ? Math.round(R.comp_avg_dom) + ' days' : '-']);
       facts.push(['Hold Months', String(inputs.target_hold_months || 0)]);
-      facts.push(['Investor Equity', h.fmtMoney(R.investor_equity)]);
+      facts.push(['Investor Equity', _withPd(h.fmtMoney(R.investor_equity), R.investor_equity)]);
     }
 
     return `
