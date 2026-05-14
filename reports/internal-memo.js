@@ -389,6 +389,8 @@
       if (!_units || _units <= 0 || raw == null || !isFinite(raw) || raw === 0) return val;
       return val + ' | $' + Math.round(Number(raw) / _units).toLocaleString() + '/door';
     };
+    const ownPct = Number(inputs.investor_ownership) || 0;
+    const _fmtP = (p) => (Math.round(p * 1000) / 10).toFixed(1) + '%';
 
     const facts = [];
     if (mode === 'brrrr') {
@@ -403,6 +405,10 @@
       facts.push(['Exit Cap', h.fmtPct(inputs.exit_cap, 2)]);
       facts.push(['Hold Years', String(inputs.target_hold_years || 10)]);
       facts.push(['Initial Equity', _withPd(h.fmtMoney(R.initial_investor_equity), R.initial_investor_equity)]);
+      if (ownPct > 0) {
+        facts.push(['Capital Partner Ownership', _fmtP(ownPct) + ' (100% of equity)']);
+        facts.push(['Sponsor Ownership', _fmtP(1 - ownPct) + ' (operational)']);
+      }
       facts.push(['Capital Recapture', h.fmtPct(_pctNorm(R.capital_recaptured_pct))]);
     } else {
       facts.push(['Subject Area', R.subject_area_sf ? Number(R.subject_area_sf).toLocaleString() + ' SF' : '-']);
@@ -417,6 +423,10 @@
       facts.push(['Avg DOM', R.comp_avg_dom != null ? Math.round(R.comp_avg_dom) + ' days' : '-']);
       facts.push(['Hold Months', String(inputs.target_hold_months || 0)]);
       facts.push(['Investor Equity', _withPd(h.fmtMoney(R.investor_equity), R.investor_equity)]);
+      if (ownPct > 0) {
+        facts.push(['Capital Partner Ownership', _fmtP(ownPct) + ' (100% of equity)']);
+        facts.push(['Sponsor Ownership', _fmtP(1 - ownPct) + ' (operational)']);
+      }
     }
 
     return `
