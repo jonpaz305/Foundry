@@ -57,6 +57,7 @@ vm.runInContext(`
   let comps = [];
   let marketAnalysis = {};
   let R = {};
+  var DEAL_PHOTOS = [];
   function getDealMode() { return currentDeal && currentDeal.deal_mode ? currentDeal.deal_mode : 'brrrr'; }
   function saveDeal() { /* no-op in tests */ }
   function navTo() {}
@@ -159,6 +160,7 @@ function loadBRRRR() {
     comps = [];
     marketAnalysis = {};
     R = {};
+    DEAL_PHOTOS = [];
     recompute();
     R;
   `, ctx);
@@ -1058,6 +1060,66 @@ function runM6_3() {
   // M0.3: Uses table relabeled
   check(g, 'M0.3 P2: Uses table shows Sponsor Mobilization (not GC Contingency)',
     html.includes('>Sponsor Mobilization<') && !html.includes('>GC Contingency<') ? 1 : 0, 1);
+
+  // ── M2: Property Photos page ─────────────────────────────────
+  // With DEAL_PHOTOS empty, photo page should be suppressed entirely.
+  vm.runInContext('DEAL_PHOTOS = [];', ctx);
+  const htmlNoPhotos = vm.runInContext('renderReport_brrrr_package(currentDeal, R, inputs, marketAnalysis, ' + HELPERS_SRC + ');', ctx);
+  check(g, 'M2: Photo page suppressed when no photos uploaded',
+    htmlNoPhotos.indexOf('Property Photos') < 0 ? 1 : 0, 1);
+  // Page count should equal 8 with no photos and no sponsor extras (Cover,
+  // S&U, Income, Stab, CF, Returns, Market, Methodology).
+  const noPhotoPageCount = (htmlNoPhotos.match(/class="print-page print-page-compact"/g) || []).length;
+  check(g, 'M2: page count remains 8 when no photos uploaded',
+    noPhotoPageCount, 8);
+
+  // Single photo
+  vm.runInContext(`DEAL_PHOTOS = [
+    { id: 'p1', photo_type: 'exterior', caption: null, image_base64: 'data:image/jpeg;base64,FAKE', sort_order: 0 }
+  ];`, ctx);
+  const html1Photo = vm.runInContext('renderReport_brrrr_package(currentDeal, R, inputs, marketAnalysis, ' + HELPERS_SRC + ');', ctx);
+  check(g, 'M2: Photo page renders with 1 photo',
+    html1Photo.indexOf('Property Photos') >= 0 ? 1 : 0, 1);
+  check(g, 'M2: Photo tile uses adaptive 1-col grid for single photo',
+    html1Photo.indexOf('grid-template-columns:repeat(1,1fr)') >= 0 ? 1 : 0, 1);
+  // Photo page is included, so page count is now 9
+  const photo1PageCount = (html1Photo.match(/class="print-page print-page-compact"/g) || []).length;
+  check(g, 'M2: page count is 9 with 1 photo uploaded',
+    photo1PageCount, 9);
+
+  // 6 photos - should use 2x3 grid
+  vm.runInContext(`DEAL_PHOTOS = [
+    { id: 'p1', photo_type: 'exterior',    caption: null, image_base64: 'data:image/jpeg;base64,FAKE', sort_order: 0 },
+    { id: 'p2', photo_type: 'exterior',    caption: null, image_base64: 'data:image/jpeg;base64,FAKE', sort_order: 1 },
+    { id: 'p3', photo_type: 'kitchen',     caption: 'Unit 4 post-reno', image_base64: 'data:image/jpeg;base64,FAKE', sort_order: 2 },
+    { id: 'p4', photo_type: 'bathroom',    caption: null, image_base64: 'data:image/jpeg;base64,FAKE', sort_order: 3 },
+    { id: 'p5', photo_type: 'living_room', caption: null, image_base64: 'data:image/jpeg;base64,FAKE', sort_order: 4 },
+    { id: 'p6', photo_type: 'bedroom',     caption: null, image_base64: 'data:image/jpeg;base64,FAKE', sort_order: 5 }
+  ];`, ctx);
+  const html6Photo = vm.runInContext('renderReport_brrrr_package(currentDeal, R, inputs, marketAnalysis, ' + HELPERS_SRC + ');', ctx);
+  check(g, 'M2: 6 photos uses 3-col grid',
+    html6Photo.indexOf('grid-template-columns:repeat(3,1fr)') >= 0 ? 1 : 0, 1);
+  check(g, 'M2: Photo caption appears as label when present',
+    html6Photo.indexOf('Unit 4 post-reno') >= 0 ? 1 : 0, 1);
+  check(g, 'M2: Photo type label falls through when no caption (Kitchen)',
+    html6Photo.indexOf('>Bathroom<') >= 0 ? 1 : 0, 1);
+
+  // ── M2: Neighborhood map ──────────────────────────────────────
+  // No map → no map block
+  vm.runInContext('DEAL_PHOTOS = [];', ctx);
+  vm.runInContext('currentDeal.neighborhood_map_base64 = null;', ctx);
+  const htmlNoMap = vm.runInContext('renderReport_brrrr_package(currentDeal, R, inputs, marketAnalysis, ' + HELPERS_SRC + ');', ctx);
+  check(g, 'M2: No "Neighborhood" section header without map upload',
+    htmlNoMap.indexOf('Neighborhood') < 0 ? 1 : 0, 1);
+
+  // With map → map block appears
+  vm.runInContext('currentDeal.neighborhood_map_base64 = "data:image/jpeg;base64,FAKEMAP";', ctx);
+  const htmlWithMap = vm.runInContext('renderReport_brrrr_package(currentDeal, R, inputs, marketAnalysis, ' + HELPERS_SRC + ');', ctx);
+  check(g, 'M2: Map block renders on Market Strength page when uploaded',
+    htmlWithMap.indexOf('Neighborhood') >= 0 && htmlWithMap.indexOf('data:image/jpeg;base64,FAKEMAP') >= 0 ? 1 : 0, 1);
+
+  // Reset state for downstream tests
+  vm.runInContext('DEAL_PHOTOS = []; currentDeal.neighborhood_map_base64 = null;', ctx);
 }
 
 // ════════════════════════════════════════════════════════════════

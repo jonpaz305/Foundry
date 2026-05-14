@@ -737,6 +737,13 @@ async function loadDeal(id) {
   // Pass 4: load snapshots for this deal so the Snapshots page is
   // immediately populated when the user navigates to it.
   loadSnapshotsForCurrentDeal();
+  // M2: load deal photos so the Media section and BRRRR Package report
+  // photo page are immediately populated when the user navigates there.
+  if (typeof loadPhotosForCurrentDeal === 'function') {
+    loadPhotosForCurrentDeal().then(function () {
+      if (typeof renderMediaBlock === 'function') renderMediaBlock();
+    });
+  }
   closeSidebar();
 }
 
@@ -1165,7 +1172,7 @@ function _refreshArvReferencePanel() {
 
 // ── NAVIGATION ────────────────────────────────────────────────
 function navTo(section, btn) {
-  ['dashboard','setup','unitmix','comps','operating','capital','market','risk','reports','snapshots','company'].forEach(s => {
+  ['dashboard','setup','unitmix','comps','operating','media','capital','market','risk','reports','snapshots','company'].forEach(s => {
     const el = $('section-' + s);
     if (el) el.style.display = 'none';
   });
@@ -1179,6 +1186,7 @@ function navTo(section, btn) {
   if (section === 'unitmix'  && typeof renderUnitMixBlock === 'function') renderUnitMixBlock();
   if (section === 'comps'    && typeof renderCompsBlock === 'function') renderCompsBlock();
   if (section === 'operating'&& typeof renderOperatingBlock === 'function') renderOperatingBlock();
+  if (section === 'media'    && typeof renderMediaBlock === 'function') renderMediaBlock();
   if (section === 'capital'  && typeof renderCapitalBlock === 'function') renderCapitalBlock();
   if (section === 'market'   && typeof renderMarketPage === 'function') renderMarketPage();
   if (section === 'risk'     && typeof renderRiskPage === 'function') renderRiskPage();

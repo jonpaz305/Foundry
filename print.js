@@ -190,6 +190,18 @@ async function startPrintMode() {
     overrides      = data.overrides || {};
     riskRegister   = Array.isArray(data.risks) ? data.risks : [];
 
+    // M2: load deal photos so the BRRRR Package report photo page
+    // renders with the user's uploaded photos. Without this, the print
+    // tab's DEAL_PHOTOS array is empty (same root cause that hit logo
+    // resolution before). Map data is on the deal record itself
+    // (data.neighborhood_map_base64) so it comes through automatically
+    // with the deal fetch above. Must come AFTER currentDeal is set
+    // because loadPhotosForCurrentDeal reads currentDeal.id.
+    if (typeof loadPhotosForCurrentDeal === 'function') {
+      try { await loadPhotosForCurrentDeal(); }
+      catch (e) { console.warn('[Foundry print] loadPhotosForCurrentDeal failed:', e); }
+    }
+
     if (typeof recompute === 'function') recompute();
 
     // Build helpers exposed to report renderers (formatters, threshold
