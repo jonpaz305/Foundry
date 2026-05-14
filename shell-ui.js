@@ -594,11 +594,11 @@ function renderEquityBreakdownPanel() {
 
   const rows = [
     ['Mortgage down payment (acquisition)',     R.equity_acq_down_payment || 0],
-    ['Sponsor capex above lender funding',      R.equity_capex_gap || 0],
+    ['Capex above lender funding',              R.equity_capex_gap || 0],
     ['Closing costs',                           R.equity_closing_costs || 0],
     ['Consulting / project fee',                R.equity_consulting || 0],
     ['Bridge debt service through refi',        R.equity_bridge_carry || 0],
-    ['Sponsor mobilization (counted as equity)', R.equity_gc_contingency_if_equity || 0]
+    ['Mobilization float (counted as equity)',  R.equity_gc_contingency_if_equity || 0]
   ];
 
   // Filter to nonzero rows for dashboard UX. Zero rows still appear in
@@ -613,7 +613,7 @@ function renderEquityBreakdownPanel() {
 
   const toggleNote = R.equity_gc_contingency_if_equity > 0
     ? ''
-    : `<div style="font-size:10px;color:var(--text3);margin-top:8px;font-style:italic">Sponsor mobilization not counted as equity (reimbursed via draws before refi). Toggle in Capital panel to include.</div>`;
+    : `<div style="font-size:10px;color:var(--text3);margin-top:8px;font-style:italic">Mobilization float not counted as equity (reimbursed via draws before refi). Toggle in Capital panel to include.</div>`;
 
   return `
     <div class="comp-validation-panel">

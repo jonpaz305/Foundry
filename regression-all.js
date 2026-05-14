@@ -1017,8 +1017,8 @@ function runM6_3() {
     html.includes('Equity Required Breakdown') ? 1 : 0, 1);
   check(g, 'M0.3 P2: Mortgage down payment row present',
     html.includes('Mortgage down payment (acquisition)') ? 1 : 0, 1);
-  check(g, 'M0.3 P2: Sponsor capex above lender funding row present',
-    html.includes('Sponsor capex above lender funding') ? 1 : 0, 1);
+  check(g, 'M0.3 P2: Capex above lender funding row present',
+    html.includes('Capex above lender funding') ? 1 : 0, 1);
   check(g, 'M0.3 P2: Total Equity Required row present',
     html.includes('Total Equity Required at Closing') ? 1 : 0, 1);
 
@@ -1326,8 +1326,8 @@ function runM6_8() {
     eqHtml.includes('Equity Required Breakdown') ? 1 : 0, 1);
   check(g, 'BRRRR equity: contains Mortgage down payment row',
     eqHtml.includes('Mortgage down payment') ? 1 : 0, 1);
-  check(g, 'BRRRR equity: contains Sponsor capex above lender funding row',
-    eqHtml.includes('Sponsor capex above lender funding') ? 1 : 0, 1);
+  check(g, 'BRRRR equity: contains Capex above lender funding row',
+    eqHtml.includes('Capex above lender funding') ? 1 : 0, 1);
   check(g, 'BRRRR equity: contains Total Equity Required',
     eqHtml.includes('Total Equity Required at Closing') ? 1 : 0, 1);
   check(g, 'BRRRR equity: toggle-off note shown when mobilization not in equity',
