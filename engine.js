@@ -38,7 +38,7 @@
 // changes. This constant is read by model-assumptions.js (for the
 // Engine version line on every external report) and by core.js
 // (for snapshot record stamping in foundry_report_snapshots).
-const FOUNDRY_ENGINE_VERSION = '1.1.0';
+const FOUNDRY_ENGINE_VERSION = '1.2.0';
 const FOUNDRY_ENGINE_VERSION_DATE = '2026-05-13';
 
 
@@ -133,8 +133,13 @@ function lookupCuyahogaTaxRate(district, assetType) {
   if (!district) return null;
   const row = CUYAHOGA_TAX_RATES[district];
   if (!row) return null;
-  // Column 1 (residential) for everything except 'commercial' asset type
-  const useCommercial = assetType === 'commercial';
+  // Column 1 (commercial rate) for 5+ unit commercial multifamily.
+  // Column 0 (residential rate) for residential multifamily (2-4 units)
+  // and single family. Asset type values are 'commercial_multifamily',
+  // 'residential_multifamily', 'single_family' - bare 'commercial' never
+  // appears. Earlier check on 'commercial' silently always returned the
+  // residential rate, understating taxes on 5+ unit deals by roughly 60%.
+  const useCommercial = assetType === 'commercial_multifamily';
   return useCommercial ? row[1] : row[0];
 }
 

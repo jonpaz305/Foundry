@@ -1020,6 +1020,18 @@ function onInputChange(field, value) {
     inputs.consulting_fees_user_locked = (inputs.consulting_fees_override != null);
   }
 
+  // Auto-populate tax_district from city when city changes and the
+  // tax_district field is currently empty. Only fires when the city
+  // value exactly matches a known Cuyahoga district. Suppressed during
+  // loadDeal hydration so we don't overwrite a deal's saved value.
+  if (field === 'city' && !_loadingDeal) {
+    const cityTrim = (value || '').trim();
+    const current = (inputs.tax_district || '').trim();
+    if (cityTrim && !current && typeof CUYAHOGA_TAX_RATES !== 'undefined' && CUYAHOGA_TAX_RATES[cityTrim]) {
+      inputs.tax_district = cityTrim;
+    }
+  }
+
   // A-smart consulting fee: when purchase_price or capex_budget changes
   // AND the user has not locked the consulting field, update the
   // displayed value in the form so the user sees the live auto value.
@@ -1086,6 +1098,29 @@ function onInputChange(field, value) {
   if ((field === 'asking_price' || field === 'purchase_price' || field === 'capex_budget')
       && typeof _refreshPerDoorHints === 'function') {
     _refreshPerDoorHints();
+  }
+
+  // Tax district hint: refresh inline when tax_district or asset_type
+  // changes. Surfaces resolved rate or warning about empty/unknown
+  // district. Surgical update to avoid focus loss on the input.
+  if (field === 'tax_district' || field === 'asset_type') {
+    const hintEl = document.querySelector('[data-tax-hint]');
+    if (hintEl) {
+      const d = (inputs.tax_district || '').trim();
+      let html;
+      if (!d) {
+        html = '<span style="color:var(--bad)">⚠ Empty - taxes will compute to $0. Type to search the Cuyahoga table.</span>';
+      } else if (typeof CUYAHOGA_TAX_RATES !== 'undefined' && !CUYAHOGA_TAX_RATES[d]) {
+        html = '<span style="color:var(--bad)">⚠ District not found in Cuyahoga table - taxes will compute to $0. Check spelling against autocomplete.</span>';
+      } else if (typeof CUYAHOGA_TAX_RATES !== 'undefined' && CUYAHOGA_TAX_RATES[d]) {
+        const isCom = inputs.asset_type === 'commercial_multifamily';
+        const rate = isCom ? CUYAHOGA_TAX_RATES[d][1] : CUYAHOGA_TAX_RATES[d][0];
+        html = 'Resolved: ' + (rate * 100).toFixed(2) + '% (' + (isCom ? 'commercial 5+ unit' : 'residential') + ' rate).';
+      } else {
+        html = 'Type to search; autocompletes from the Cuyahoga tax table.';
+      }
+      hintEl.innerHTML = html;
+    }
   }
 }
 

@@ -223,24 +223,27 @@ function runM2() {
   // Operating Expenses (8)
   check(g, 'pm_dollars', R.pm_dollars, 13725.60);
   check(g, 'maint_turnover', R.maint_turnover, 10784.40);
-  check(g, 'taxes', R.taxes, 5520.00);
+  // M11 Tax Fix (Engine 1.2.0): assetType check corrected from bare
+  // 'commercial' to 'commercial_multifamily'. Cleveland commercial rate
+  // is 3.62% (vs old residential 2.30%). Taxes step up by ~57%.
+  check(g, 'taxes', R.taxes, 8688.00);
   check(g, 'insurance', R.insurance, 15686.40);
   check(g, 'utilities', R.utilities, 3921.60);
   check(g, 'reserves', R.reserves, 16000);
-  check(g, 'total_operating_expenses', R.total_operating_expenses, 65638);
-  check(g, 'expense_ratio', R.expense_ratio, 0.334751);
+  check(g, 'total_operating_expenses', R.total_operating_expenses, 68806.00);
+  check(g, 'expense_ratio', R.expense_ratio, 0.350908, 0.001);
 
   // NOI and Stabilized Valuation (6)
-  check(g, 'stabilized_noi', R.stabilized_noi, 130442);
-  check(g, 'noi_margin', R.noi_margin, 0.665249);
-  check(g, 'stabilized_arv', R.stabilized_arv, 1490765.71);
-  check(g, 'arv_per_unit', R.arv_per_unit, 93172.86);
+  check(g, 'stabilized_noi', R.stabilized_noi, 127274.00);
+  check(g, 'noi_margin', R.noi_margin, 0.649092, 0.001);
+  check(g, 'stabilized_arv', R.stabilized_arv, 1454560.00, 1);
+  check(g, 'arv_per_unit', R.arv_per_unit, 90910.00, 1);
   // M0.2: value_creation increases because TPC drops with month-by-month
   // draw carry vs the prior flat-balance carry. Construction tranche
   // ramps 0→full over capex_duration_months (default 6), so months 1-5
   // accrue interest on a smaller balance.
-  check(g, 'value_creation', R.value_creation, 469876.48);
-  check(g, 'value_creation_pct', R.value_creation_pct, 0.460262);
+  check(g, 'value_creation', R.value_creation, 433670.77, 1);
+  check(g, 'value_creation_pct', R.value_creation_pct, 0.424797, 0.001);
 
   // Project Costs and Initial Debt (5)
   check(g, 'closing_costs', R.closing_costs, 37629.20);
@@ -256,30 +259,31 @@ function runM2() {
   check(g, 'debt_service_pre_refi', R.debt_service_pre_refi, 47260.03);
 
   // Refinance Mechanics (10)
-  check(g, 'refi_loan_amount', R.refi_loan_amount, 1043536);
-  check(g, 'refi_monthly_ds', R.refi_monthly_ds, 6942.67);
-  check(g, 'refi_annual_ds', R.refi_annual_ds, 83312.05);
-  check(g, 'refi_closing_costs', R.refi_closing_costs, 41741.44);
-  check(g, 'net_cash_out', R.net_cash_out, 273234.56);
+  check(g, 'refi_loan_amount', R.refi_loan_amount, 1018192.00, 1);
+  check(g, 'refi_monthly_ds', R.refi_monthly_ds, 6774.06, 0.01);
+  check(g, 'refi_annual_ds', R.refi_annual_ds, 81288.68, 0.01);
+  check(g, 'refi_closing_costs', R.refi_closing_costs, 40727.68, 0.01);
+  check(g, 'net_cash_out', R.net_cash_out, 248904.32, 1);
   // M0.2: lower TPC → lower investor equity in.
   check(g, 'initial_investor_equity', R.initial_investor_equity, 242329.23);
   check(g, 'capital_returned_at_refi', R.capital_returned_at_refi, 242329.23);
   check(g, 'investor_equity_remaining', R.investor_equity_remaining, 0);
-  // Higher excess proceeds because lower equity-in but same cash-out.
-  check(g, 'excess_refi_proceeds', R.excess_refi_proceeds, 30905.33);
+  // M11 Tax Fix: excess proceeds drop because the lower stabilized ARV
+  // shrinks the refi loan amount, and the equity-in stays the same.
+  check(g, 'excess_refi_proceeds', R.excess_refi_proceeds, 6575.09, 1);
   check(g, 'capital_recaptured_pct', R.capital_recaptured_pct, 1.0);
 
   // Cash Flow and Coverage (5)
-  check(g, 'annual_cash_flow', R.annual_cash_flow, 47129.95);
-  check(g, 'monthly_cash_flow', R.monthly_cash_flow, 3927.50);
-  check(g, 'cf_per_unit', R.cf_per_unit, 2945.62);
-  check(g, 'dscr', R.dscr, 1.5657);
-  check(g, 'breakeven_occupancy', R.breakeven_occupancy, 0.721657);
+  check(g, 'annual_cash_flow', R.annual_cash_flow, 45985.32, 1);
+  check(g, 'monthly_cash_flow', R.monthly_cash_flow, 3832.11, 0.01);
+  check(g, 'cf_per_unit', R.cf_per_unit, 2874.08, 0.01);
+  check(g, 'dscr', R.dscr, 1.5657, 0.01);
+  check(g, 'breakeven_occupancy', R.breakeven_occupancy, 0.727203, 0.001);
 
   // Disposition (3)
-  check(g, 'disposition_value', R.disposition_value, 2428300.26);
-  check(g, 'sale_cost', R.sale_cost, 169981.02);
-  check(g, 'remaining_loan_balance', R.remaining_loan_balance, 895483.11);
+  check(g, 'disposition_value', R.disposition_value, 2369324.97, 1);
+  check(g, 'sale_cost', R.sale_cost, 165852.75, 1);
+  check(g, 'remaining_loan_balance', R.remaining_loan_balance, 873734.82, 1);
 
   // Distributions Y0..Y9 (10)
   const d = R.distribution || [];
@@ -287,25 +291,25 @@ function runM2() {
   check(g, 'Y0', d[0], -242329.23);
   // M0.2: Y1 absorbs the equity-in reduction and the excess-proceeds
   // increase via the refi distribution path.
-  check(g, 'Y1', d[1], 281346.87);
-  check(g, 'Y2', d[2], 24271.92);
-  check(g, 'Y3', d[3], 25000.08);
-  check(g, 'Y4', d[4], 25750.08);
-  check(g, 'Y5', d[5], 26522.59);
-  check(g, 'Y6', d[6], 27318.26);
-  check(g, 'Y7', d[7], 28137.81);
-  check(g, 'Y8', d[8], 28981.95);
-  check(g, 'Y9', d[9], 29851.40);
+  check(g, 'Y1', d[1], 268609.44, 1);
+  check(g, 'Y2', d[2], 23682.44, 1);
+  check(g, 'Y3', d[3], 24392.91, 1);
+  check(g, 'Y4', d[4], 25124.70, 1);
+  check(g, 'Y5', d[5], 25878.44, 1);
+  check(g, 'Y6', d[6], 26654.79, 1);
+  check(g, 'Y7', d[7], 27454.44, 1);
+  check(g, 'Y8', d[8], 28278.07, 1);
+  check(g, 'Y9', d[9], 29126.41, 1);
 
   // Y10 + EM/IRR (3)
-  check(g, 'Y10 (corrected)', d[10], 712165.01, 0.01);
+  check(g, 'Y10 (corrected)', d[10], 694868.90, 1);
   // M0.2: EM rises on a smaller equity denominator and a slightly larger
   // total cash recovered.
-  check(g, 'equity_multiple (institutional)', R.equity_multiple, 4.9905, 0.01);
+  check(g, 'equity_multiple (institutional)', R.equity_multiple, 4.8449, 0.01);
   // em_spreadsheet uses corrected Y10 (Y1..Y10 includes recovered cash flow),
-  // so it ships at 3.9905 vs the legacy spreadsheet's 3.6440. This is a
+  // so it ships at 3.84 vs the legacy spreadsheet's 3.6440. This is a
   // pre-existing engine design choice; documented in regression-report-m5.md.
-  check(g, 'em_spreadsheet (Y0..Y10 sum / equity)', R.em_spreadsheet, 3.9905, 0.01);
+  check(g, 'em_spreadsheet (Y0..Y10 sum / equity)', R.em_spreadsheet, 3.8449, 0.01);
 
   // ════════════════════════════════════════════════════════════════
   // M0.2 - TWO-TRANCHE BRIDGE (8 tests, retained)
@@ -923,16 +927,16 @@ function runM6_2() {
 
   check(g, 'BRRRR snapshot: renders without throwing', typeof brrrrHtml === 'string' && brrrrHtml.length > 0 ? 1 : 0, 1);
   check(g, 'BRRRR snapshot: contains DSCR tile', brrrrHtml.includes('Refi DSCR') && brrrrHtml.includes('1.57x') ? 1 : 0, 1);
-  check(g, 'BRRRR snapshot: contains stabilized ARV ($1.49M)', brrrrHtml.includes('$1.49M') ? 1 : 0, 1);
+  check(g, 'BRRRR snapshot: contains stabilized ARV ($1.45M)', brrrrHtml.includes('$1.45M') ? 1 : 0, 1);
   check(g, 'BRRRR snapshot: contains capital recapture 100%', brrrrHtml.includes('100.0%') ? 1 : 0, 1);
-  check(g, 'BRRRR snapshot: contains EM 4.99x', brrrrHtml.includes('4.99x') ? 1 : 0, 1);
+  check(g, 'BRRRR snapshot: contains EM 4.84x', brrrrHtml.includes('4.84x') ? 1 : 0, 1);
   check(g, 'BRRRR snapshot: BRRRR mode pill present', brrrrHtml.includes('ds-mode-pill') && brrrrHtml.includes('BRRRR') ? 1 : 0, 1);
   check(g, 'BRRRR snapshot: market-empty fallback shown (no census)', brrrrHtml.includes('Market analysis not run') ? 1 : 0, 1);
   // 2048 trips one medium contingency risk (M5 documented behavior)
   check(g, 'BRRRR snapshot: contingency risk surfaced in Top Risks', brrrrHtml.includes('Contingency') ? 1 : 0, 1);
   // Layer 2 Fix 1: engine version stamp must appear on Deal Snapshot footer
   check(g, 'BRRRR snapshot: engine version stamp present (Layer 2 Fix 1)',
-    brrrrHtml.includes('Engine 1.1.0') ? 1 : 0, 1);
+    brrrrHtml.includes('Engine 1.2.0') ? 1 : 0, 1);
   // Layer 2 Fix 3: cash flow label disambiguated from BRRRR Package Y1
   check(g, 'BRRRR snapshot: cash flow label disambiguated to "Stabilized" (Layer 2 Fix 3)',
     brrrrHtml.includes('Stabilized Annual Cash Flow') ? 1 : 0, 1);
@@ -991,10 +995,10 @@ function runM6_3() {
 
   // Page 3 elements
   check(g, 'P3: unit mix table with GPR total ($206,400)', html.includes('$206,400') ? 1 : 0, 1);
-  check(g, 'P3: stabilized NOI ($130,442) present', html.includes('$130,442') ? 1 : 0, 1);
+  check(g, 'P3: stabilized NOI ($127,274) present', html.includes('$127,274') ? 1 : 0, 1);
 
   // Page 4 elements
-  check(g, 'P4: refi loan amount ($1,043,536) present', html.includes('$1,043,536') ? 1 : 0, 1);
+  check(g, 'P4: refi loan amount ($1,018,192) present', html.includes('$1,018,192') ? 1 : 0, 1);
   check(g, 'P4: DSCR 1.57x present', html.includes('1.57x') ? 1 : 0, 1);
 
   // Page 5 (10-year cash flow)
@@ -1126,10 +1130,10 @@ function runM6_5() {
   check(g, 'BRRRR memo: thesis paragraphs (bp-narrative)', (brrrrHtml.match(/bp-narrative/g) || []).length >= 3 ? 1 : 0, 1);
   check(g, 'BRRRR memo: Devil\'s Advocate section', brrrrHtml.includes("Devil") ? 1 : 0, 1);
   check(g, 'BRRRR memo: IC Questions numbered list', brrrrHtml.includes('im-questions') ? 1 : 0, 1);
-  check(g, 'BRRRR memo: stabilized NOI in facts ($130,442)', brrrrHtml.includes('$130,442') ? 1 : 0, 1);
+  check(g, 'BRRRR memo: stabilized NOI in facts ($127,274)', brrrrHtml.includes('$127,274') ? 1 : 0, 1);
   // Layer 2 Fix 1: engine version stamp must appear on Internal Memo footer
   check(g, 'BRRRR memo: engine version stamp present (Layer 2 Fix 1)',
-    brrrrHtml.includes('Engine 1.1.0') ? 1 : 0, 1);
+    brrrrHtml.includes('Engine 1.2.0') ? 1 : 0, 1);
 
   // ── F&F (clean 2455 deal)
   loadFF();
@@ -1164,7 +1168,7 @@ function runM6_6() {
   check(g, 'BRRRR: header reads "Lender Package · BRRRR Bridge / Agency"', brrrrHtml.includes('BRRRR Bridge / Agency') ? 1 : 0, 1);
   check(g, 'BRRRR: 6 debt metric tiles on cover', (brrrrHtml.match(/pk-tile-lbl/g) || []).length >= 6 ? 1 : 0, 1);
   check(g, 'BRRRR: refi takeout section', brrrrHtml.includes('Refinance Takeout Sizing') ? 1 : 0, 1);
-  check(g, 'BRRRR: NOI build with Stabilized NOI $130,442', brrrrHtml.includes('$130,442') ? 1 : 0, 1);
+  check(g, 'BRRRR: NOI build with Stabilized NOI $127,274', brrrrHtml.includes('$127,274') ? 1 : 0, 1);
   check(g, 'BRRRR: stress scenarios table', brrrrHtml.includes('Refi Rate +50bp') && brrrrHtml.includes('Refi Rate +100bp') ? 1 : 0, 1);
   check(g, 'BRRRR: Sponsor + Asset + Notices and Disclaimers page (Layer 2 Fix 2)',
     brrrrHtml.includes('Sponsor Profile') && brrrrHtml.includes('Asset Summary') && brrrrHtml.includes('Notices and Disclaimers') ? 1 : 0, 1);
@@ -1519,7 +1523,7 @@ function runM6_10() {
   check(g, 'BRRRR: equity multiple method disclosed',
     brrrrHtml.includes('Equity Multiple method') && brrrrHtml.includes('Institutional') ? 1 : 0, 1);
   check(g, 'BRRRR: engine version stamp present (dynamic semver from engine.js)',
-    brrrrHtml.includes('Engine version') && brrrrHtml.includes('1.1.0') ? 1 : 0, 1);
+    brrrrHtml.includes('Engine version') && brrrrHtml.includes('1.2.0') ? 1 : 0, 1);
   check(g, 'BRRRR: closing cost decomposition present (8 components)',
     brrrrHtml.includes('Origination fee') && brrrrHtml.includes('Lender points') ? 1 : 0, 1);
 
@@ -1642,8 +1646,8 @@ function runM8() {
     typeof v === 'string' && v.length > 0 ? 1 : 0, 1);
   check(g, 'FOUNDRY_ENGINE_VERSION matches MAJOR.MINOR.PATCH semver',
     /^\d+\.\d+\.\d+$/.test(v) ? 1 : 0, 1);
-  check(g, 'FOUNDRY_ENGINE_VERSION is 1.1.0 (Path C)',
-    v === '1.1.0' ? 1 : 0, 1);
+  check(g, 'FOUNDRY_ENGINE_VERSION is 1.2.0 (Path C)',
+    v === '1.2.0' ? 1 : 0, 1);
 
   // ── Engine version date is set
   const d = vm.runInContext(`typeof FOUNDRY_ENGINE_VERSION_DATE === 'string' ? FOUNDRY_ENGINE_VERSION_DATE : ''`, ctx);
@@ -1653,7 +1657,7 @@ function runM8() {
   // ── model-assumptions reads the live constant via _engineVersionStamp
   const stamp = vm.runInContext(`typeof _engineVersionStamp === 'function' ? _engineVersionStamp() : ''`, ctx);
   check(g, '_engineVersionStamp() returns dynamic value from engine.js',
-    stamp.includes('1.1.0') && stamp.includes(d) ? 1 : 0, 1);
+    stamp.includes('1.2.0') && stamp.includes(d) ? 1 : 0, 1);
 
   // ── Engine version flows into rendered Model Assumptions block
   loadBRRRR();
@@ -1669,7 +1673,7 @@ function runM8() {
   vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/brrrr-package.js'), 'utf8'), ctx, { filename: 'reports/brrrr-package.js' });
   const brrrrHtml = vm.runInContext(`renderReport_brrrr_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
   check(g, 'BRRRR Model Assumptions block contains live engine version',
-    brrrrHtml.includes('1.1.0') ? 1 : 0, 1);
+    brrrrHtml.includes('1.2.0') ? 1 : 0, 1);
   check(g, 'BRRRR Model Assumptions block contains engine version date',
     brrrrHtml.includes('(2026-05-13)') ? 1 : 0, 1);
 

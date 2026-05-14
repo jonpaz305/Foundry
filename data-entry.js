@@ -324,7 +324,17 @@ function renderDealSetupForm() {
             <datalist id="cuyahoga-districts">
               ${getCuyahogaDistrictList().map(d => `<option value="${escapeHtml(d)}"></option>`).join('')}
             </datalist>
-            <div class="hint">Type to search; autocompletes from the Cuyahoga tax table.</div>
+            <div class="hint" data-tax-hint>${(() => {
+              const d = (i.tax_district || '').trim();
+              if (!d) return '<span style="color:var(--bad)">⚠ Empty - taxes will compute to $0. Type to search the Cuyahoga table.</span>';
+              if (typeof CUYAHOGA_TAX_RATES !== 'undefined' && !CUYAHOGA_TAX_RATES[d]) return '<span style="color:var(--bad)">⚠ District not found in Cuyahoga table - taxes will compute to $0. Check spelling against autocomplete.</span>';
+              if (typeof CUYAHOGA_TAX_RATES !== 'undefined' && CUYAHOGA_TAX_RATES[d]) {
+                const isCom = i.asset_type === 'commercial_multifamily';
+                const rate = isCom ? CUYAHOGA_TAX_RATES[d][1] : CUYAHOGA_TAX_RATES[d][0];
+                return 'Resolved: ' + (rate * 100).toFixed(2) + '% (' + (isCom ? 'commercial 5+ unit' : 'residential') + ' rate).';
+              }
+              return 'Type to search; autocompletes from the Cuyahoga tax table.';
+            })()}</div>
           </div>
         </div>
       ` : ''}
