@@ -115,6 +115,8 @@ function renderBRRRRKpis() {
   const dscr = R.dscr;
   const irr  = R.investor_irr;
   const em   = R.equity_multiple;
+  const noi  = R.stabilized_noi;
+  const recap = R.capital_recaptured_pct;
 
   const irrColor = irr == null || !isFinite(irr) ? 'var(--text3)'
     : irr >= 0.15 ? 'var(--ok)'
@@ -124,6 +126,37 @@ function renderBRRRRKpis() {
     : dscr >= 1.25 ? 'var(--ok)'
     : dscr >= 1.15 ? 'var(--gold-lt)'
     : 'var(--bad)';
+
+  // Equity Multiple: institutional thresholds. <1.5x = under-target,
+  // 1.5-2.0x = marginal, ≥2.0x = institutional-grade.
+  const emColor = em == null || !isFinite(em) ? 'var(--text3)'
+    : em >= 2.0 ? 'var(--ok)'
+    : em >= 1.5 ? 'var(--gold-lt)'
+    : 'var(--bad)';
+
+  // Capital Recapture %: ≥80% = strong recycle, 50-80% = partial, <50% = poor.
+  // Engine returns recap as a fraction (e.g. 0.97 = 97%).
+  const recapNorm = recap == null ? null : (recap > 1.5 ? recap / 100 : recap);
+  const recapColor = recapNorm == null || !isFinite(recapNorm) ? 'var(--text3)'
+    : recapNorm >= 0.80 ? 'var(--ok)'
+    : recapNorm >= 0.50 ? 'var(--gold-lt)'
+    : 'var(--bad)';
+
+  // Yield on Cost = Stabilized NOI / TPC. ≥9% strong, 7-9% acceptable, <7% weak.
+  const yoc = (noi != null && tpc != null && tpc > 0) ? noi / tpc : null;
+  const yocColor = yoc == null || !isFinite(yoc) ? 'var(--text3)'
+    : yoc >= 0.09 ? 'var(--ok)'
+    : yoc >= 0.07 ? 'var(--gold-lt)'
+    : 'var(--bad)';
+
+  // Stabilized Cap Rate = Stabilized NOI / ARV-in-use. When ARV source is
+  // income_approach (default), this equals exit_cap by definition. When
+  // override or comp-derived, this is the implied cap rate at the ARV in
+  // use. Engine exposes R.implied_cap_rate for the non-income-approach
+  // case; fall back to exit_cap when implied_cap_rate is unavailable.
+  const stabCap = R.implied_cap_rate != null
+    ? R.implied_cap_rate
+    : (noi != null && arv != null && arv > 0) ? noi / arv : null;
 
   // Per-door helper for KPI subtitle context
   const totalUnits = R.total_unit_count || 0;
@@ -137,8 +170,19 @@ function renderBRRRRKpis() {
     ? ((perDoor(arv) ? perDoor(arv) : '') + (tpc != null ? (perDoor(arv) ? ' · ' : '') + 'Total cost: ' + f$(tpc) : ''))
     : 'Pending project cost';
   const eqSub = eq != null
-    ? 'Equity in: ' + f$(eq) + (perDoor(eq) ? ' (' + perDoor(eq) + ')' : '')
+    ? (perDoor(eq) ? perDoor(eq) : 'Closing-day equity at risk')
     : 'Pending equity';
+  const recapSub = recapNorm != null
+    ? 'Refi proceeds / equity in'
+    : 'Pending refi';
+  const yocSub = yoc != null
+    ? 'Stabilized NOI / TPC'
+    : 'Pending NOI';
+  const stabCapSub = R.arv_source_resolved === 'manual_override'
+    ? 'NOI / manual ARV (implied)'
+    : R.arv_source_resolved === 'comp_derived'
+    ? 'NOI / comp-derived ARV (implied)'
+    : 'NOI / Exit cap (= input)';
 
   return `
     <div class="kpi-card kpi-gold">
@@ -154,11 +198,36 @@ function renderBRRRRKpis() {
     <div class="kpi-card">
       <div class="kpi-label">Investor IRR (Yr ${inputs.target_hold_years || 10})</div>
       <div class="kpi-val" style="color:${irrColor}">${irr != null && isFinite(irr) ? fP(irr) : '-'}</div>
-      <div class="kpi-sub">${em != null ? 'EM: ' + fX(em) : 'Pending exit modeling'}</div>
+      <div class="kpi-sub">10-year levered</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Equity Multiple</div>
+      <div class="kpi-val" style="color:${emColor}">${em != null && isFinite(em) ? fX(em) : '-'}</div>
+      <div class="kpi-sub">Institutional (Y1-Y10)</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Post-Refi DSCR</div>
       <div class="kpi-val" style="color:${dscrColor}">${dscr != null && isFinite(dscr) ? fX(dscr) : '-'}</div>
+      <div class="kpi-sub">Stabilized NOI / Refi DS</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Capital Recapture</div>
+      <div class="kpi-val" style="color:${recapColor}">${recapNorm != null && isFinite(recapNorm) ? fP(recapNorm) : '-'}</div>
+      <div class="kpi-sub">${recapSub}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Yield on Cost</div>
+      <div class="kpi-val" style="color:${yocColor}">${yoc != null && isFinite(yoc) ? fP(yoc) : '-'}</div>
+      <div class="kpi-sub">${yocSub}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Stabilized Cap Rate</div>
+      <div class="kpi-val">${stabCap != null && isFinite(stabCap) ? fP(stabCap) : '-'}</div>
+      <div class="kpi-sub">${stabCapSub}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Equity Requirement</div>
+      <div class="kpi-val">${eq != null ? f$(eq) : '-'}</div>
       <div class="kpi-sub">${eqSub}</div>
     </div>
     ${renderMarketKpiTile()}`;
