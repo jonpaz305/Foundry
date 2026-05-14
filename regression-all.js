@@ -1678,9 +1678,9 @@ function runM3InvestmentOverview() {
   loadBRRRR();
   const html = vm.runInContext('renderReport_investment_overview(currentDeal, R, inputs, marketAnalysis, ' + HELPERS_SRC_IO + ');', ctx);
 
-  // Page count: exactly 4 pages
+  // Page count: exactly 7 pages (v2: 7-page substantive package)
   const pageCount = (html.match(/class="print-page print-page-compact"/g) || []).length;
-  check(g, 'M3: page count is exactly 4', pageCount, 4);
+  check(g, 'M3: page count is exactly 7', pageCount, 7);
 
   // Page 1: Cover with eyebrow, key metrics
   check(g, 'M3 P1: "Investment Overview" eyebrow present',
@@ -1692,28 +1692,54 @@ function runM3InvestmentOverview() {
   check(g, 'M3 P1: Key Metrics section present',
     html.includes('Key Metrics') ? 1 : 0, 1);
 
-  // Page 2: The Plan with 5 steps + glossary
-  check(g, 'M3 P2: "The Plan" section present',
+  // Page 2: Unit mix + rent roll + income roll-up
+  check(g, 'M3 P2: Unit Mix and Stabilized Rents section present',
+    html.includes('Unit Mix and Stabilized Rents') ? 1 : 0, 1);
+  check(g, 'M3 P2: Income Roll-Up section present',
+    html.includes('Income Roll-Up') ? 1 : 0, 1);
+
+  // Page 3: Operating Expenses + NOI
+  check(g, 'M3 P3: Operating Expenses section present',
+    html.includes('Operating Expenses') ? 1 : 0, 1);
+  check(g, 'M3 P3: Net Operating Income (NOI) section present',
+    html.includes('Net Operating Income (NOI)') ? 1 : 0, 1);
+
+  // Page 4: Sources & Uses + Ownership
+  check(g, 'M3 P4: Uses of Capital table present',
+    html.includes('Uses of Capital') ? 1 : 0, 1);
+  check(g, 'M3 P4: Sources of Capital table present',
+    html.includes('Sources of Capital') ? 1 : 0, 1);
+  check(g, 'M3 P4: Ownership and Distribution Structure present',
+    html.includes('Ownership and Distribution Structure') ? 1 : 0, 1);
+
+  // Page 5: Valuation + Refi + Cash Flow
+  check(g, 'M3 P5: Stabilized Valuation section present',
+    html.includes('Stabilized Valuation') ? 1 : 0, 1);
+  check(g, 'M3 P5: Refinance Mechanics section present',
+    html.includes('Refinance Mechanics') ? 1 : 0, 1);
+  check(g, 'M3 P5: Investor Cash Flow table present',
+    html.includes('Investor Cash Flow') ? 1 : 0, 1);
+
+  // Page 6: Plan + Glossary
+  check(g, 'M3 P6: "The Plan" section present',
     html.includes('The Plan') ? 1 : 0, 1);
-  check(g, 'M3 P2: Glossary terms present (Bridge loan, Cap rate, DSCR, IRR, NOI)',
+  check(g, 'M3 P6: Glossary terms present (Bridge loan, Cap rate, DSCR, IRR, NOI)',
     html.includes('Bridge loan')
       && html.includes('Cap rate')
       && html.includes('DSCR (debt service coverage ratio)')
       && html.includes('IRR (internal rate of return)')
       && html.includes('NOI (net operating income)') ? 1 : 0, 1);
-  check(g, 'M3 P2: Capital Timeline table present',
+  check(g, 'M3 P6: Capital Timeline table present',
     html.includes('Capital Timeline') ? 1 : 0, 1);
 
-  // Page 3: Cash flow + sensitivity
-  check(g, 'M3 P3: Annual Investor Cash Flow table present',
-    html.includes('Annual Investor Cash Flow') ? 1 : 0, 1);
-  check(g, 'M3 P3: What If the Market Moves sensitivity present',
-    html.includes('What If the Market Moves') ? 1 : 0, 1);
-
-  // Page 4: Risks + sponsor + disclaimers
-  check(g, 'M3 P4: Key Risks section present',
+  // Page 7: Risks + Sensitivity + FAQ + Sponsor + Disclaimers
+  check(g, 'M3 P7: Key Risks section present',
     html.includes('Key Risks') ? 1 : 0, 1);
-  check(g, 'M3 P4: Disclaimers section present',
+  check(g, 'M3 P7: What If the Market Moves sensitivity present',
+    html.includes('What If the Market Moves') ? 1 : 0, 1);
+  check(g, 'M3 P7: Frequently Asked Questions section present',
+    html.includes('Frequently Asked Questions') ? 1 : 0, 1);
+  check(g, 'M3 P7: Disclaimers section present',
     html.includes('Disclaimers') ? 1 : 0, 1);
 
   // No em-dashes
