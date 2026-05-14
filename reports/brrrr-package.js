@@ -1024,15 +1024,19 @@
     const fmr = market && market.fmr;
 
     // M2: neighborhood map block. Only renders if uploaded for this deal.
-    // Top half of page; demographic data follows below.
+    // Top of page; remaining market data sits below. Max-height capped
+    // at 160pt (down from 240pt) so the page accommodates the composite
+    // strip + component table + FMR table without orphan-page spillover.
+    // max-width tuned to ~85% of usable width to keep aspect ratio
+    // proportional rather than stretching landscape maps full-width.
     const mapBase64 = (deal && deal.neighborhood_map_base64)
       || (typeof currentDeal === 'object' && currentDeal && currentDeal.neighborhood_map_base64)
       || null;
     const mapBlock = mapBase64
       ? `
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Neighborhood</div>
-        <div class="bp-map-wrap pb-avoid" style="margin-bottom:8pt;text-align:center">
-          <img src="${mapBase64}" alt="Neighborhood map" class="bp-map-img" style="max-width:100%;max-height:240pt;width:auto;height:auto;border:1px solid #ddd;border-radius:4pt"/>
+        <div class="bp-map-wrap pb-avoid" style="margin-bottom:6pt;text-align:center">
+          <img src="${mapBase64}" alt="Neighborhood map" class="bp-map-img" style="max-width:85%;max-height:160pt;width:auto;height:auto;border:1px solid #ddd;border-radius:4pt"/>
         </div>`
       : '';
 
@@ -1251,9 +1255,31 @@
       ? 'Stabilized ARV (institutional default)'
       : 'Purchase Price (legacy spreadsheet parity)';
 
+    // Sponsor block: folded into this page (no standalone sponsor page).
+    // Builds a tight 1-row inline block at the top with name + subtitle
+    // and contact details. Suppresses fields that are empty so a deal
+    // with only some contact info doesn't leave hanging labels.
+    const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
+    const contact = (co && co.contact_info) ? co.contact_info : {};
+    const hasSponsorInfo = !!(co && (co.name || co.subtitle || contact.email || contact.phone || contact.website || contact.address));
+    const sponsorContactParts = [];
+    if (contact.email)   sponsorContactParts.push('<span style="margin-right:14pt"><strong style="color:#777;font-size:8pt;letter-spacing:0.04em;text-transform:uppercase">Email</strong> ' + _esc(contact.email) + '</span>');
+    if (contact.phone)   sponsorContactParts.push('<span style="margin-right:14pt"><strong style="color:#777;font-size:8pt;letter-spacing:0.04em;text-transform:uppercase">Phone</strong> ' + _esc(contact.phone) + '</span>');
+    if (contact.website) sponsorContactParts.push('<span style="margin-right:14pt"><strong style="color:#777;font-size:8pt;letter-spacing:0.04em;text-transform:uppercase">Web</strong> ' + _esc(contact.website) + '</span>');
+    if (contact.address) sponsorContactParts.push('<span style="margin-right:14pt"><strong style="color:#777;font-size:8pt;letter-spacing:0.04em;text-transform:uppercase">Office</strong> ' + _esc(contact.address) + '</span>');
+    const sponsorBlock = hasSponsorInfo ? `
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Sponsor</div>
+        <div class="bp-sponsor-compact pb-avoid" style="margin-bottom:12pt;padding-bottom:8pt;border-bottom:1px solid #eee">
+          <div style="font-size:13pt;font-weight:700;color:#0a0a0b;margin-bottom:2pt">${_esc((co && co.name) || 'ASJP')}</div>
+          ${(co && co.subtitle) ? `<div style="font-size:9pt;color:#666;margin-bottom:6pt">${_esc(co.subtitle)}</div>` : ''}
+          ${sponsorContactParts.length > 0 ? `<div style="font-size:9pt;color:#333;line-height:1.6">${sponsorContactParts.join('')}</div>` : ''}
+        </div>` : '';
+
     return `
       <div class="print-page print-page-compact">
-        ${_header(h, 'Methodology & Disclosures')}
+        ${_header(h, 'Sponsor · Methodology · Disclosures')}
+
+        ${sponsorBlock}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Underwriting Methodology</div>
         <div class="bp-method-summary pb-avoid" style="font-size:9pt;line-height:1.5;color:#333;margin-bottom:14pt">
@@ -1287,18 +1313,17 @@
     //     renders when at least one photo is uploaded)
     //   - Neighborhood map embedded on Market Strength page (M2; only
     //     renders when uploaded)
+    //   - Standalone Sponsor page removed; sponsor block folded into
+    //     the top of the Methodology & Disclosures page
     //   - Full Model Assumptions + Notices pages collapsed into one
     //     compact "Methodology & Disclosures" page at the end
-    // Net (no media): 7 pages. With photos: 8. Both: same 8 (map embedded).
-    const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
-    const hasSponsorPage = !!(co && (co.subtitle || (co.contact_info && (co.contact_info.email || co.contact_info.phone || co.contact_info.website || co.contact_info.address))));
+    // Net (no media): 7 pages. With photos: 8.
     const hasPhotos = (typeof DEAL_PHOTOS !== 'undefined' && Array.isArray(DEAL_PHOTOS) && DEAL_PHOTOS.length > 0);
 
-    // Base 7 pages: Cover, S&U, Income/OPEX, Stab/Refi, 10-yr CF, Returns, Market, Methodology
-    // (Methodology counts as the 7th; Market is the 7th in render order but
-    // Methodology renders last)
+    // Base 7 pages: Cover, S&U, Income/OPEX, Stab/Refi, 10-yr CF, Returns, Market
+    // Plus 1 always for Sponsor+Methodology+Disclosures (combined)
     const basePages = 7;
-    const totalPages = basePages + (hasPhotos ? 1 : 0) + (hasSponsorPage ? 1 : 0) + 1; // +1 for Methodology
+    const totalPages = basePages + (hasPhotos ? 1 : 0) + 1;
 
     let n = 1;
     pages.push(_page1(deal, R, inputs, market, h, n++, totalPages));
@@ -1312,10 +1337,8 @@
     pages.push(_page6(deal, R, inputs, market, h, n++, totalPages));
     // _page7 (Risk Register) intentionally omitted - moved to Cover
     pages.push(_page8(deal, R, inputs, market, h, n++, totalPages));
-    if (hasSponsorPage) {
-      const p9 = _page9(deal, R, inputs, market, h, n, totalPages);
-      if (p9) { pages.push(p9); n++; }
-    }
+    // _page9 (Sponsor) intentionally omitted - sponsor info folded into
+    // the Methodology & Disclosures page
     pages.push(_pageMethodologyAndDisclosures(deal, R, inputs, market, h, n, totalPages));
 
     return pages.join('\n');
