@@ -269,9 +269,14 @@
     const conTranche = R.construction_tranche || 0;
     const capexDur = R.capex_duration_months_resolved || 6;
 
-    const sponsorEquity = (R.initial_investor_equity || 0) * (1 - (inputs.investor_ownership || 0));
-    const lpEquity = (R.initial_investor_equity || 0) * (inputs.investor_ownership || 0);
-    const totalSources = initialLoan + (R.initial_investor_equity || 0);
+    // Equity attribution: in Foundry's deal-by-deal structure, the
+    // Capital Partner funds 100% of equity at closing in exchange for
+    // their pro-rata ownership in the deal LLC. The Sponsor (ASJP)
+    // contributes operational execution in lieu of cash. There is no
+    // institutional GP/LP split at closing - that is a fund-vehicle
+    // convention that does not apply here.
+    const investorEquity = R.initial_investor_equity || 0;
+    const totalSources = initialLoan + investorEquity;
 
     const purchase = inputs.purchase_price || 0;
     const capex = inputs.capex_budget || 0;
@@ -301,13 +306,13 @@
     const eqMobIfEq    = R.equity_gc_contingency_if_equity || 0;
     const eqTotal      = R.equity_required_breakdown_total || 0;
 
-    // Capital Stack segment widths. The two debt segments are sized
-    // proportional to their tranche dollars. Sponsor + LP equity stack
-    // above. Defensive math so all four segments sum to 100%.
+    // Capital Stack segment widths. Three segments: acquisition tranche,
+    // construction tranche, and investor equity. No GP/LP split at the
+    // closing-day stack level - that is a returns-split question handled
+    // in the Ownership & Distribution disclosure block below.
     const acqPct = (acqTranche / Math.max(1, totalSources)) * 100;
     const conPct = (conTranche / Math.max(1, totalSources)) * 100;
-    const spPct  = (sponsorEquity / Math.max(1, totalSources)) * 100;
-    const lpPct  = (lpEquity / Math.max(1, totalSources)) * 100;
+    const eqPct  = (investorEquity / Math.max(1, totalSources)) * 100;
     const debtPct = (initialLoan / Math.max(1, totalSources));
 
     return `
@@ -322,8 +327,7 @@
               <tr><td>Senior Debt: Acquisition Tranche</td><td class="num">${h.fmtMoney(acqTranche)}</td><td class="num">${_pd(acqTranche)}</td><td class="num">${h.fmtPct(acqTranche / Math.max(1, totalSources))}</td></tr>
               <tr><td>Senior Debt: Construction Tranche</td><td class="num">${h.fmtMoney(conTranche)}</td><td class="num">${_pd(conTranche)}</td><td class="num">${h.fmtPct(conTranche / Math.max(1, totalSources))}</td></tr>
               <tr><td style="padding-left:1.5em">Total Bridge</td><td class="num">${h.fmtMoney(initialLoan)}</td><td class="num">${_pd(initialLoan)}</td><td class="num">${h.fmtPct(debtPct)}</td></tr>
-              <tr><td>Sponsor Equity</td><td class="num">${h.fmtMoney(sponsorEquity)}</td><td class="num">${_pd(sponsorEquity)}</td><td class="num">${h.fmtPct(sponsorEquity / Math.max(1, totalSources))}</td></tr>
-              <tr><td>LP Equity</td><td class="num">${h.fmtMoney(lpEquity)}</td><td class="num">${_pd(lpEquity)}</td><td class="num">${h.fmtPct(lpEquity / Math.max(1, totalSources))}</td></tr>
+              <tr><td>Investor Equity</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${_pd(investorEquity)}</td><td class="num">${h.fmtPct(investorEquity / Math.max(1, totalSources))}</td></tr>
               <tr class="totals"><td>Total Sources</td><td class="num">${h.fmtMoney(totalSources)}</td><td class="num">${_pd(totalSources)}</td><td class="num">100.0%</td></tr>
             </tbody>
           </table>
@@ -359,20 +363,15 @@
               <span class="bp-seg-lbl">Con</span>
               <span class="bp-seg-val">${h.fmtPct(conTranche / Math.max(1, totalSources), 0)}</span>
             </div>
-            <div class="bp-capstack-seg bp-seg-sponsor" style="width:${spPct.toFixed(1)}%">
-              <span class="bp-seg-lbl">Sponsor</span>
-              <span class="bp-seg-val">${h.fmtPct(sponsorEquity / Math.max(1, totalSources), 0)}</span>
-            </div>
-            <div class="bp-capstack-seg bp-seg-lp" style="width:${lpPct.toFixed(1)}%">
-              <span class="bp-seg-lbl">LP</span>
-              <span class="bp-seg-val">${h.fmtPct(lpEquity / Math.max(1, totalSources), 0)}</span>
+            <div class="bp-capstack-seg bp-seg-sponsor" style="width:${eqPct.toFixed(1)}%">
+              <span class="bp-seg-lbl">Equity</span>
+              <span class="bp-seg-val">${h.fmtPct(investorEquity / Math.max(1, totalSources), 0)}</span>
             </div>
           </div>
           <div class="bp-capstack-legend" style="display:flex;gap:1.5em;font-size:8.5pt;color:var(--print-muted);margin-top:6pt;flex-wrap:wrap">
             <span><span class="bp-legend-swatch bp-seg-debt-acq"></span> Senior Debt: Acquisition Tranche</span>
             <span><span class="bp-legend-swatch bp-seg-debt-con"></span> Senior Debt: Construction Tranche</span>
-            <span><span class="bp-legend-swatch bp-seg-sponsor"></span> Sponsor Equity</span>
-            <span><span class="bp-legend-swatch bp-seg-lp"></span> LP Equity</span>
+            <span><span class="bp-legend-swatch bp-seg-sponsor"></span> Investor Equity</span>
           </div>
         </div>
 
@@ -381,11 +380,11 @@
           <thead><tr><th>Component</th><th class="num">Amount</th><th class="num">$/Door</th><th class="num">% of Equity</th></tr></thead>
           <tbody>
             <tr><td>Mortgage down payment (acquisition)</td><td class="num">${h.fmtMoney(eqAcqDown)}</td><td class="num">${_pd(eqAcqDown)}</td><td class="num">${h.fmtPct(eqAcqDown / Math.max(1, eqTotal))}</td></tr>
-            <tr><td>Sponsor capex above lender funding</td><td class="num">${h.fmtMoney(eqCapexGap)}</td><td class="num">${_pd(eqCapexGap)}</td><td class="num">${h.fmtPct(eqCapexGap / Math.max(1, eqTotal))}</td></tr>
+            <tr><td>Capex above lender funding</td><td class="num">${h.fmtMoney(eqCapexGap)}</td><td class="num">${_pd(eqCapexGap)}</td><td class="num">${h.fmtPct(eqCapexGap / Math.max(1, eqTotal))}</td></tr>
             <tr><td>Closing costs (full detail below)</td><td class="num">${h.fmtMoney(eqClosing)}</td><td class="num">${_pd(eqClosing)}</td><td class="num">${h.fmtPct(eqClosing / Math.max(1, eqTotal))}</td></tr>
             <tr><td>Consulting / project fee</td><td class="num">${h.fmtMoney(eqConsulting)}</td><td class="num">${_pd(eqConsulting)}</td><td class="num">${h.fmtPct(eqConsulting / Math.max(1, eqTotal))}</td></tr>
             <tr><td>Bridge debt service through refi</td><td class="num">${h.fmtMoney(eqCarry)}</td><td class="num">${_pd(eqCarry)}</td><td class="num">${h.fmtPct(eqCarry / Math.max(1, eqTotal))}</td></tr>
-            <tr><td>Sponsor mobilization${eqMobIfEq > 0 ? '' : ' (excluded - reimbursed via draws)'}</td><td class="num">${h.fmtMoney(eqMobIfEq)}</td><td class="num">${_pd(eqMobIfEq)}</td><td class="num">${h.fmtPct(eqMobIfEq / Math.max(1, eqTotal))}</td></tr>
+            <tr><td>Mobilization float${eqMobIfEq > 0 ? '' : ' (excluded - reimbursed via draws)'}</td><td class="num">${h.fmtMoney(eqMobIfEq)}</td><td class="num">${_pd(eqMobIfEq)}</td><td class="num">${h.fmtPct(eqMobIfEq / Math.max(1, eqTotal))}</td></tr>
             <tr class="totals"><td>Total Equity Required at Closing</td><td class="num">${h.fmtMoney(eqTotal)}</td><td class="num">${_pd(eqTotal)}</td><td class="num">100.0%</td></tr>
           </tbody>
         </table>
@@ -418,8 +417,48 @@
           <div class="pl-row"><span class="pl-lbl">Refi Target</span><span class="pl-val">Month ${inputs.target_refi_months || 9}</span></div>
         </div>
 
+        ${_ownershipDistributionBlock(R, inputs, h)}
+
         ${_footer(pageNum, totalPages)}
       </div>`;
+  }
+
+
+  // ── OWNERSHIP & DISTRIBUTION STRUCTURE ────────────────────────
+  // Discloses the actual deal LLC ownership structure. In Foundry's
+  // deal-by-deal model, the Capital Partner funds 100% of equity at
+  // closing in exchange for their pro-rata ownership in the deal LLC.
+  // The Sponsor (ASJP) contributes operational execution in lieu of
+  // cash equity. Cash flow and disposition proceeds split pro-rata
+  // to ownership - no promote, no preferred return, no waterfall.
+  //
+  // The block renders only when investor_ownership > 0 and there is
+  // a real equity check. Deals where the sponsor self-funds 100%
+  // (investor_ownership == 0 or null) suppress the block entirely.
+  function _ownershipDistributionBlock(R, inputs, h) {
+    const ownPct = Number(inputs.investor_ownership) || 0;
+    const equityIn = Number(R.initial_investor_equity) || 0;
+    if (ownPct <= 0 || equityIn <= 0) return '';
+
+    const sponsorOwn = 1 - ownPct;
+    const fmtP = (p) => (Math.round(p * 1000) / 10).toFixed(1) + '%';
+
+    return `
+      <div class="print-section pb-avoid"><span class="ps-accent"></span>Ownership &amp; Distribution Structure</div>
+      <table class="print-table pb-avoid">
+        <tbody>
+          <tr><td>Deal LLC</td><td class="num">ASJP / Capital Partner Joint Venture</td></tr>
+          <tr><td>Capital Partner Ownership</td><td class="num">${fmtP(ownPct)}</td></tr>
+          <tr><td>Sponsor (ASJP) Ownership</td><td class="num">${fmtP(sponsorOwn)}</td></tr>
+          <tr><td>Capital Partner Closing Contribution</td><td class="num">${h.fmtMoney(equityIn)} (100%)</td></tr>
+          <tr><td>Sponsor Closing Contribution</td><td class="num">$0</td></tr>
+          <tr><td>Sponsor Contribution-in-Kind</td><td class="num">Acquisition, capex execution, asset management, refinance, disposition</td></tr>
+          <tr><td>Cash Flow Distribution</td><td class="num">Pro-rata to ownership (${fmtP(ownPct)} / ${fmtP(sponsorOwn)})</td></tr>
+          <tr><td>Disposition Proceeds Distribution</td><td class="num">Pro-rata to ownership (${fmtP(ownPct)} / ${fmtP(sponsorOwn)})</td></tr>
+          <tr><td>Promote / Waterfall</td><td class="num">None - straight pro-rata</td></tr>
+          <tr><td>Preferred Return</td><td class="num">None</td></tr>
+        </tbody>
+      </table>`;
   }
 
 
