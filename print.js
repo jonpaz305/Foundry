@@ -137,6 +137,17 @@ async function startPrintMode() {
       throw new Error('No active session. Sign in to the main app first.');
     }
 
+    // M6 Fix (Engine 1.2.0): The print tab is a fresh browser tab with its
+    // own JS context; CP.list and CP.active start empty until we explicitly
+    // populate them. Without this load, the report header falls through to
+    // 'ASJP' text because CP.active is null when the header function runs.
+    // We load companies BEFORE fetching the deal so we can assign the deal's
+    // company_id to CP.active correctly.
+    if (typeof loadCompanies === 'function') {
+      try { await loadCompanies(); }
+      catch (e) { console.warn('[Foundry print] loadCompanies failed:', e); }
+    }
+
     // Fetch the deal directly (don't go through loadDeals/loadDeal which
     // mutate too much shell state; this tab is print-only).
     const { data, error } = await sb
@@ -146,6 +157,24 @@ async function startPrintMode() {
       .maybeSingle();
     if (error) throw error;
     if (!data) throw new Error('Deal not found: ' + route.dealId);
+
+    // M6 Fix: link CP.active to the deal's company_id (if set). If the
+    // deal has no company_id but the user has any company profile,
+    // fall back to the localStorage-remembered active profile or the
+    // first profile in CP.list. This mirrors the main-app logic in
+    // loadDeal so reports rendered from the print tab get the same
+    // branding the user sees in the main app's topbar.
+    if (typeof CP === 'object' && CP && Array.isArray(CP.list)) {
+      if (data.company_id) {
+        const dealCo = CP.list.find(c => c && c.id === data.company_id);
+        if (dealCo) CP.active = dealCo;
+      }
+      // Fallback chain: existing CP.active (set by loadCompanies via
+      // localStorage), else first profile in list.
+      if (!CP.active && CP.list.length) {
+        CP.active = CP.list[0];
+      }
+    }
 
     // Hydrate the engine globals so recompute() works against this deal.
     currentDeal = data;
@@ -178,10 +207,21 @@ async function startPrintMode() {
     const fn = window[meta.fn];
     let bodyHtml;
     if (typeof fn !== 'function') {
-      console.warn('[Foundry print] Report module not loaded: ' + meta.fn + '. Check that reports/' + route.reportType + '.js is uploaded and referenced from index.html.');
-      bodyHtml = _printPlaceholder(meta.label, currentDeal);
+      const diagMsg = '[Foundry print] Report function "' + meta.fn + '" not defined on window. '
+        + 'Expected reports/' + route.reportType + '.js to expose it. '
+        + 'Check that the file is uploaded to deployment and referenced from index.html.';
+      console.error(diagMsg);
+      bodyHtml = _printPlaceholder(meta.label, currentDeal, diagMsg);
     } else {
-      bodyHtml = fn(currentDeal, R, inputs, marketAnalysis, helpers);
+      try {
+        bodyHtml = fn(currentDeal, R, inputs, marketAnalysis, helpers);
+      } catch (renderErr) {
+        const errMsg = '[Foundry print] ' + meta.fn + ' threw: '
+          + (renderErr && renderErr.message ? renderErr.message : String(renderErr))
+          + (renderErr && renderErr.stack ? '\n' + renderErr.stack : '');
+        console.error(errMsg);
+        bodyHtml = _printPlaceholder(meta.label, currentDeal, errMsg);
+      }
     }
 
     // Render into the page. Wrap each report in a print-page container
@@ -255,7 +295,10 @@ function _printHelpers() {
 
 
 // ── Print harness chrome (placeholder + error) ─────────────────
-function _printPlaceholder(label, deal) {
+function _printPlaceholder(label, deal, diagMsg) {
+  const diagBlock = diagMsg
+    ? `<div style="margin-top:24pt;padding:12pt;background:#fff5f5;border:1px solid #e5b1b1;border-radius:4pt;font-family:monospace;font-size:8pt;color:#a00;text-align:left;white-space:pre-wrap;word-break:break-word">${String(diagMsg).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`
+    : '';
   return `
     <div class="print-page">
       <div class="print-header">
@@ -266,8 +309,9 @@ function _printPlaceholder(label, deal) {
         <div style="font-size:18pt;font-weight:700;margin-bottom:8pt">${label}</div>
         <div style="font-size:11pt;color:#666;margin-bottom:24pt">${deal && deal.name ? deal.name : 'Untitled deal'}</div>
         <div style="font-size:10pt;color:#999;max-width:5in;margin:0 auto;line-height:1.6">
-          This report is not yet implemented. M6.1 ships the print pipeline foundation only; report modules ship one at a time in subsequent milestones.
+          This report could not be rendered. Diagnostic information below.
         </div>
+        ${diagBlock}
       </div>
       <div class="print-footer">
         <div class="pf-conf">Confidential</div>
