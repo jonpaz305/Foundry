@@ -44,12 +44,13 @@
 
 // Map route slug → metadata (report renderer function name + label)
 const PRINT_REPORTS = {
-  'deal-snapshot':    { fn: 'renderReport_deal_snapshot',    label: 'Deal Snapshot' },
-  'brrrr-package':    { fn: 'renderReport_brrrr_package',    label: 'BRRRR Package' },
-  'ff-package':       { fn: 'renderReport_ff_package',       label: 'F&F Package' },
-  'internal-memo':    { fn: 'renderReport_internal_memo',    label: 'Internal Memo' },
-  'lender-package':   { fn: 'renderReport_lender_package',   label: 'Lender Package' },
-  'hud-vash-package': { fn: 'renderReport_hud_vash_package', label: 'HUD-VASH PBV Package' }
+  'deal-snapshot':        { fn: 'renderReport_deal_snapshot',        label: 'Deal Snapshot' },
+  'investment-overview':  { fn: 'renderReport_investment_overview',  label: 'Investment Overview' },
+  'brrrr-package':        { fn: 'renderReport_brrrr_package',        label: 'BRRRR Package' },
+  'ff-package':           { fn: 'renderReport_ff_package',           label: 'F&F Package' },
+  'internal-memo':        { fn: 'renderReport_internal_memo',        label: 'Internal Memo' },
+  'lender-package':       { fn: 'renderReport_lender_package',       label: 'Lender Package' },
+  'hud-vash-package':     { fn: 'renderReport_hud_vash_package',     label: 'HUD-VASH PBV Package' }
 };
 
 function isPrintHash() {

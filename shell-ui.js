@@ -824,12 +824,13 @@ function renderReportsPage() {
   // Report catalog (slug, label, desc, audience, mode-applicability).
   // Mode-applicability: 'both' = always shown; 'brrrr' = BRRRR only; 'ff' = F&F only.
   const reports = [
-    { slug: 'deal-snapshot',    label: 'Deal Snapshot',      desc: 'One-page internal summary. Headline KPIs, mode-aware status, top risks.', audience: 'Internal',          modes: 'both', pages: '1pp' },
-    { slug: 'brrrr-package',    label: 'BRRRR Package',      desc: 'Full underwriting package for lender or equity. Income, expenses, refi, exit, returns.', audience: 'Lender / Equity',   modes: 'brrrr', pages: '8-12pp' },
-    { slug: 'ff-package',       label: 'F&F Package',        desc: 'Single-equity-LP package. Comp grid, ARV derivation, returns, timeline.', audience: 'Equity LP',         modes: 'ff', pages: '6-8pp' },
-    { slug: 'internal-memo',    label: 'Internal Memo',      desc: 'Mode-aware narrative deal memo. Thesis, risks, recommendation.', audience: 'Internal IC',       modes: 'both', pages: '3-5pp' },
-    { slug: 'lender-package',   label: 'Lender Package',     desc: 'Bridge or agency lender deliverable. Sources/uses, DSCR, debt yield, sponsor.', audience: 'Lender',            modes: 'brrrr', pages: '4-6pp' },
-    { slug: 'hud-vash-package', label: 'HUD-VASH PBV Package', desc: 'Valor Housing Partners deliverable. Voucher uplift, PBV mechanics, federal pathway.', audience: 'HUD / GP',          modes: 'brrrr', pages: '5-7pp' }
+    { slug: 'deal-snapshot',       label: 'Deal Snapshot',          desc: 'One-page internal summary. Headline KPIs, mode-aware status, top risks.', audience: 'Internal',          modes: 'both', pages: '1pp' },
+    { slug: 'investment-overview', label: 'Investment Overview',    desc: 'Accessible 4-page package for investors new to value-add multifamily. Plain language, glossary, capital timeline.', audience: 'First-time Equity', modes: 'brrrr', pages: '4pp' },
+    { slug: 'brrrr-package',       label: 'BRRRR Package',          desc: 'Full underwriting package for lender or equity. Income, expenses, refi, exit, returns.', audience: 'Lender / Equity',   modes: 'brrrr', pages: '8-12pp' },
+    { slug: 'ff-package',          label: 'F&F Package',            desc: 'Single-equity-LP package. Comp grid, ARV derivation, returns, timeline.', audience: 'Equity LP',         modes: 'ff', pages: '6-8pp' },
+    { slug: 'internal-memo',       label: 'Internal Memo',          desc: 'Mode-aware narrative deal memo. Thesis, risks, recommendation.', audience: 'Internal IC',       modes: 'both', pages: '3-5pp' },
+    { slug: 'lender-package',      label: 'Lender Package',         desc: 'Bridge or agency lender deliverable. Sources/uses, DSCR, debt yield, sponsor.', audience: 'Lender',            modes: 'brrrr', pages: '4-6pp' },
+    { slug: 'hud-vash-package',    label: 'HUD-VASH PBV Package',   desc: 'Valor Housing Partners deliverable. Voucher uplift, PBV mechanics, federal pathway.', audience: 'HUD / GP',          modes: 'brrrr', pages: '5-7pp' }
   ];
 
   const cards = reports.map(rep => {

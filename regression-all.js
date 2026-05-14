@@ -889,8 +889,9 @@ function runM6() {
 
   // PRINT_REPORTS catalog
   const reports = vm.runInContext('Object.keys(PRINT_REPORTS);', printCtx);
-  check(g, 'PRINT_REPORTS: 6 report types registered', reports.length, 6);
+  check(g, 'PRINT_REPORTS: 7 report types registered (M3 added investment-overview)', reports.length, 7);
   checkExact(g, 'PRINT_REPORTS: contains deal-snapshot', reports.includes('deal-snapshot'), true);
+  checkExact(g, 'PRINT_REPORTS: contains investment-overview', reports.includes('investment-overview'), true);
   checkExact(g, 'PRINT_REPORTS: contains hud-vash-package', reports.includes('hud-vash-package'), true);
 
   // Filename safety: strip path separators, collapse whitespace
@@ -1652,6 +1653,75 @@ function runM6_10() {
 }
 
 // ════════════════════════════════════════════════════════════════
+// M3 INVESTMENT OVERVIEW (13 tests)
+// ════════════════════════════════════════════════════════════════
+// Validates the 4-page Investment Overview report - the accessible
+// middle-tier package between Deal Snapshot and BRRRR Package.
+// Asserts plain-language voice, glossary presence, acronym expansion,
+// cash flow table, sensitivity table, and third-person voice rules.
+function runM3InvestmentOverview() {
+  const g = group('M3 Inv Overview');
+
+  // Load the new report module
+  vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/investment-overview.js'), 'utf8'), ctx, { filename: 'reports/investment-overview.js' });
+
+  const HELPERS_SRC_IO = `({
+    fmtMoney: (x, dec) => x == null || !isFinite(x) ? '-' : '$' + Number(x).toLocaleString(undefined, { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 }),
+    fmtMoneyK: (x) => x == null || !isFinite(x) ? '-' : (Math.abs(x) >= 1e6 ? '$' + (x/1e6).toFixed(2) + 'M' : (Math.abs(x) >= 1e3 ? '$' + (x/1e3).toFixed(0) + 'K' : '$' + Math.round(x))),
+    fmtPct: (x, dec) => x == null || !isFinite(x) ? '-' : (x*100).toFixed(dec == null ? 1 : dec) + '%',
+    fmtX: (x, dec) => x == null || !isFinite(x) ? '-' : Number(x).toFixed(dec == null ? 2 : dec) + 'x',
+    fmtInt: (x) => x == null || !isFinite(x) ? '-' : Math.round(x).toLocaleString(),
+    todayLong: () => 'May 13, 2026',
+    foundryLogo: () => ''
+  })`;
+
+  loadBRRRR();
+  const html = vm.runInContext('renderReport_investment_overview(currentDeal, R, inputs, marketAnalysis, ' + HELPERS_SRC_IO + ');', ctx);
+
+  // Page count: exactly 4 pages
+  const pageCount = (html.match(/class="print-page print-page-compact"/g) || []).length;
+  check(g, 'M3: page count is exactly 4', pageCount, 4);
+
+  // Page 1: Cover with eyebrow, key metrics
+  check(g, 'M3 P1: "Investment Overview" eyebrow present',
+    html.includes('Investment Overview') ? 1 : 0, 1);
+  check(g, 'M3 P1: "The Opportunity" section header present',
+    html.includes('The Opportunity') ? 1 : 0, 1);
+  check(g, 'M3 P1: NOI acronym expanded on first use',
+    html.includes('net operating income (NOI)') ? 1 : 0, 1);
+  check(g, 'M3 P1: Key Metrics section present',
+    html.includes('Key Metrics') ? 1 : 0, 1);
+
+  // Page 2: The Plan with 5 steps + glossary
+  check(g, 'M3 P2: "The Plan" section present',
+    html.includes('The Plan') ? 1 : 0, 1);
+  check(g, 'M3 P2: Glossary terms present (Bridge loan, Cap rate, DSCR, IRR, NOI)',
+    html.includes('Bridge loan')
+      && html.includes('Cap rate')
+      && html.includes('DSCR (debt service coverage ratio)')
+      && html.includes('IRR (internal rate of return)')
+      && html.includes('NOI (net operating income)') ? 1 : 0, 1);
+  check(g, 'M3 P2: Capital Timeline table present',
+    html.includes('Capital Timeline') ? 1 : 0, 1);
+
+  // Page 3: Cash flow + sensitivity
+  check(g, 'M3 P3: Annual Investor Cash Flow table present',
+    html.includes('Annual Investor Cash Flow') ? 1 : 0, 1);
+  check(g, 'M3 P3: What If the Market Moves sensitivity present',
+    html.includes('What If the Market Moves') ? 1 : 0, 1);
+
+  // Page 4: Risks + sponsor + disclaimers
+  check(g, 'M3 P4: Key Risks section present',
+    html.includes('Key Risks') ? 1 : 0, 1);
+  check(g, 'M3 P4: Disclaimers section present',
+    html.includes('Disclaimers') ? 1 : 0, 1);
+
+  // No em-dashes
+  check(g, 'M3: no em-dashes in Investment Overview output',
+    html.indexOf('\u2014') < 0 ? 1 : 0, 1);
+}
+
+// ════════════════════════════════════════════════════════════════
 // M7 - COMPANY PROFILES + ASKING PRICE (M1 integration)
 // ════════════════════════════════════════════════════════════════
 // Verifies the M1 _renderNegotiationHint helper and the asking_price
@@ -1889,6 +1959,7 @@ runM6_7();
 runM6_8();
 runM6_9();
 runM6_10();
+runM3InvestmentOverview();
 runM7();
 runM8();
 runM9();
