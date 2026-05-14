@@ -89,7 +89,11 @@ function _taxBasisDisclosure(R, inputs) {
     ? 'Stabilized ARV (institutional default)'
     : 'Purchase Price (legacy spreadsheet parity)';
   const taxDollars = R.taxes != null ? _maMoney(R.taxes) : '-';
-  const district = inputs.tax_district || 'Not specified';
+  const districtRaw = (inputs.tax_district || '').trim();
+  const taxesZero = (R.taxes === 0 || R.taxes == null);
+  const district = !districtRaw
+    ? '⚠ NOT SPECIFIED -- taxes excluded'
+    : (taxesZero ? '⚠ ' + districtRaw + ' (not found in rate table)' : districtRaw);
 
   const footnote = mode === 'stabilized_arv'
     ? 'Property taxes are computed against the iteratively-solved stabilized ARV using the tax district\'s effective rate. This treatment assumes the County will reassess the property at the new stabilized value following the transfer of ownership and capex completion, which is the conservative institutional assumption. If the County\'s reassessment cycle is delayed or the post-transfer assessment is lower than the stabilized ARV, the tax line will be lower than projected and NOI / ARV will be correspondingly higher.'
