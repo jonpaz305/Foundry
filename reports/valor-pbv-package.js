@@ -67,6 +67,14 @@
     return t || 'Multifamily';
   }
 
+  // Per-door helper: appends a "| $X/door" suffix to a formatted dollar
+  // string when units > 0 and value is non-zero. Pure text (no HTML) so
+  // it can drop into pl-row values without escaping concerns.
+  function _withPerDoor(formattedValue, rawValue, units) {
+    if (!units || units <= 0 || rawValue == null || !isFinite(rawValue) || rawValue === 0) return formattedValue;
+    return formattedValue + ' | $' + Math.round(Number(rawValue) / units).toLocaleString() + '/door';
+  }
+
   // Swing-state footprint check
   // Returns: { tier: 'swing'|'expanded'|'anchor'|'outside', label }
   //   swing    - 2024 battleground seven
@@ -280,15 +288,15 @@
           <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
             <div class="pl-row"><span class="pl-lbl">Total Units</span><span class="pl-val">${R.total_unit_count || 0}</span></div>
             <div class="pl-row"><span class="pl-lbl">Asset Type</span><span class="pl-val">${_esc(_assetTypeLabel(inputs.asset_type))}</span></div>
-            <div class="pl-row"><span class="pl-lbl">Purchase Price</span><span class="pl-val">${h.fmtMoney(inputs.purchase_price)}</span></div>
-            <div class="pl-row"><span class="pl-lbl">Capex Budget</span><span class="pl-val">${h.fmtMoney(inputs.capex_budget)}</span></div>
-            <div class="pl-row"><span class="pl-lbl">Total Project Cost</span><span class="pl-val">${h.fmtMoney(R.total_project_cost)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">Purchase Price</span><span class="pl-val">${_withPerDoor(h.fmtMoney(inputs.purchase_price), inputs.purchase_price, R.total_unit_count || 0)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">Capex Budget</span><span class="pl-val">${_withPerDoor(h.fmtMoney(inputs.capex_budget), inputs.capex_budget, R.total_unit_count || 0)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">Total Project Cost</span><span class="pl-val">${_withPerDoor(h.fmtMoney(R.total_project_cost), R.total_project_cost, R.total_unit_count || 0)}</span></div>
           </div>
         </div>
         <div>
           <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
             <div class="pl-row"><span class="pl-lbl">Stabilized NOI</span><span class="pl-val">${h.fmtMoney(R.stabilized_noi)}</span></div>
-            <div class="pl-row"><span class="pl-lbl">Stabilized ARV</span><span class="pl-val">${h.fmtMoneyK(R.stabilized_arv)}</span></div>
+            <div class="pl-row"><span class="pl-lbl">Stabilized ARV</span><span class="pl-val">${_withPerDoor(h.fmtMoneyK(R.stabilized_arv), R.stabilized_arv, R.total_unit_count || 0)}</span></div>
             <div class="pl-row"><span class="pl-lbl">Refi LTV</span><span class="pl-val">${h.fmtPct(inputs.target_refi_ltv)}</span></div>
             <div class="pl-row"><span class="pl-lbl">DSCR</span><span class="pl-val">${h.fmtX(R.dscr, 2)}</span></div>
             <div class="pl-row"><span class="pl-lbl">Hold</span><span class="pl-val">${inputs.target_hold_years || 10} years</span></div>
@@ -545,9 +553,9 @@
               <div class="pl-row"><span class="pl-lbl">Asset Type</span><span class="pl-val">${_esc(_assetTypeLabel(inputs.asset_type))}</span></div>
               ${R.total_unit_count > 0 ? `<div class="pl-row"><span class="pl-lbl">Unit Count</span><span class="pl-val">${R.total_unit_count}</span></div>` : ''}
               ${R.subject_area_sf > 0 ? `<div class="pl-row"><span class="pl-lbl">Building Area</span><span class="pl-val">${Number(R.subject_area_sf).toLocaleString()} SF</span></div>` : ''}
-              <div class="pl-row"><span class="pl-lbl">Purchase Price</span><span class="pl-val">${h.fmtMoney(inputs.purchase_price)}</span></div>
-              <div class="pl-row"><span class="pl-lbl">Capex Budget</span><span class="pl-val">${h.fmtMoney(inputs.capex_budget)}</span></div>
-              <div class="pl-row"><span class="pl-lbl">Total Project Cost</span><span class="pl-val">${h.fmtMoney(R.total_project_cost)}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Purchase Price</span><span class="pl-val">${_withPerDoor(h.fmtMoney(inputs.purchase_price), inputs.purchase_price, R.total_unit_count || 0)}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Capex Budget</span><span class="pl-val">${_withPerDoor(h.fmtMoney(inputs.capex_budget), inputs.capex_budget, R.total_unit_count || 0)}</span></div>
+              <div class="pl-row"><span class="pl-lbl">Total Project Cost</span><span class="pl-val">${_withPerDoor(h.fmtMoney(R.total_project_cost), R.total_project_cost, R.total_unit_count || 0)}</span></div>
             </div>
           </div>
           ${market && market.cbsa_name ? `
