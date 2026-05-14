@@ -220,7 +220,12 @@
     ];
 
     return `
-      <div class="print-page print-page-compact">
+      <style>
+        .iov-tight .print-table td, .iov-tight .print-table th { padding-top: 2.5pt; padding-bottom: 2.5pt; }
+        .iov-tight .print-section { margin-top: 4pt; margin-bottom: 3pt; }
+        .iov-tight table { margin-bottom: 4pt !important; }
+      </style>
+      <div class="print-page print-page-compact iov-tight">
         ${_header(h, 'Cover · Opportunity')}
 
         <div class="print-title pb-avoid">
@@ -300,7 +305,7 @@
     ];
 
     return `
-      <div class="print-page print-page-compact">
+      <div class="print-page print-page-compact iov-tight">
         ${_header(h, 'The Plan · Glossary')}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>The Plan</div>
@@ -400,7 +405,7 @@
     ];
 
     return `
-      <div class="print-page print-page-compact">
+      <div class="print-page print-page-compact iov-tight">
         ${_header(h, 'Income · Expenses · NOI')}
 
         <div style="font-size:8.5pt;line-height:1.45;color:#555;margin-bottom:6pt">
@@ -548,15 +553,11 @@
     ].filter(r => r.amt > 0);
 
     return `
-      <div class="print-page print-page-compact">
+      <div class="print-page print-page-compact iov-tight">
         ${_header(h, 'Capital · Sources & Uses')}
 
-        <div style="font-size:8.5pt;line-height:1.45;color:#555;margin-bottom:6pt">
-          This page shows where the money for the deal comes from (sources) and where it goes (uses), the capital stack at closing, and the ownership structure between the capital partner and the sponsor.
-        </div>
-
         <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Uses of Capital</div>
-        <table class="print-table" style="margin-bottom:6pt;font-size:8.5pt">
+        <table class="print-table" style="margin-bottom:5pt;font-size:8.5pt">
           <thead>
             <tr><th>Use</th><th class="num">Amount</th><th class="num">% of Total</th><th style="width:40%">Notes</th></tr>
           </thead>
@@ -579,7 +580,7 @@
         </table>
 
         <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Sources of Capital</div>
-        <table class="print-table" style="margin-bottom:6pt;font-size:8.5pt">
+        <table class="print-table" style="margin-bottom:5pt;font-size:8.5pt">
           <thead>
             <tr><th>Source</th><th class="num">Amount</th><th class="num">% of Total</th><th style="width:40%">Notes</th></tr>
           </thead>
@@ -601,14 +602,14 @@
           </tbody>
         </table>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Capital Stack</div>
-        <div class="pb-avoid" style="display:flex;margin-bottom:8pt;font-size:8.5pt;font-weight:600;color:#fff;border-radius:3pt;overflow:hidden">
-          <div style="background:#1a1a1a;padding:6pt;flex:${bridgePct};text-align:center">Bridge debt ${h.fmtPct(bridgePct, 1)}</div>
-          <div style="background:#C9A84C;padding:6pt;flex:${eqPct};text-align:center">Investor equity ${h.fmtPct(eqPct, 1)}</div>
+        <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Capital Stack</div>
+        <div class="pb-avoid" style="display:flex;margin-bottom:6pt;font-size:8.5pt;font-weight:600;color:#fff;border-radius:3pt;overflow:hidden">
+          <div style="background:#1a1a1a;padding:4pt;flex:${bridgePct};text-align:center">Bridge debt ${h.fmtPct(bridgePct, 1)}</div>
+          <div style="background:#C9A84C;padding:4pt;flex:${eqPct};text-align:center">Investor equity ${h.fmtPct(eqPct, 1)}</div>
         </div>
 
         <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Ownership and Distribution Structure</div>
-        <table class="print-table" style="margin-bottom:5pt;font-size:8.5pt">
+        <table class="print-table" style="margin-bottom:0;font-size:8.5pt">
           <tbody>
             <tr>
               <td style="width:38%">Deal entity</td>
@@ -639,7 +640,7 @@
               <td>None - straight pro-rata distributions throughout the life of the deal</td>
             </tr>
             <tr>
-              <td colspan="2" style="font-size:7.5pt;line-height:1.4;color:#666;background:#fafafa;padding-top:5pt;padding-bottom:5pt">
+              <td colspan="2" style="font-size:7.5pt;line-height:1.4;color:#666;background:#fafafa">
                 <strong>How to read this structure.</strong> The capital partner funds 100% of cash equity and owns ${h.fmtPct(investorOwn, 1)} of the deal LLC. The sponsor contributes operational execution and signs personally on the bridge loan. Distributions are pro-rata - ${h.fmtPct(investorOwn, 1)} of every dollar of cash flow and sale proceeds goes to the capital partner. There is no promote or preferred return; the math is symmetrical.
               </td>
             </tr>
@@ -689,15 +690,11 @@
     const totalDist = cfRows.reduce((s, r) => r.year === 0 ? s : s + (r.value || 0), 0);
 
     return `
-      <div class="print-page print-page-compact">
+      <div class="print-page print-page-compact iov-tight">
         ${_header(h, 'Valuation · Refinance · Cash Flow')}
 
-        <div style="font-size:8.5pt;line-height:1.45;color:#555;margin-bottom:6pt">
-          This page shows how the stabilized property is valued, how the refinance returns the bulk of investor capital, and what the investor cash flow looks like year by year through the full ${holdYears}-year hold.
-        </div>
-
         <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Stabilized Valuation</div>
-        <table class="print-table" style="margin-bottom:6pt;font-size:8.5pt">
+        <table class="print-table" style="margin-bottom:5pt;font-size:8.5pt">
           <tbody>
             <tr>
               <td style="width:55%">Stabilized net operating income (NOI)</td>
@@ -723,7 +720,7 @@
         </table>
 
         <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Refinance Mechanics</div>
-        <table class="print-table" style="margin-bottom:6pt;font-size:8.5pt">
+        <table class="print-table" style="margin-bottom:5pt;font-size:8.5pt">
           <thead>
             <tr><th>Step</th><th class="num">Amount</th><th>Explanation</th></tr>
           </thead>
@@ -854,33 +851,33 @@
     ];
 
     return `
-      <div class="print-page print-page-compact">
+      <div class="print-page print-page-compact iov-tight">
         ${_header(h, 'Risks · FAQ · Sponsor')}
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Key Risks</div>
+        <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Key Risks</div>
         ${topRisks.length === 0 ? `
-          <div style="font-size:8.5pt;color:#555;line-height:1.45;margin-bottom:6pt;padding:6pt 8pt;border-left:3pt solid #1f7a3c;background:#f5faf6">
+          <div style="font-size:8.5pt;color:#555;line-height:1.4;margin-bottom:5pt;padding:5pt 8pt;border-left:3pt solid #1f7a3c;background:#f5faf6">
             No risks have been flagged by the underwriting engine or market analysis modules against the assumptions in this report. The standard disclaimers below still apply, and prospective investors should conduct their own independent diligence.
           </div>
         ` : `
-          <div style="display:flex;flex-direction:column;gap:3pt;margin-bottom:6pt">
+          <div style="display:flex;flex-direction:column;gap:2pt;margin-bottom:5pt">
             ${topRisks.map(r => {
               const sev = (r.severity || 'medium').toLowerCase();
               const sevColor = sev === 'high' ? '#c0392b' : (sev === 'medium' ? '#b8860b' : '#666');
               const sevBg = sev === 'high' ? '#fdf3f1' : (sev === 'medium' ? '#fdf9ee' : '#f7f7f7');
               return `
-                <div style="border-left:3pt solid ${sevColor};padding:3pt 8pt;background:${sevBg}">
-                  <div style="font-size:7.5pt;font-weight:700;color:${sevColor};letter-spacing:0.04em;text-transform:uppercase">${_esc(sev)} severity</div>
-                  <div style="font-size:9pt;font-weight:600;color:#0a0a0b">${_esc(r.title || 'Risk')}</div>
-                  <div style="font-size:8pt;color:#444;line-height:1.4">${_esc(_truncate(r.detail || '', 180))}</div>
-                  ${r.mitigation ? `<div style="font-size:8pt;color:#555;line-height:1.4;margin-top:2pt;padding-top:2pt;border-top:1px dashed #ddd"><strong>Mitigation.</strong> ${_esc(r.mitigation)}</div>` : ''}
+                <div class="pb-avoid" style="border-left:3pt solid ${sevColor};padding:2pt 8pt;background:${sevBg}">
+                  <div style="font-size:7pt;font-weight:700;color:${sevColor};letter-spacing:0.04em;text-transform:uppercase">${_esc(sev)} severity</div>
+                  <div style="font-size:8.5pt;font-weight:600;color:#0a0a0b">${_esc(r.title || 'Risk')}</div>
+                  <div style="font-size:8pt;color:#444;line-height:1.35">${_esc(_truncate(r.detail || '', 180))}</div>
+                  ${r.mitigation ? `<div style="font-size:8pt;color:#555;line-height:1.35;margin-top:1pt;padding-top:1pt;border-top:1px dashed #ddd"><strong>Mitigation.</strong> ${_esc(r.mitigation)}</div>` : ''}
                 </div>`;
             }).join('')}
           </div>
         `}
 
         <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>What If the Market Moves</div>
-        <table class="print-table" style="margin-bottom:6pt;font-size:8.5pt">
+        <table class="print-table" style="margin-bottom:5pt;font-size:8.5pt">
           <thead><tr><th>Scenario</th><th>Description</th><th class="num">Equity Multiple</th></tr></thead>
           <tbody>
             <tr><td><strong>Downside</strong></td><td style="font-size:8pt;color:#555">Rent growth 1pp lower than projected; property sells at 50bp higher cap rate.</td><td class="num">${downsideEM.toFixed(2)}x</td></tr>
@@ -890,7 +887,7 @@
         </table>
 
         <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Frequently Asked Questions</div>
-        <div class="iov-faq" style="display:flex;flex-direction:column;gap:3pt;margin-bottom:6pt">
+        <div class="iov-faq" style="display:flex;flex-direction:column;gap:3pt;margin-bottom:5pt">
           ${faqs.map(f => `
             <div class="pb-avoid">
               <div style="font-size:8.5pt;font-weight:700;color:#0a0a0b;margin-bottom:1pt">${_esc(f.q)}</div>
@@ -899,22 +896,22 @@
           `).join('')}
         </div>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Sponsor</div>
-        <div class="iov-sponsor pb-avoid" style="margin-bottom:5pt;padding-bottom:4pt;border-bottom:1px solid #eee">
-          <div style="font-size:11pt;font-weight:700;color:#0a0a0b;margin-bottom:1pt">${_esc(sponsorName)}</div>
-          <div style="font-size:8.5pt;color:#333;line-height:1.5">
-            ${contact.email ? `<span style="margin-right:12pt"><strong style="color:#777;font-size:7.5pt;letter-spacing:0.04em;text-transform:uppercase">Email</strong> ${_esc(contact.email)}</span>` : ''}
-            ${contact.phone ? `<span style="margin-right:12pt"><strong style="color:#777;font-size:7.5pt;letter-spacing:0.04em;text-transform:uppercase">Phone</strong> ${_esc(contact.phone)}</span>` : ''}
-            ${contact.website ? `<span style="margin-right:12pt"><strong style="color:#777;font-size:7.5pt;letter-spacing:0.04em;text-transform:uppercase">Web</strong> ${_esc(contact.website)}</span>` : ''}
+        <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Sponsor</div>
+        <div class="iov-sponsor pb-avoid" style="margin-bottom:4pt;padding-bottom:3pt;border-bottom:1px solid #eee">
+          <div style="font-size:10pt;font-weight:700;color:#0a0a0b;margin-bottom:1pt">${_esc(sponsorName)}</div>
+          <div style="font-size:8pt;color:#333;line-height:1.4">
+            ${contact.email ? `<span style="margin-right:10pt"><strong style="color:#777;font-size:7pt;letter-spacing:0.04em;text-transform:uppercase">Email</strong> ${_esc(contact.email)}</span>` : ''}
+            ${contact.phone ? `<span style="margin-right:10pt"><strong style="color:#777;font-size:7pt;letter-spacing:0.04em;text-transform:uppercase">Phone</strong> ${_esc(contact.phone)}</span>` : ''}
+            ${contact.website ? `<span style="margin-right:10pt"><strong style="color:#777;font-size:7pt;letter-spacing:0.04em;text-transform:uppercase">Web</strong> ${_esc(contact.website)}</span>` : ''}
           </div>
         </div>
 
         <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Disclaimers</div>
-        <div class="pb-avoid" style="font-size:7.5pt;line-height:1.4;color:#555">
-          <p style="margin:0 0 3pt 0"><strong>No offer.</strong> This document is informational only and is not an offer to sell or a solicitation of an offer to buy any securities. Any offer will be made solely through a confidential Private Placement Memorandum.</p>
-          <p style="margin:0 0 3pt 0"><strong>Projections, not guarantees.</strong> Projections of returns are based on assumptions believed reasonable as of the date of this document. Actual results may differ materially.</p>
-          <p style="margin:0 0 3pt 0"><strong>Risk and independent diligence.</strong> Real estate investments involve substantial risk, including the possible loss of all invested capital. Prospective investors must conduct their own independent investigation and consult their own legal, tax, and financial advisors.</p>
-          <p style="margin:0"><strong>Confidentiality.</strong> This document is confidential and furnished solely to the named recipient for evaluation of a potential investment.</p>
+        <div class="pb-avoid" style="font-size:7pt;line-height:1.35;color:#555;column-count:2;column-gap:12pt">
+          <p style="margin:0 0 2pt 0;break-inside:avoid"><strong>No offer.</strong> This document is informational only and is not an offer to sell or a solicitation of an offer to buy any securities. Any offer will be made solely through a confidential Private Placement Memorandum.</p>
+          <p style="margin:0 0 2pt 0;break-inside:avoid"><strong>Projections, not guarantees.</strong> Projections of returns are based on assumptions believed reasonable as of the date of this document. Actual results may differ materially.</p>
+          <p style="margin:0 0 2pt 0;break-inside:avoid"><strong>Risk and independent diligence.</strong> Real estate investments involve substantial risk, including the possible loss of all invested capital. Prospective investors must conduct their own independent investigation and consult their own legal, tax, and financial advisors.</p>
+          <p style="margin:0;break-inside:avoid"><strong>Confidentiality.</strong> This document is confidential and furnished solely to the named recipient for evaluation of a potential investment.</p>
         </div>
 
         ${_footer(pageNum, totalPages)}
