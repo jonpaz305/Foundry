@@ -884,19 +884,122 @@
   }
 
 
-  // ── MAIN ENTRY ────────────────────────────────────────────────
-  // ── PAGE: MODEL ASSUMPTIONS AND METHODOLOGY (Path A Pass 3) ──
-  function _pageModelAssumptionsLender(deal, R, inputs, market, h, mode, pageNum, totalPages) {
+  // ── PAGE: METHODOLOGY (Path A Pass 3 - compact lender variant) ─
+  // Single-page methodology summary for lender audiences. Replaces the
+  // prior _pageModelAssumptionsLender which natural-flowed across 3
+  // actual pages with poor density. Lender debt underwriters need
+  // to know the valuation/debt/opex/method conventions used to produce
+  // the numbers earlier in the package, but they don't need the full
+  // 4-section enumeration that was producing 3 pages of half-empty text.
+  // Equivalent rigor in 1/3 the space, with full-disclosure note that
+  // longer-form documentation is available on request.
+  function _pageMethodologyLender(deal, R, inputs, market, h, mode, pageNum, totalPages) {
+    const engineV = (typeof FOUNDRY_ENGINE_VERSION === 'string' && FOUNDRY_ENGINE_VERSION) ? FOUNDRY_ENGINE_VERSION : 'unversioned';
+    const engineDate = (typeof FOUNDRY_ENGINE_VERSION_DATE === 'string' && FOUNDRY_ENGINE_VERSION_DATE) ? FOUNDRY_ENGINE_VERSION_DATE : '';
+    const arvSource = R.arv_source_resolved === 'manual_override' ? 'Sponsor manual override'
+                    : R.arv_source_resolved === 'comp_derived' ? 'Comp-derived ($/SF × subject SF)'
+                    : 'Income approach (NOI / Exit Cap)';
+    const taxModeLabel = (inputs.tax_basis_mode || 'stabilized_arv') === 'stabilized_arv'
+      ? 'Stabilized ARV (institutional default)'
+      : 'Purchase Price (legacy spreadsheet parity)';
+    const taxDistrict = (inputs.tax_district || '').trim() || 'Not specified';
+    const taxDollars = (R.taxes != null && isFinite(R.taxes)) ? h.fmtMoney(R.taxes) : 'pending district resolution';
+    const arvIncome = R.stabilized_arv_income_approach != null ? h.fmtMoney(R.stabilized_arv_income_approach) : 'pending';
+    const arvUsed = R.stabilized_arv != null ? h.fmtMoney(R.stabilized_arv) : 'pending';
+    const impliedCap = R.implied_cap_rate != null ? h.fmtPct(R.implied_cap_rate) : 'n/a';
+
+    // Compact 2-column key/value spread for the dense data points.
+    // Pre-built so the render doesn't get inline-cluttered.
+    const valuationRows = `
+      <div class="pl-row"><span class="pl-lbl">Stabilized ARV (in use)</span><span class="pl-val">${arvUsed}</span></div>
+      <div class="pl-row"><span class="pl-lbl">ARV source</span><span class="pl-val">${_esc(arvSource)}</span></div>
+      <div class="pl-row"><span class="pl-lbl">Income-approach reference</span><span class="pl-val">${arvIncome}</span></div>
+      <div class="pl-row"><span class="pl-lbl">Implied cap rate at ARV in use</span><span class="pl-val">${impliedCap}</span></div>
+      <div class="pl-row"><span class="pl-lbl">Stabilized NOI</span><span class="pl-val">${h.fmtMoney(R.stabilized_noi || 0)}</span></div>
+      <div class="pl-row"><span class="pl-lbl">Exit cap (refi valuation)</span><span class="pl-val">${h.fmtPct(inputs.exit_cap || 0, 2)}</span></div>`;
+
+    const capitalRows = mode === 'brrrr' ? `
+      <div class="pl-row"><span class="pl-lbl">Purchase / Capex</span><span class="pl-val">${h.fmtMoney(inputs.purchase_price || 0)} / ${h.fmtMoney(inputs.capex_budget || 0)}</span></div>
+      <div class="pl-row"><span class="pl-lbl">LTV / LTC</span><span class="pl-val">${h.fmtPct(inputs.initial_loan_ltv || 0)} / ${h.fmtPct(inputs.initial_loan_ltc_capex || 0)}</span></div>
+      <div class="pl-row"><span class="pl-lbl">Bridge rate / type</span><span class="pl-val">${h.fmtPct(inputs.initial_rate || 0, 2)} ${_esc(inputs.initial_interest_type || 'IO')}</span></div>
+      <div class="pl-row"><span class="pl-lbl">Bridge DS method</span><span class="pl-val">Month-by-month draw accrual</span></div>
+      <div class="pl-row"><span class="pl-lbl">Capex execution / Refi target</span><span class="pl-val">${inputs.capex_duration_months || 6} mo / Month ${inputs.target_refi_months || 9}</span></div>
+      <div class="pl-row"><span class="pl-lbl">Refi LTV / rate / type</span><span class="pl-val">${h.fmtPct(inputs.target_refi_ltv || 0)} / ${h.fmtPct(inputs.refi_rate || 0, 2)} ${_esc(inputs.refi_interest_type || 'PI')}</span></div>
+      <div class="pl-row"><span class="pl-lbl">Total closing costs</span><span class="pl-val">${h.fmtMoney(R.closing_costs || 0)} (itemized detail available on request)</span></div>` : `
+      <div class="pl-row"><span class="pl-lbl">Purchase / Rehab</span><span class="pl-val">${h.fmtMoney(inputs.purchase_price || 0)} / ${h.fmtMoney(inputs.rehab_budget || 0)}</span></div>
+      <div class="pl-row"><span class="pl-lbl">LTV / LTC</span><span class="pl-val">${h.fmtPct(inputs.initial_loan_ltv || 0)} / ${h.fmtPct(inputs.initial_loan_ltc_capex || 0)}</span></div>
+      <div class="pl-row"><span class="pl-lbl">Bridge rate / type</span><span class="pl-val">${h.fmtPct(inputs.initial_rate || 0, 2)} ${_esc(inputs.initial_interest_type || 'IO')}</span></div>
+      <div class="pl-row"><span class="pl-lbl">Hold target</span><span class="pl-val">${inputs.target_hold_months || 6} months</span></div>
+      <div class="pl-row"><span class="pl-lbl">Total closing costs</span><span class="pl-val">${h.fmtMoney(R.closing_costs || 0)}</span></div>`;
+
+    const opexRows = mode === 'brrrr' ? `
+      <div class="pl-row"><span class="pl-lbl">Property Management</span><span class="pl-val">${h.fmtPct(inputs.pm_pct || 0)} of EGI</span></div>
+      <div class="pl-row"><span class="pl-lbl">Maintenance & Turnover</span><span class="pl-val">${h.fmtPct(inputs.maint_pct_of_egi || 0)} of EGI</span></div>
+      <div class="pl-row"><span class="pl-lbl">Insurance</span><span class="pl-val">${h.fmtPct(inputs.insurance_pct_of_egi || 0)} of EGI</span></div>
+      <div class="pl-row"><span class="pl-lbl">Utilities</span><span class="pl-val">${h.fmtPct(inputs.utilities_pct_of_egi || 0)} of EGI</span></div>
+      <div class="pl-row"><span class="pl-lbl">Reserves</span><span class="pl-val">$${inputs.reserves_per_unit_year || 0}/unit/year</span></div>
+      <div class="pl-row"><span class="pl-lbl">Vacancy</span><span class="pl-val">${h.fmtPct(inputs.vacancy_pct || 0)} of GPR</span></div>
+      <div class="pl-row"><span class="pl-lbl">Tax basis mode</span><span class="pl-val">${_esc(taxModeLabel)}</span></div>
+      <div class="pl-row"><span class="pl-lbl">Property taxes (annual)</span><span class="pl-val">${taxDollars} (district: ${_esc(taxDistrict)})</span></div>` : `
+      <div class="pl-row"><span class="pl-lbl">Property taxes (during hold)</span><span class="pl-val">${taxDollars}</span></div>
+      <div class="pl-row"><span class="pl-lbl">Tax basis mode</span><span class="pl-val">${_esc(taxModeLabel)}</span></div>
+      <div class="pl-row"><span class="pl-lbl">Insurance during hold</span><span class="pl-val">${h.fmtMoney(R.insurance_during_hold || 0)}</span></div>
+      <div class="pl-row"><span class="pl-lbl">Utilities during hold</span><span class="pl-val">${h.fmtMoney(R.utilities_during_hold || 0)}</span></div>`;
+
     return `
       <div class="print-page print-page-compact">
-        ${_header(h, 'Model Assumptions and Methodology', mode)}
+        ${_header(h, 'Methodology', mode)}
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Model Assumptions and Methodology</div>
-        <div style="font-size:9pt;color:var(--print-muted);margin-bottom:6pt;line-height:1.45">
-          The following inventory of inputs, derived values, and methodological choices was used to produce the figures elsewhere in this report. Lender-facing variant: focused on valuation, debt structure, operating expenses, and methodology. Full investor-return assumptions are disclosed in the equity offering materials.
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Underwriting Methodology</div>
+        <div style="font-size:9pt;color:#333;line-height:1.5;margin-bottom:10pt">
+          Standard institutional value-add multifamily underwriting conventions. Stabilized NOI computed from sponsor-input vacancy and operating expense ratios applied to unit-mix-derived GPR. Stabilized ARV resolved via ${_esc(arvSource.toLowerCase())}; property taxes computed against ${_esc(taxModeLabel.toLowerCase())} using the tax district's effective rate. Initial debt sized at sponsor-input LTV/LTC with month-by-month draw accrual on the construction tranche; refi sized to sponsor-input LTV against stabilized ARV. DSCR computed as Stabilized NOI / Refi annual DS. Debt yield computed as Stabilized NOI / Refi loan amount. Stress scenarios shift one input at a time against the base proforma and re-derive DSCR and debt yield. Engine version ${_esc(engineV)} (${_esc(engineDate)}). Full inventory of all inputs, derived values, and methodological choices available on request.
         </div>
 
-        ${typeof modelAssumptionsForLenderPackage === 'function' ? modelAssumptionsForLenderPackage(R, inputs, market, mode) : ''}
+        <div class="lender-twocol pb-avoid" style="margin-top:6pt">
+          <div>
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Valuation</div>
+            <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
+              ${valuationRows}
+            </div>
+          </div>
+          <div>
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Capital Structure</div>
+            <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
+              ${capitalRows}
+            </div>
+          </div>
+        </div>
+
+        <div class="lender-twocol pb-avoid" style="margin-top:10pt">
+          <div>
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Operating Expense Conventions</div>
+            <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
+              ${opexRows}
+            </div>
+          </div>
+          <div>
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Methodological Disclosures</div>
+            <div class="print-list" style="grid-template-columns:1fr;gap:1pt 0">
+              <div class="pl-row"><span class="pl-lbl">Engine version</span><span class="pl-val">${_esc(engineV)} (${_esc(engineDate)})</span></div>
+              <div class="pl-row"><span class="pl-lbl">Bridge DS method</span><span class="pl-val">Month-by-month draw accrual</span></div>
+              <div class="pl-row"><span class="pl-lbl">Comp validation</span><span class="pl-val">Sales comp $/SF, min 3 comps (10/20% bands)</span></div>
+              <div class="pl-row"><span class="pl-lbl">DSCR convention</span><span class="pl-val">Stabilized NOI / Refi annual DS</span></div>
+              <div class="pl-row"><span class="pl-lbl">Debt yield convention</span><span class="pl-val">Stabilized NOI / Refi loan amount</span></div>
+              ${market && market.derived && market.derived.market_strength_grade ? `<div class="pl-row"><span class="pl-lbl">Market grade</span><span class="pl-val">Grade ${_esc(market.derived.market_strength_grade)} (${Math.round(market.derived.market_strength_score)}/100)</span></div>` : ''}
+              ${market && market.cbsa_name ? `<div class="pl-row"><span class="pl-lbl">MSA</span><span class="pl-val">${_esc(market.cbsa_name)}</span></div>` : ''}
+            </div>
+          </div>
+        </div>
+
+        ${(inputs.tax_basis_mode || 'stabilized_arv') === 'stabilized_arv' ? `
+          <div style="font-size:8pt;color:#666;line-height:1.4;margin-top:10pt;padding-top:6pt;border-top:1px solid #eee">
+            <strong>Tax basis footnote.</strong> Property taxes are computed against the iteratively-solved stabilized ARV using the tax district's effective rate. This treatment assumes the County will reassess the property at the new stabilized value following the transfer of ownership and capex completion, which is the conservative institutional assumption. If the County's reassessment cycle is delayed or the post-transfer assessment is lower than the stabilized ARV, the tax line will be lower than projected and NOI / ARV will be correspondingly higher.
+          </div>
+        ` : `
+          <div style="font-size:8pt;color:#666;line-height:1.4;margin-top:10pt;padding-top:6pt;border-top:1px solid #eee">
+            <strong>Tax basis footnote.</strong> Property taxes are computed against the purchase price using the tax district's effective rate. This treatment matches the sponsor's legacy spreadsheet methodology and assumes the County will not reassess the property at a materially higher value following the transfer. The institutional default is to assess taxes against stabilized ARV; the sponsor has selected purchase-price basis for this deal. If the County reassesses at stabilized ARV, the tax line will be higher than projected and NOI / ARV will be lower.
+          </div>
+        `}
 
         ${_footer(pageNum, totalPages)}
       </div>`;
@@ -906,14 +1009,14 @@
   function renderReport_lender_package(deal, R, inputs, market, helpers) {
     const h = helpers || {};
     const mode = (deal && deal.deal_mode) || 'brrrr';
-    const totalPages = 6;  // +1 Model Assumptions
+    const totalPages = 6;
 
     const pages = [
       _page1(deal, R, inputs, market, h, mode, 1, totalPages),
       _page2(deal, R, inputs, market, h, mode, 2, totalPages),
       _page3(deal, R, inputs, market, h, mode, 3, totalPages),
       _page4(deal, R, inputs, market, h, mode, 4, totalPages),
-      _pageModelAssumptionsLender(deal, R, inputs, market, h, mode, 5, totalPages),
+      _pageMethodologyLender(deal, R, inputs, market, h, mode, 5, totalPages),
       _page5(deal, R, inputs, market, h, mode, 6, totalPages)
     ];
 
