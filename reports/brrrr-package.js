@@ -86,7 +86,21 @@
 
   // ── HEADER + FOOTER (shared across pages) ─────────────────────
   function _header(h, pageLabel) {
-    const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
+    // Resolve active company. Prefer CP.active. If CP.active exists but
+    // has no logo, AND another profile in CP.list does have one, fall
+    // back to that profile's branding for the report. This is defensive
+    // for the case where a user has multiple profiles and the wrong one
+    // is set active. The deal-linked company (CP.active set via loadDeal)
+    // takes priority, but if it lacks a logo we use the first profile
+    // that has one.
+    let co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
+    if (co && !co.logo_base64 && typeof CP === 'object' && CP && Array.isArray(CP.list)) {
+      const withLogo = CP.list.find(c => c && c.logo_base64);
+      if (withLogo) co = withLogo;
+    }
+    if (!co && typeof CP === 'object' && CP && Array.isArray(CP.list) && CP.list.length) {
+      co = CP.list.find(c => c && c.logo_base64) || CP.list[0];
+    }
     const coName = co && co.name ? co.name : 'ASJP';
     const coSub = co && co.subtitle ? co.subtitle : '';
     const coLogo = co && co.logo_base64 ? co.logo_base64 : null;
