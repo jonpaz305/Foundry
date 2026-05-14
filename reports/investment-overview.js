@@ -168,7 +168,7 @@
 
     // Plain-language opening paragraph. Third person, professional voice.
     // Names every number rather than using shorthand.
-    const opening = `${_esc(dealName.replace(/[,.]?\s*(Cleveland|Ohio|OH).*$/i, '').trim() || 'This property')} is ${_esc(/^[aeiou]/i.test(assetLabel) ? 'an' : 'a')} ${_esc(assetLabel)} in ${_esc(cityState || 'a target submarket')}, acquired for ${h.fmtMoney(purchase)}. The plan calls for ${h.fmtMoney(capex)} in renovations over a ${refiMonth}-month execution window, bringing the property to institutional quality and full market rents. Total project cost is ${h.fmtMoney(tpc)}, funded with ${h.fmtMoney(R.initial_loan_amount || 0)} of bridge debt and ${h.fmtMoney(initEq)} of investor equity.`;
+    const opening = `${_esc(dealName.replace(/[,.]?\s*(Cleveland|Ohio|OH).*$/i, '').trim() || 'This property')} is ${_esc(/^[aeiou]/i.test(assetLabel) ? 'an' : 'a')} ${_esc(assetLabel)} in ${_esc(cityState || 'a target submarket')}, acquired for ${h.fmtMoney(purchase)}. The plan calls for ${h.fmtMoney(capex)} in renovations over a ${refiMonth}-month execution window, bringing the property to institutional quality and full market rents. Total project cost is ${h.fmtMoney(tpc)}, funded with ${h.fmtMoney(R.initial_loan_amt || 0)} of bridge debt and ${h.fmtMoney(initEq)} of investor equity.`;
 
     const stabilized = `Once renovations are complete and the property is stabilized at market rents, projected annual net operating income (NOI) is ${h.fmtMoney(noi)}. Applied against a market exit cap rate of ${h.fmtPct(exitCap, 2)}, this supports a stabilized value of approximately ${h.fmtMoneyK(arv)}. A long-term refinance at ${h.fmtPct(inputs.target_refi_ltv || 0.7)} loan-to-value retires the bridge loan in full and returns approximately ${h.fmtPct(recap, 0)} of investor equity, while ownership stake is retained for the duration of the ${holdYears}-year hold.`;
 
@@ -202,26 +202,26 @@
         </div>
 
         ${hero ? `
-          <div class="iov-hero pb-avoid" style="margin-bottom:12pt;text-align:center">
-            <img src="${hero.image_base64}" alt="Property exterior" style="max-width:100%;max-height:200pt;width:auto;height:auto;border-radius:4pt;border:1px solid #ddd"/>
+          <div class="iov-hero pb-avoid" style="margin:6pt 0 10pt 0;text-align:center">
+            <img src="${hero.image_base64}" alt="Property exterior" style="max-width:60%;max-height:140pt;width:auto;height:auto;border-radius:4pt;border:1px solid #ddd"/>
           </div>
         ` : ''}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>The Opportunity</div>
-        <div style="font-size:10pt;line-height:1.55;color:#222;margin-bottom:10pt">
-          <p style="margin:0 0 8pt 0">${opening}</p>
-          <p style="margin:0 0 8pt 0">${stabilized}</p>
+        <div style="font-size:9.5pt;line-height:1.5;color:#222;margin-bottom:8pt">
+          <p style="margin:0 0 6pt 0">${opening}</p>
+          <p style="margin:0 0 6pt 0">${stabilized}</p>
         </div>
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Key Metrics</div>
-        <div class="iov-metrics pb-avoid" style="display:flex;flex-direction:column;gap:6pt;margin-bottom:8pt">
+        <div class="iov-metrics pb-avoid" style="display:flex;flex-direction:column;gap:4pt;margin-bottom:6pt">
           ${metrics.map(m => `
-            <div style="border-left:3pt solid #C9A84C;padding:6pt 10pt;background:#fafaf6">
-              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3pt">
-                <div style="font-size:9pt;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#333">${_esc(m.label)}</div>
-                <div style="font-size:14pt;font-weight:700;color:#0a0a0b">${_esc(m.value)}</div>
+            <div style="border-left:3pt solid #C9A84C;padding:5pt 9pt;background:#fafaf6">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2pt">
+                <div style="font-size:8.5pt;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#333">${_esc(m.label)}</div>
+                <div style="font-size:13pt;font-weight:700;color:#0a0a0b">${_esc(m.value)}</div>
               </div>
-              <div style="font-size:9pt;line-height:1.45;color:#555">${_esc(m.context)}</div>
+              <div style="font-size:8.5pt;line-height:1.4;color:#555">${_esc(m.context)}</div>
             </div>
           `).join('')}
         </div>
@@ -304,20 +304,20 @@
         ${_header(h, 'The Plan · Glossary')}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>The Plan</div>
-        <div class="iov-steps pb-avoid" style="display:flex;flex-direction:column;gap:5pt;margin-bottom:10pt">
+        <div class="iov-steps pb-avoid" style="display:flex;flex-direction:column;gap:3pt;margin-bottom:8pt">
           ${steps.map(s => `
-            <div style="display:grid;grid-template-columns:24pt 1fr;gap:8pt;align-items:start">
-              <div style="background:#C9A84C;color:#fff;border-radius:50%;width:20pt;height:20pt;display:flex;align-items:center;justify-content:center;font-size:10pt;font-weight:700;margin-top:1pt">${s.n}</div>
+            <div style="display:grid;grid-template-columns:22pt 1fr;gap:7pt;align-items:start">
+              <div style="background:#C9A84C;color:#fff;border-radius:50%;width:18pt;height:18pt;display:flex;align-items:center;justify-content:center;font-size:9pt;font-weight:700;margin-top:1pt">${s.n}</div>
               <div>
-                <div style="font-size:10pt;font-weight:700;color:#0a0a0b;margin-bottom:1pt">${_esc(s.title)}</div>
-                <div style="font-size:9pt;line-height:1.5;color:#444">${_esc(s.body)}</div>
+                <div style="font-size:9.5pt;font-weight:700;color:#0a0a0b;margin-bottom:1pt">${_esc(s.title)}</div>
+                <div style="font-size:8.5pt;line-height:1.45;color:#444">${_esc(s.body)}</div>
               </div>
             </div>
           `).join('')}
         </div>
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Capital Timeline</div>
-        <table class="print-table pb-avoid" style="margin-bottom:10pt">
+        <table class="print-table pb-avoid" style="margin-bottom:8pt;font-size:9pt">
           <thead>
             <tr><th>When</th><th>Event</th><th class="num">Investor cash flow</th></tr>
           </thead>
@@ -333,7 +333,7 @@
         </table>
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Glossary of Terms</div>
-        <div class="iov-glossary pb-avoid" style="display:grid;grid-template-columns:1fr 1fr;gap:6pt 14pt;font-size:8.5pt;line-height:1.4">
+        <div class="iov-glossary pb-avoid" style="display:grid;grid-template-columns:1fr 1fr;gap:4pt 14pt;font-size:8pt;line-height:1.35">
           ${glossary.map(g => `
             <div>
               <strong style="color:#0a0a0b">${_esc(g.term)}.</strong>
@@ -414,7 +414,7 @@
         ${_header(h, 'The Numbers')}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Annual Investor Cash Flow</div>
-        <table class="print-table pb-avoid" style="margin-bottom:10pt">
+        <table class="print-table pb-avoid" style="margin-bottom:8pt;font-size:8.5pt">
           <thead>
             <tr><th>Year</th><th class="num">Distribution</th><th>Notes</th></tr>
           </thead>
@@ -423,73 +423,60 @@
               <tr>
                 <td>Y${r.year}</td>
                 <td class="num" style="color:${r.value < 0 ? '#a00' : (r.value > 0 ? '#1f7a3c' : '#555')};font-weight:${r.value !== 0 ? '600' : '400'}">${r.value < 0 ? '(' + h.fmtMoney(Math.abs(r.value)) + ')' : h.fmtMoney(r.value)}</td>
-                <td style="font-size:9pt;color:#555">${_esc(r.note)}</td>
+                <td style="font-size:8.5pt;color:#555">${_esc(r.note)}</td>
               </tr>
             `).join('')}
             <tr class="totals">
               <td>Total return</td>
               <td class="num">${h.fmtMoney(totalDistributed)}</td>
-              <td style="font-size:9pt;color:#555">Sum of all distributions Y1 through Y${holdYears}</td>
+              <td style="font-size:8.5pt;color:#555">Sum of all distributions Y1 through Y${holdYears}</td>
             </tr>
           </tbody>
         </table>
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Return Summary</div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8pt;margin-bottom:10pt">
-          <div style="border:1px solid #e6e6e6;border-radius:4pt;padding:8pt;text-align:center">
-            <div style="font-size:8pt;letter-spacing:0.04em;text-transform:uppercase;color:#777;margin-bottom:3pt">Annualized return (IRR)</div>
-            <div style="font-size:16pt;font-weight:700;color:#0a0a0b">${h.fmtPct(irr, 1)}</div>
-            <div style="font-size:8pt;color:#666;margin-top:2pt">Return per year, compounded</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6pt;margin-bottom:8pt">
+          <div style="border:1px solid #e6e6e6;border-radius:4pt;padding:6pt;text-align:center">
+            <div style="font-size:7.5pt;letter-spacing:0.04em;text-transform:uppercase;color:#777;margin-bottom:2pt">Annualized return (IRR)</div>
+            <div style="font-size:14pt;font-weight:700;color:#0a0a0b">${h.fmtPct(irr, 1)}</div>
+            <div style="font-size:7.5pt;color:#666;margin-top:1pt">Return per year, compounded</div>
           </div>
-          <div style="border:1px solid #e6e6e6;border-radius:4pt;padding:8pt;text-align:center">
-            <div style="font-size:8pt;letter-spacing:0.04em;text-transform:uppercase;color:#777;margin-bottom:3pt">Equity multiple</div>
-            <div style="font-size:16pt;font-weight:700;color:#0a0a0b">${(em != null && isFinite(em)) ? em.toFixed(2) + 'x' : '-'}</div>
-            <div style="font-size:8pt;color:#666;margin-top:2pt">Total returned per dollar invested</div>
+          <div style="border:1px solid #e6e6e6;border-radius:4pt;padding:6pt;text-align:center">
+            <div style="font-size:7.5pt;letter-spacing:0.04em;text-transform:uppercase;color:#777;margin-bottom:2pt">Equity multiple</div>
+            <div style="font-size:14pt;font-weight:700;color:#0a0a0b">${(em != null && isFinite(em)) ? em.toFixed(2) + 'x' : '-'}</div>
+            <div style="font-size:7.5pt;color:#666;margin-top:1pt">Total returned per dollar invested</div>
           </div>
-          <div style="border:1px solid #e6e6e6;border-radius:4pt;padding:8pt;text-align:center">
-            <div style="font-size:8pt;letter-spacing:0.04em;text-transform:uppercase;color:#777;margin-bottom:3pt">Total distributions</div>
-            <div style="font-size:16pt;font-weight:700;color:#0a0a0b">${h.fmtMoneyK(totalDistributed)}</div>
-            <div style="font-size:8pt;color:#666;margin-top:2pt">On ${h.fmtMoneyK(initEq)} invested</div>
+          <div style="border:1px solid #e6e6e6;border-radius:4pt;padding:6pt;text-align:center">
+            <div style="font-size:7.5pt;letter-spacing:0.04em;text-transform:uppercase;color:#777;margin-bottom:2pt">Total distributions</div>
+            <div style="font-size:14pt;font-weight:700;color:#0a0a0b">${h.fmtMoneyK(totalDistributed)}</div>
+            <div style="font-size:7.5pt;color:#666;margin-top:1pt">On ${h.fmtMoneyK(initEq)} invested</div>
           </div>
         </div>
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>What If the Market Moves</div>
-        <table class="print-table pb-avoid" style="margin-bottom:10pt">
+        <table class="print-table pb-avoid" style="margin-bottom:6pt;font-size:8.5pt">
           <thead>
             <tr><th>Scenario</th><th>Description</th><th class="num">Equity Multiple</th></tr>
           </thead>
           <tbody>
             <tr>
               <td><strong>Downside</strong></td>
-              <td style="font-size:9pt;color:#555">Rent growth comes in 1 percentage point lower than projected, and the property sells at a cap rate 50 basis points higher (lower price).</td>
+              <td style="font-size:8.5pt;color:#555">Rent growth 1pp lower than projected; property sells at 50bp higher cap rate.</td>
               <td class="num">${downsideEM.toFixed(2)}x</td>
             </tr>
             <tr class="totals">
               <td><strong>Base case</strong></td>
-              <td style="font-size:9pt;color:#555">Underwriting assumptions are met. ${h.fmtPct(baseRG)} annual rent growth, ${h.fmtPct(baseEC, 2)} exit cap rate.</td>
+              <td style="font-size:8.5pt;color:#555">Underwriting assumptions are met. ${h.fmtPct(baseRG)} annual rent growth, ${h.fmtPct(baseEC, 2)} exit cap rate.</td>
               <td class="num">${baseEM.toFixed(2)}x</td>
             </tr>
             <tr>
               <td><strong>Upside</strong></td>
-              <td style="font-size:9pt;color:#555">Rent growth comes in 1 percentage point higher than projected, and the property sells at a cap rate 50 basis points lower (higher price).</td>
+              <td style="font-size:8.5pt;color:#555">Rent growth 1pp higher than projected; property sells at 50bp lower cap rate.</td>
               <td class="num">${upsideEM.toFixed(2)}x</td>
             </tr>
           </tbody>
-          <caption style="font-size:8pt;color:#777;margin-top:4pt;text-align:left">Sensitivity uses a simplified projection based on the underwriting assumptions, illustrating how rent growth and cap rate movements affect total returns. A full 25-cell sensitivity grid is available in the BRRRR Package on request.</caption>
+          <caption style="font-size:7.5pt;color:#777;margin-top:3pt;text-align:left">Sensitivity uses a simplified projection. A full 25-cell sensitivity grid is available in the BRRRR Package on request.</caption>
         </table>
-
-        ${supporting.length > 0 ? `
-          <div class="iov-supporting pb-avoid" style="display:grid;grid-template-columns:repeat(${supporting.length},1fr);gap:6pt;margin-top:6pt">
-            ${supporting.map(p => {
-              const label = p.caption && p.caption.trim() ? p.caption : _photoTypeLabel(p.photo_type);
-              return `
-                <div style="border:1px solid #eee;border-radius:3pt;overflow:hidden">
-                  <img src="${p.image_base64}" alt="${_esc(label)}" style="width:100%;height:90pt;object-fit:cover;display:block"/>
-                  <div style="font-size:7.5pt;color:#666;padding:2pt 4pt;background:#fafafa">${_esc(label)}</div>
-                </div>`;
-            }).join('')}
-          </div>
-        ` : ''}
 
         ${_footer(pageNum, totalPages)}
       </div>`;
