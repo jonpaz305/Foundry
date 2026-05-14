@@ -1610,17 +1610,25 @@ function runM6_10() {
   check(g, 'F&F: LP/GP split disclosed',
     ffHtml.includes('LP / GP split') ? 1 : 0, 1);
 
-  // ── Lender Package -- Model Assumptions
+  // ── Lender Package -- Compact Methodology page (lender variant)
+  // Single-page dense methodology replaces the prior 3-page natural-
+  // flow Model Assumptions enumeration. Same conventions disclosed,
+  // tighter format. Tests assert that the institutionally-relevant
+  // content is still present.
   loadBRRRR();
   const lenderHtml = vm.runInContext(`renderReport_lender_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
-  check(g, 'Lender: Model Assumptions section header present',
-    lenderHtml.includes('Model Assumptions and Methodology') ? 1 : 0, 1);
-  check(g, 'Lender: lender variant note present (no investor-return disclosure)',
-    lenderHtml.includes('Lender-facing variant') ? 1 : 0, 1);
-  check(g, 'Lender: tax basis disclosed',
+  check(g, 'Lender: Methodology page header present',
+    lenderHtml.includes('Underwriting Methodology') ? 1 : 0, 1);
+  check(g, 'Lender: full methodology available on request',
+    lenderHtml.includes('available on request') ? 1 : 0, 1);
+  check(g, 'Lender: tax basis mode disclosed',
     lenderHtml.includes('Tax basis mode') ? 1 : 0, 1);
-  check(g, 'Lender: capital structure disclosed',
-    lenderHtml.includes('Capital Structure Assumptions') ? 1 : 0, 1);
+  check(g, 'Lender: capital structure section present',
+    lenderHtml.includes('Capital Structure') ? 1 : 0, 1);
+  check(g, 'Lender: bridge DS method (month-by-month) disclosed',
+    lenderHtml.includes('Month-by-month draw accrual') ? 1 : 0, 1);
+  check(g, 'Lender: DSCR convention disclosed',
+    lenderHtml.includes('DSCR convention') || lenderHtml.indexOf('Stabilized NOI / Refi annual DS') >= 0 ? 1 : 0, 1);
   check(g, 'Lender: no Investment Return Assumptions section (lender variant)',
     lenderHtml.indexOf('Investment Return Assumptions') < 0 ? 1 : 0, 1);
 
