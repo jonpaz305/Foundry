@@ -254,7 +254,7 @@
           <tr><td>Senior Debt: Acquisition Tranche</td><td class="num">${h.fmtMoney(acqTranche)}</td><td class="num">${_pd(acqTranche)}</td><td class="num">${h.fmtPct(acqPct)}</td></tr>
           <tr><td>Senior Debt: Construction Tranche</td><td class="num">${h.fmtMoney(conTranche)}</td><td class="num">${_pd(conTranche)}</td><td class="num">${h.fmtPct(conPct)}</td></tr>
           <tr><td style="padding-left:1.5em">Total Bridge</td><td class="num">${h.fmtMoney(initialLoan)}</td><td class="num">${_pd(initialLoan)}</td><td class="num">${h.fmtPct(loanPct)}</td></tr>
-          <tr><td>Sponsor / Investor Equity</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${_pd(investorEquity)}</td><td class="num">${h.fmtPct(sponsorPct)}</td></tr>
+          <tr><td>Investor Equity</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${_pd(investorEquity)}</td><td class="num">${h.fmtPct(sponsorPct)}</td></tr>
           <tr class="totals"><td>Total Sources</td><td class="num">${h.fmtMoney(totalSources)}</td><td class="num">${_pd(totalSources)}</td><td class="num">100.0%</td></tr>
         </tbody>
       </table>
@@ -263,7 +263,7 @@
         <thead><tr><th>Sources</th><th class="num">Amount</th><th class="num">$/Door</th><th class="num">%</th></tr></thead>
         <tbody>
           <tr><td>Requested Loan</td><td class="num">${h.fmtMoney(initialLoan)}</td><td class="num">${_pd(initialLoan)}</td><td class="num">${h.fmtPct(loanPct)}</td></tr>
-          <tr><td>Sponsor / Investor Equity</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${_pd(investorEquity)}</td><td class="num">${h.fmtPct(sponsorPct)}</td></tr>
+          <tr><td>Investor Equity</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${_pd(investorEquity)}</td><td class="num">${h.fmtPct(sponsorPct)}</td></tr>
           <tr class="totals"><td>Total Sources</td><td class="num">${h.fmtMoney(totalSources)}</td><td class="num">${_pd(totalSources)}</td><td class="num">100.0%</td></tr>
         </tbody>
       </table>
@@ -299,7 +299,7 @@
               <span class="bp-seg-val">${h.fmtPct(loanPct, 0)}</span>
             </div>
             <div class="bp-capstack-seg bp-seg-sponsor" style="width:${(sponsorPct * 100).toFixed(1)}%">
-              <span class="bp-seg-lbl">Sponsor Equity</span>
+              <span class="bp-seg-lbl">Investor Equity</span>
               <span class="bp-seg-val">${h.fmtPct(sponsorPct, 0)}</span>
             </div>
           </div>
@@ -307,15 +307,18 @@
 
         <div class="lender-twocol pb-avoid">
           <div>
-            <div class="print-section pb-avoid"><span class="ps-accent"></span>Sponsor Skin-in-the-Game</div>
+            <div class="print-section pb-avoid"><span class="ps-accent"></span>Equity at Risk</div>
             <table class="print-table">
               <thead><tr><th>Component</th><th class="num">Amount</th><th class="num">% TPC</th></tr></thead>
               <tbody>
-                <tr><td>Cash Equity at Closing</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${h.fmtPct(investorEquity / Math.max(1, R.total_project_cost))}</td></tr>
-                <tr><td>Sponsor Mobilization</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, R.total_project_cost))}</td></tr>
+                <tr><td>Investor Cash Equity at Closing</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${h.fmtPct(investorEquity / Math.max(1, R.total_project_cost))}</td></tr>
+                <tr><td>Mobilization Float</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, R.total_project_cost))}</td></tr>
                 <tr class="totals"><td>Total Capital at Risk</td><td class="num">${h.fmtMoney(investorEquity + contingency)}</td><td class="num">${h.fmtPct((investorEquity + contingency) / Math.max(1, R.total_project_cost))}</td></tr>
               </tbody>
             </table>
+            <div style="font-size:8.5pt;color:var(--print-muted);margin-top:6pt;line-height:1.4">
+              Investor funds 100% of cash equity in exchange for pro-rata ownership in the deal LLC. Sponsor contributes operational execution (acquisition, capex, asset management, refinance, disposition) and assumes recourse exposure on the bridge loan.
+            </div>
           </div>
 
           <div>
@@ -342,8 +345,45 @@
           </div>
         </div>
 
+        ${_ownershipDistributionBlock(R, inputs, h)}
+
         ${_footer(pageNum, totalPages)}
       </div>`;
+  }
+
+
+  // ── OWNERSHIP & DISTRIBUTION STRUCTURE ────────────────────────
+  // Discloses the actual deal LLC ownership structure for the lender.
+  // In Foundry's deal-by-deal model, the Capital Partner funds 100% of
+  // equity at closing in exchange for pro-rata ownership in the deal
+  // LLC. The Sponsor (ASJP) contributes operational execution in lieu
+  // of cash equity. Cash flow and disposition proceeds split pro-rata
+  // to ownership. Material for the lender to understand who is on the
+  // hook and how returns flow.
+  function _ownershipDistributionBlock(R, inputs, h) {
+    const ownPct = Number(inputs.investor_ownership) || 0;
+    const equityIn = Number(R.initial_investor_equity) || 0;
+    if (ownPct <= 0 || equityIn <= 0) return '';
+
+    const sponsorOwn = 1 - ownPct;
+    const fmtP = (p) => (Math.round(p * 1000) / 10).toFixed(1) + '%';
+
+    return `
+      <div class="print-section pb-avoid"><span class="ps-accent"></span>Ownership &amp; Distribution Structure</div>
+      <table class="print-table pb-avoid">
+        <tbody>
+          <tr><td>Deal LLC</td><td class="num">ASJP / Capital Partner Joint Venture</td></tr>
+          <tr><td>Capital Partner Ownership</td><td class="num">${fmtP(ownPct)}</td></tr>
+          <tr><td>Sponsor (ASJP) Ownership</td><td class="num">${fmtP(sponsorOwn)}</td></tr>
+          <tr><td>Capital Partner Closing Contribution</td><td class="num">${h.fmtMoney(equityIn)} (100%)</td></tr>
+          <tr><td>Sponsor Closing Contribution</td><td class="num">$0</td></tr>
+          <tr><td>Sponsor Contribution-in-Kind</td><td class="num">Acquisition, capex execution, asset management, refinance, disposition</td></tr>
+          <tr><td>Cash Flow Distribution</td><td class="num">Pro-rata to ownership (${fmtP(ownPct)} / ${fmtP(sponsorOwn)})</td></tr>
+          <tr><td>Disposition Proceeds Distribution</td><td class="num">Pro-rata to ownership (${fmtP(ownPct)} / ${fmtP(sponsorOwn)})</td></tr>
+          <tr><td>Promote / Waterfall</td><td class="num">None - straight pro-rata</td></tr>
+          <tr><td>Preferred Return</td><td class="num">None</td></tr>
+        </tbody>
+      </table>`;
   }
 
 
