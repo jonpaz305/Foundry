@@ -1,32 +1,39 @@
 // ════════════════════════════════════════════════════════════════
-// FOUNDRY M3 - Investment Overview Report
+// FOUNDRY M3 - Investment Overview Report (v2: 7-page substantive)
 // ════════════════════════════════════════════════════════════════
-// Middle-tier package sitting between Deal Snapshot (1pp) and the
-// BRRRR Package (8-9pp). 4 pages, professional third-person voice,
-// plain language, acronyms expanded on first use, glossary block
-// on page 2. Designed for investors who are new to value-add
-// multifamily but capable of evaluating a deal once vocabulary is
-// established. Same underlying engine data as the BRRRR Package;
-// no separate calculation paths.
+// Middle-tier equity-LP package sitting between Deal Snapshot (1pp)
+// and the BRRRR Package (8-10pp). 7 pages of full underwriting depth
+// rendered in plain language with a 10-term glossary backstop.
+// Same engine outputs as BRRRR Package; no separate calculation paths.
+//
+// Targeted audience: equity LPs who are new to value-add multifamily.
+// Goal: show all the underwriting (unit mix, income, OPEX, S&U,
+// ownership, valuation, refi, cash flow, risks) without institutional
+// shorthand or acronym overload. Build comfort by SHOWING THE MATH in
+// accessible language, not by hiding it.
 //
 // CONTRACT
 //   window.renderReport_investment_overview(deal, R, inputs, market, helpers)
-//     -> HTML string (multiple .print-page elements)
+//     -> HTML string (7 .print-page elements)
 //
 // PAGES
-//   1  Cover · Opportunity Summary (hero photo, plain-language pitch, key metrics with one-sentence context)
-//   2  The Plan · Capital Timeline · Glossary
-//   3  The Numbers · Annual Cash Flow · Sensitivity
-//   4  Risks · Sponsor · Disclaimers
+//   1  Cover · Opportunity · Key Metrics (photo + map side-by-side)
+//   2  Property · Unit Mix · Rent Roll
+//   3  Income · Operating Expenses · Stabilized NOI
+//   4  Sources & Uses · Capital Stack · Ownership Structure
+//   5  Valuation · Refinance · 10-Year Cash Flow
+//   6  The Plan · Capital Timeline · Glossary
+//   7  Risks · Sensitivity · FAQ · Sponsor · Disclaimers
 //
 // READS
 //   R                  engine output (read-only)
 //   inputs             user-entered fields
 //   market             marketAnalysis (may be empty {} if not fetched)
 //   helpers            formatters and brand tokens from print.js
-//   currentDeal        deal record (name/address/mode)
+//   currentDeal        deal record (name/address/mode + map)
+//   unitMix            unit mix array (global)
 //   CP.active          active company profile (for header/footer)
-//   DEAL_PHOTOS        property photos (M2)
+//   DEAL_PHOTOS        property photos (M2; used only for cover hero)
 //   assembleRisks()    M5 risk register (sorted)
 // ════════════════════════════════════════════════════════════════
 
@@ -57,9 +64,6 @@
     return s.slice(0, n - 1).replace(/\s+\S*$/, '') + '...';
   }
 
-  // Asset type label - plain English. Avoids the institutional shorthand
-  // (commercial_multifamily, residential_multifamily) used elsewhere
-  // in the engine.
   function _assetTypeLabelPlain(t, units) {
     const u = units || 0;
     if (t === 'commercial_multifamily') return u + '-unit apartment building';
@@ -74,12 +78,21 @@
     return x > 1.5 ? x / 100 : x;
   }
 
+  function _bedTypeLabel(bt) {
+    if (!bt) return '-';
+    const norm = String(bt).toLowerCase();
+    const map = {
+      'studio': 'Studio', 'efficiency': 'Studio',
+      '1br': '1 bedroom', '1bd': '1 bedroom', '1bed': '1 bedroom', '1_br': '1 bedroom',
+      '2br': '2 bedroom', '2bd': '2 bedroom', '2bed': '2 bedroom', '2_br': '2 bedroom',
+      '3br': '3 bedroom', '3bd': '3 bedroom', '3bed': '3 bedroom', '3_br': '3 bedroom',
+      '4br': '4 bedroom', '4bd': '4 bedroom', '4bed': '4 bedroom', '4_br': '4 bedroom'
+    };
+    return map[norm] || bt;
+  }
 
-  // ── HEADER + FOOTER (shared across pages) ─────────────────────
-  // Same defensive logo resolution pattern as the BRRRR Package -
-  // prefer CP.active, fall back to any profile with a logo, fall back
-  // to first profile, fall back to text. Print tab gets CP.active set
-  // by startPrintMode() in print.js.
+
+  // ── HEADER + FOOTER ───────────────────────────────────────────
   function _header(h, pageLabel) {
     let co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
     if (co && !co.logo_base64 && typeof CP === 'object' && CP && Array.isArray(CP.list)) {
@@ -120,29 +133,43 @@
   }
 
 
-  // ── HERO PHOTO HELPER ─────────────────────────────────────────
-  // Picks the best photo for the cover hero slot. Preference order:
-  //   1. First exterior photo
-  //   2. Photo at sort_order 0 (whatever it is)
-  //   3. null (no photo block rendered)
-  function _heroPhoto() {
-    if (typeof DEAL_PHOTOS === 'undefined' || !Array.isArray(DEAL_PHOTOS) || DEAL_PHOTOS.length === 0) return null;
-    const ext = DEAL_PHOTOS.find(p => p && p.photo_type === 'exterior');
-    if (ext) return ext;
-    return DEAL_PHOTOS[0] || null;
+  // ── COVER IMAGES (adaptive: photo + map / one / none) ─────────
+  function _coverImages(deal) {
+    let hero = null;
+    if (typeof DEAL_PHOTOS !== 'undefined' && Array.isArray(DEAL_PHOTOS) && DEAL_PHOTOS.length) {
+      hero = DEAL_PHOTOS.find(p => p && p.photo_type === 'exterior') || DEAL_PHOTOS[0];
+    }
+    const mapData = (deal && deal.neighborhood_map_base64)
+      || (typeof currentDeal === 'object' && currentDeal && currentDeal.neighborhood_map_base64)
+      || null;
+
+    if (!hero && !mapData) return '';
+
+    if (hero && mapData) {
+      return `
+        <div class="iov-cover-images pb-avoid" style="display:grid;grid-template-columns:1fr 1fr;gap:8pt;margin:6pt 0 8pt 0">
+          <div style="text-align:center">
+            <img src="${hero.image_base64}" alt="Property" style="width:100%;max-height:130pt;height:auto;object-fit:cover;border-radius:4pt;border:1px solid #ddd"/>
+            <div style="font-size:7.5pt;color:#888;margin-top:2pt">Property</div>
+          </div>
+          <div style="text-align:center">
+            <img src="${mapData}" alt="Neighborhood" style="width:100%;max-height:130pt;height:auto;object-fit:cover;border-radius:4pt;border:1px solid #ddd"/>
+            <div style="font-size:7.5pt;color:#888;margin-top:2pt">Neighborhood</div>
+          </div>
+        </div>`;
+    }
+
+    const onlyOne = hero || { image_base64: mapData };
+    const label = hero ? 'Property' : 'Neighborhood';
+    return `
+      <div class="iov-cover-images pb-avoid" style="margin:6pt 0 8pt 0;text-align:center">
+        <img src="${onlyOne.image_base64}" alt="${label}" style="max-width:60%;max-height:130pt;width:auto;height:auto;object-fit:cover;border-radius:4pt;border:1px solid #ddd"/>
+        <div style="font-size:7.5pt;color:#888;margin-top:2pt">${label}</div>
+      </div>`;
   }
 
-  // Picks 2-3 supporting photos for the inner page. Skips the hero
-  // (so we don't repeat it) and prefers a mix of interior types.
-  function _supportingPhotos(hero) {
-    if (typeof DEAL_PHOTOS === 'undefined' || !Array.isArray(DEAL_PHOTOS) || DEAL_PHOTOS.length === 0) return [];
-    const heroId = hero ? hero.id : null;
-    const remaining = DEAL_PHOTOS.filter(p => p && p.id !== heroId);
-    return remaining.slice(0, 3);
-  }
 
-
-  // ── PAGE 1: COVER · OPPORTUNITY SUMMARY ───────────────────────
+  // ── PAGE 1: COVER · OPPORTUNITY · KEY METRICS ─────────────────
   function _page1(deal, R, inputs, market, h, pageNum, totalPages) {
     const dealName = (deal && deal.name) ? deal.name : 'Investment Opportunity';
     const addrLine = _addressLine(deal, inputs);
@@ -152,7 +179,7 @@
     const tpc = R.total_project_cost || 0;
     const arv = R.stabilized_arv || 0;
     const noi = R.stabilized_noi || 0;
-    const refi = R.refi_loan_amount || 0;
+    const initLoan = R.initial_loan_amt || 0;
     const initEq = R.initial_investor_equity || 0;
     const recap = _pctNorm(R.capital_recaptured_pct) || 0;
     const recapDollars = initEq * recap;
@@ -163,26 +190,27 @@
     const exitCap = inputs.exit_cap || 0;
     const assetLabel = _assetTypeLabelPlain(inputs.asset_type, units);
     const cityState = [(inputs.city || ''), (inputs.state || '')].filter(Boolean).join(', ');
+    const msa = market && market.cbsa_name ? market.cbsa_name : '';
+    const medianRent = market && market.census && market.census.median_rent ? market.census.median_rent : null;
 
-    const hero = _heroPhoto();
+    const marketContext = msa
+      ? ` The property is located in the ${_esc(msa)} metropolitan area${medianRent ? ', a market with a median rent of approximately $' + Number(medianRent).toLocaleString() : ''}.`
+      : '';
 
-    // Plain-language opening paragraph. Third person, professional voice.
-    // Names every number rather than using shorthand.
-    const opening = `${_esc(dealName.replace(/[,.]?\s*(Cleveland|Ohio|OH).*$/i, '').trim() || 'This property')} is ${_esc(/^[aeiou]/i.test(assetLabel) ? 'an' : 'a')} ${_esc(assetLabel)} in ${_esc(cityState || 'a target submarket')}, acquired for ${h.fmtMoney(purchase)}. The plan calls for ${h.fmtMoney(capex)} in renovations over a ${refiMonth}-month execution window, bringing the property to institutional quality and full market rents. Total project cost is ${h.fmtMoney(tpc)}, funded with ${h.fmtMoney(R.initial_loan_amt || 0)} of bridge debt and ${h.fmtMoney(initEq)} of investor equity.`;
+    const opening = `${_esc(dealName.replace(/[,.]?\s*(Cleveland|Ohio|OH).*$/i, '').trim() || 'This property')} is ${_esc(/^[aeiou]/i.test(assetLabel) ? 'an' : 'a')} ${_esc(assetLabel)} in ${_esc(cityState || 'a target submarket')}, acquired for ${h.fmtMoney(purchase)}. The plan calls for ${h.fmtMoney(capex)} in renovations over a ${refiMonth}-month execution window, bringing the property to institutional quality and full market rents. Total project cost is ${h.fmtMoney(tpc)}, funded with ${h.fmtMoney(initLoan)} of bridge debt and ${h.fmtMoney(initEq)} of investor equity.${marketContext}`;
 
     const stabilized = `Once renovations are complete and the property is stabilized at market rents, projected annual net operating income (NOI) is ${h.fmtMoney(noi)}. Applied against a market exit cap rate of ${h.fmtPct(exitCap, 2)}, this supports a stabilized value of approximately ${h.fmtMoneyK(arv)}. A long-term refinance at ${h.fmtPct(inputs.target_refi_ltv || 0.7)} loan-to-value retires the bridge loan in full and returns approximately ${h.fmtPct(recap, 0)} of investor equity, while ownership stake is retained for the duration of the ${holdYears}-year hold.`;
 
-    // Metric callouts - one tight sentence each, no jargon untranslated
     const metrics = [
       {
         label: 'Capital returned at refinance',
         value: h.fmtPct(recap, 0),
-        context: `Approximately ${h.fmtMoneyK(recapDollars)} of the initial ${h.fmtMoneyK(initEq)} investment is returned at refinance around month ${refiMonth}. The remaining capital stays deployed in the property for the duration of the hold and is recovered, with appreciation, at sale.`
+        context: `Approximately ${h.fmtMoneyK(recapDollars)} of the initial ${h.fmtMoneyK(initEq)} investment is returned at refinance around month ${refiMonth}. The remaining capital stays deployed for the duration of the hold and is recovered, with appreciation, at sale.`
       },
       {
         label: '10-year equity multiple',
         value: (em != null && isFinite(em)) ? em.toFixed(2) + 'x' : '-',
-        context: `Over the ${holdYears}-year hold, total investor distributions are projected to equal approximately ${(em != null && isFinite(em)) ? em.toFixed(2) : '-'}x the initial investment. For every dollar invested, the projection returns ${(em != null && isFinite(em)) ? '$' + em.toFixed(2) : '-'} across refinance proceeds, annual cash flow, and sale proceeds.`
+        context: `Over the ${holdYears}-year hold, total distributions are projected to equal ${(em != null && isFinite(em)) ? em.toFixed(2) : '-'}x the initial investment, including refinance proceeds, annual cash flow, and sale proceeds.`
       },
       {
         label: 'Annualized return (IRR)',
@@ -193,7 +221,7 @@
 
     return `
       <div class="print-page print-page-compact">
-        ${_header(h, 'Cover · Opportunity Summary')}
+        ${_header(h, 'Cover · Opportunity')}
 
         <div class="print-title pb-avoid">
           <div class="print-title-eyebrow">Investment Overview</div>
@@ -201,27 +229,23 @@
           ${addrLine && !_esc(dealName).includes(_esc(addrLine.split(' · ')[0])) ? `<div class="print-title-sub">${_esc(addrLine)}</div>` : ''}
         </div>
 
-        ${hero ? `
-          <div class="iov-hero pb-avoid" style="margin:6pt 0 10pt 0;text-align:center">
-            <img src="${hero.image_base64}" alt="Property exterior" style="max-width:60%;max-height:140pt;width:auto;height:auto;border-radius:4pt;border:1px solid #ddd"/>
-          </div>
-        ` : ''}
+        ${_coverImages(deal)}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>The Opportunity</div>
-        <div style="font-size:9.5pt;line-height:1.5;color:#222;margin-bottom:8pt">
-          <p style="margin:0 0 6pt 0">${opening}</p>
-          <p style="margin:0 0 6pt 0">${stabilized}</p>
+        <div style="font-size:9pt;line-height:1.5;color:#222;margin-bottom:6pt">
+          <p style="margin:0 0 5pt 0">${opening}</p>
+          <p style="margin:0 0 5pt 0">${stabilized}</p>
         </div>
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Key Metrics</div>
-        <div class="iov-metrics pb-avoid" style="display:flex;flex-direction:column;gap:4pt;margin-bottom:6pt">
+        <div class="iov-metrics pb-avoid" style="display:flex;flex-direction:column;gap:3pt">
           ${metrics.map(m => `
-            <div style="border-left:3pt solid #C9A84C;padding:5pt 9pt;background:#fafaf6">
-              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2pt">
-                <div style="font-size:8.5pt;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#333">${_esc(m.label)}</div>
-                <div style="font-size:13pt;font-weight:700;color:#0a0a0b">${_esc(m.value)}</div>
+            <div style="border-left:3pt solid #C9A84C;padding:4pt 9pt;background:#fafaf6">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1pt">
+                <div style="font-size:8pt;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#333">${_esc(m.label)}</div>
+                <div style="font-size:12pt;font-weight:700;color:#0a0a0b">${_esc(m.value)}</div>
               </div>
-              <div style="font-size:8.5pt;line-height:1.4;color:#555">${_esc(m.context)}</div>
+              <div style="font-size:8pt;line-height:1.4;color:#555">${_esc(m.context)}</div>
             </div>
           `).join('')}
         </div>
@@ -231,8 +255,458 @@
   }
 
 
-  // ── PAGE 2: THE PLAN · CAPITAL TIMELINE · GLOSSARY ────────────
+  // ── PAGE 2: PROPERTY · UNIT MIX · RENT ROLL ───────────────────
   function _page2(deal, R, inputs, market, h, pageNum, totalPages) {
+    const um = (typeof unitMix === 'object' && Array.isArray(unitMix)) ? unitMix : [];
+    const units = R.total_unit_count || 0;
+    const gprAnnual = R.gpr_annual || 0;
+    const gprMonthly = R.gpr_monthly || (gprAnnual / 12);
+    const vacancy = inputs.vacancy_pct || 0;
+    const vacancyLoss = R.vacancy_loss || (gprAnnual * vacancy);
+    const egi = R.egi || (gprAnnual - vacancyLoss);
+    const purchase = inputs.purchase_price || 0;
+    const capex = inputs.capex_budget || 0;
+    const assetLabel = _assetTypeLabelPlain(inputs.asset_type, units);
+
+    const rows = um.filter(u => u && _bedTypeLabel(u.bed_type) !== '-' && (u.count || 0) > 0)
+      .map(u => {
+        const count = Number(u.count || 0);
+        const rent = Number(u.rent || 0);
+        const monthly = count * rent;
+        const annual = monthly * 12;
+        return { type: _bedTypeLabel(u.bed_type), count: count, rent: rent, monthly: monthly, annual: annual };
+      });
+
+    return `
+      <div class="print-page print-page-compact">
+        ${_header(h, 'Property · Unit Mix')}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Property Summary</div>
+        <div style="font-size:9pt;line-height:1.5;color:#222;margin-bottom:8pt">
+          The property is ${_esc(/^[aeiou]/i.test(assetLabel) ? 'an' : 'a')} ${_esc(assetLabel)} comprised of ${units} rental units. It is being acquired for ${h.fmtMoney(purchase)}${units > 0 ? ' (' + h.fmtMoney(purchase / units) + ' per unit)' : ''}. The business plan includes ${h.fmtMoney(capex)} in renovations to bring the units up to market-rate quality. The unit mix and rent roll below reflect the post-renovation stabilized rent assumptions used throughout this report.
+        </div>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Unit Mix and Stabilized Rents</div>
+        <table class="print-table pb-avoid" style="margin-bottom:8pt;font-size:9pt">
+          <thead>
+            <tr>
+              <th>Unit Type</th>
+              <th class="num">Units</th>
+              <th class="num">Monthly Rent / Unit</th>
+              <th class="num">Total Monthly Rent</th>
+              <th class="num">Annual Rent</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.length === 0 ? `
+              <tr><td colspan="5" style="text-align:center;color:#888;padding:8pt">Unit mix has not been entered for this deal.</td></tr>
+            ` : rows.map(r => `
+              <tr>
+                <td>${_esc(r.type)}</td>
+                <td class="num">${r.count}</td>
+                <td class="num">${h.fmtMoney(r.rent)}</td>
+                <td class="num">${h.fmtMoney(r.monthly)}</td>
+                <td class="num">${h.fmtMoney(r.annual)}</td>
+              </tr>
+            `).join('')}
+            ${rows.length > 0 ? `
+              <tr class="totals">
+                <td>Total</td>
+                <td class="num">${units}</td>
+                <td class="num"></td>
+                <td class="num">${h.fmtMoney(gprMonthly)}</td>
+                <td class="num">${h.fmtMoney(gprAnnual)}</td>
+              </tr>
+            ` : ''}
+          </tbody>
+        </table>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Income Roll-Up</div>
+        <table class="print-table pb-avoid" style="margin-bottom:6pt;font-size:9pt">
+          <thead>
+            <tr><th>Line</th><th class="num">Amount</th><th class="num">% of GPR</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Gross potential rent (GPR) <span style="color:#888;font-size:8pt">- total rent if all units are leased</span></td>
+              <td class="num">${h.fmtMoney(gprAnnual)}</td>
+              <td class="num">100.0%</td>
+            </tr>
+            <tr>
+              <td>Less: vacancy loss (${h.fmtPct(vacancy)}) <span style="color:#888;font-size:8pt">- reserve for unleased months</span></td>
+              <td class="num" style="color:#a00">(${h.fmtMoney(vacancyLoss)})</td>
+              <td class="num">${h.fmtPct(vacancy)}</td>
+            </tr>
+            <tr class="totals">
+              <td>Effective gross income (EGI) <span style="color:#888;font-size:8pt;font-weight:400">- collected rental income after vacancy</span></td>
+              <td class="num">${h.fmtMoney(egi)}</td>
+              <td class="num">${h.fmtPct((egi / (gprAnnual || 1)), 1)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="font-size:8pt;line-height:1.4;color:#666;margin-top:6pt;padding-top:5pt;border-top:1px solid #eee">
+          <strong>Note on rents.</strong> The rents shown above are the stabilized rents projected after renovations are complete. They are based on market comparables and the sponsor's experience with similar properties in this submarket. Actual achieved rents may differ from these projections.
+        </div>
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
+  }
+
+
+  // ── PAGE 3: INCOME · OPERATING EXPENSES · STABILIZED NOI ──────
+  function _page3(deal, R, inputs, market, h, pageNum, totalPages) {
+    const units = R.total_unit_count || 1;
+    const egi = R.egi || 0;
+    const pm = R.pm_dollars || 0;
+    const maint = R.maint_turnover || 0;
+    const taxes = R.taxes || 0;
+    const insurance = R.insurance || 0;
+    const utilities = R.utilities || 0;
+    const reserves = R.reserves || 0;
+    const totalOpex = R.total_operating_expenses || 0;
+    const noi = R.stabilized_noi || 0;
+    const expRatio = (egi > 0) ? totalOpex / egi : 0;
+    const noiMargin = (egi > 0) ? noi / egi : 0;
+    const pmPct = inputs.pm_pct || 0;
+    const maintPct = inputs.maint_pct_of_egi || 0;
+    const insPct = inputs.insurance_pct_of_egi || 0;
+    const utilPct = inputs.utilities_pct_of_egi || 0;
+    const reservesPerUnit = inputs.reserves_per_unit_year || 1000;
+    const taxDistrict = (inputs.tax_district || '').trim() || 'the local jurisdiction';
+
+    const lines = [
+      { label: 'Property management', amount: pm, explain: `Cost of professional management. Underwritten at ${h.fmtPct(pmPct)} of effective gross income.` },
+      { label: 'Maintenance and turnover', amount: maint, explain: `Routine repairs and costs to ready a unit for the next tenant. Underwritten at ${h.fmtPct(maintPct)} of effective gross income.` },
+      { label: 'Real estate taxes', amount: taxes, explain: `Annual property taxes assessed by ${_esc(taxDistrict)} based on the stabilized value.` },
+      { label: 'Insurance', amount: insurance, explain: `Property and liability insurance. Underwritten at ${h.fmtPct(insPct)} of effective gross income.` },
+      { label: 'Utilities', amount: utilities, explain: `Utilities paid by the property (not by tenants). Underwritten at ${h.fmtPct(utilPct)} of effective gross income.` },
+      { label: 'Capital reserves', amount: reserves, explain: `Set-aside for future capital improvements (roof, HVAC, etc.). Underwritten at $${reservesPerUnit.toLocaleString()} per unit per year.` }
+    ];
+
+    return `
+      <div class="print-page print-page-compact">
+        ${_header(h, 'Income · Expenses · NOI')}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Effective Gross Income</div>
+        <div style="font-size:9pt;line-height:1.5;color:#222;margin-bottom:6pt">
+          Effective gross income (EGI) of ${h.fmtMoney(egi)} is the projected annual rental income collected from tenants, after a ${h.fmtPct(inputs.vacancy_pct || 0)} vacancy allowance. All operating expenses below are then deducted from EGI to arrive at net operating income.
+        </div>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Operating Expenses</div>
+        <table class="print-table pb-avoid" style="margin-bottom:6pt;font-size:8.5pt">
+          <thead>
+            <tr>
+              <th>Expense</th>
+              <th class="num">Annual</th>
+              <th class="num">Per Unit</th>
+              <th class="num">% of EGI</th>
+              <th style="width:40%">What This Covers</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${lines.map(l => `
+              <tr>
+                <td>${_esc(l.label)}</td>
+                <td class="num">${h.fmtMoney(l.amount)}</td>
+                <td class="num">${units > 0 ? h.fmtMoney(l.amount / units) : '-'}</td>
+                <td class="num">${egi > 0 ? h.fmtPct(l.amount / egi, 1) : '-'}</td>
+                <td style="font-size:8pt;color:#555;line-height:1.4">${_esc(l.explain)}</td>
+              </tr>
+            `).join('')}
+            <tr class="totals">
+              <td>Total operating expenses</td>
+              <td class="num">${h.fmtMoney(totalOpex)}</td>
+              <td class="num">${units > 0 ? h.fmtMoney(totalOpex / units) : '-'}</td>
+              <td class="num">${h.fmtPct(expRatio, 1)}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Net Operating Income (NOI)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8pt;margin-bottom:6pt">
+          <div style="border:1px solid #e6e6e6;border-radius:4pt;padding:8pt;text-align:center;background:#fafaf6">
+            <div style="font-size:7.5pt;letter-spacing:0.04em;text-transform:uppercase;color:#777;margin-bottom:2pt">Stabilized NOI</div>
+            <div style="font-size:15pt;font-weight:700;color:#0a0a0b">${h.fmtMoney(noi)}</div>
+            <div style="font-size:7.5pt;color:#666;margin-top:1pt">Income minus expenses, before loan payments</div>
+          </div>
+          <div style="border:1px solid #e6e6e6;border-radius:4pt;padding:8pt;text-align:center">
+            <div style="font-size:7.5pt;letter-spacing:0.04em;text-transform:uppercase;color:#777;margin-bottom:2pt">NOI Margin</div>
+            <div style="font-size:15pt;font-weight:700;color:#0a0a0b">${h.fmtPct(noiMargin, 1)}</div>
+            <div style="font-size:7.5pt;color:#666;margin-top:1pt">Share of EGI that becomes NOI</div>
+          </div>
+        </div>
+
+        <div style="font-size:8pt;line-height:1.4;color:#666;margin-top:6pt;padding-top:5pt;border-top:1px solid #eee">
+          <strong>Note on NOI.</strong> Net operating income measures the property's profitability before loan payments, income taxes, and capital improvements. It is the primary input used to value the property at refinance and at sale.
+        </div>
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
+  }
+
+
+  // ── PAGE 4: SOURCES & USES · CAPITAL STACK · OWNERSHIP ────────
+  function _page4(deal, R, inputs, market, h, pageNum, totalPages) {
+    const tpc = R.total_project_cost || 0;
+    const purchase = inputs.purchase_price || 0;
+    const capex = inputs.capex_budget || 0;
+    const closing = R.closing_costs || 0;
+    const consulting = R.consulting_fee || inputs.consulting_fee || 0;
+    const carry = R.debt_service_pre_refi || 0;
+    const mobilization = inputs.sponsor_mobilization || 0;
+    const acqTranche = R.acquisition_tranche || 0;
+    const conTranche = R.construction_tranche || 0;
+    const totalBridge = R.initial_loan_amt || (acqTranche + conTranche);
+    const initEq = R.initial_investor_equity || 0;
+    const totalSources = totalBridge + initEq;
+    const investorOwn = inputs.investor_ownership != null ? inputs.investor_ownership : 0.5;
+    const sponsorOwn = 1 - investorOwn;
+
+    const useRows = [
+      { label: 'Purchase price', amt: purchase, note: 'Cost to acquire the property' },
+      { label: 'Renovation budget', amt: capex, note: 'Cost to renovate and bring units to market quality' },
+      { label: 'Closing costs', amt: closing, note: 'Title, insurance, lender fees, transfer tax' },
+      { label: 'Consulting / project fee', amt: consulting, note: 'Sponsor project management fee' },
+      { label: 'Bridge debt service through refinance', amt: carry, note: 'Loan interest paid during the renovation period' },
+      { label: 'Sponsor mobilization (capex float)', amt: mobilization, note: 'Working capital for contractor payments; reimbursed via lender draws' }
+    ].filter(r => r.amt > 0);
+
+    const srcRows = [
+      { label: 'Bridge loan: acquisition portion', amt: acqTranche, note: 'Senior debt funding the property purchase' },
+      { label: 'Bridge loan: renovation portion', amt: conTranche, note: 'Senior debt funding the renovation, released in draws' },
+      { label: 'Investor equity at closing', amt: initEq, note: 'Cash contributed by the equity partner' }
+    ].filter(r => r.amt > 0);
+
+    return `
+      <div class="print-page print-page-compact">
+        ${_header(h, 'Capital · Sources & Uses')}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Uses of Capital</div>
+        <table class="print-table pb-avoid" style="margin-bottom:8pt;font-size:8.5pt">
+          <thead>
+            <tr><th>Use</th><th class="num">Amount</th><th class="num">% of Total</th><th style="width:38%">Notes</th></tr>
+          </thead>
+          <tbody>
+            ${useRows.map(r => `
+              <tr>
+                <td>${_esc(r.label)}</td>
+                <td class="num">${h.fmtMoney(r.amt)}</td>
+                <td class="num">${tpc > 0 ? h.fmtPct(r.amt / tpc, 1) : '-'}</td>
+                <td style="font-size:8pt;color:#555">${_esc(r.note)}</td>
+              </tr>
+            `).join('')}
+            <tr class="totals">
+              <td>Total project cost</td>
+              <td class="num">${h.fmtMoney(tpc)}</td>
+              <td class="num">100.0%</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Sources of Capital</div>
+        <table class="print-table pb-avoid" style="margin-bottom:8pt;font-size:8.5pt">
+          <thead>
+            <tr><th>Source</th><th class="num">Amount</th><th class="num">% of Total</th><th style="width:38%">Notes</th></tr>
+          </thead>
+          <tbody>
+            ${srcRows.map(r => `
+              <tr>
+                <td>${_esc(r.label)}</td>
+                <td class="num">${h.fmtMoney(r.amt)}</td>
+                <td class="num">${totalSources > 0 ? h.fmtPct(r.amt / totalSources, 1) : '-'}</td>
+                <td style="font-size:8pt;color:#555">${_esc(r.note)}</td>
+              </tr>
+            `).join('')}
+            <tr class="totals">
+              <td>Total sources</td>
+              <td class="num">${h.fmtMoney(totalSources)}</td>
+              <td class="num">100.0%</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Ownership and Distribution Structure</div>
+        <table class="print-table pb-avoid" style="margin-bottom:6pt;font-size:8.5pt">
+          <tbody>
+            <tr>
+              <td style="width:38%">Deal entity</td>
+              <td>Joint venture between ASJP and the capital partner, formed as a single-purpose LLC for this acquisition</td>
+            </tr>
+            <tr>
+              <td>Capital partner ownership</td>
+              <td>${h.fmtPct(investorOwn, 1)} of the deal LLC</td>
+            </tr>
+            <tr>
+              <td>Sponsor (ASJP) ownership</td>
+              <td>${h.fmtPct(sponsorOwn, 1)} of the deal LLC</td>
+            </tr>
+            <tr>
+              <td>Capital partner contribution at closing</td>
+              <td>${h.fmtMoney(initEq)} cash (100% of cash equity)</td>
+            </tr>
+            <tr>
+              <td>Sponsor contribution at closing</td>
+              <td>Operational execution: deal sourcing, acquisition, capex management, asset management, refinancing, and disposition. Sponsor assumes personal recourse on the bridge loan.</td>
+            </tr>
+            <tr>
+              <td>Cash flow distribution</td>
+              <td>Pro-rata to ownership (${h.fmtPct(investorOwn, 1)} to capital partner, ${h.fmtPct(sponsorOwn, 1)} to sponsor)</td>
+            </tr>
+            <tr>
+              <td>Disposition proceeds distribution</td>
+              <td>Pro-rata to ownership (${h.fmtPct(investorOwn, 1)} to capital partner, ${h.fmtPct(sponsorOwn, 1)} to sponsor)</td>
+            </tr>
+            <tr>
+              <td>Promote / waterfall</td>
+              <td>None - straight pro-rata distributions throughout the life of the deal</td>
+            </tr>
+            <tr>
+              <td>Preferred return</td>
+              <td>None</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="font-size:8pt;line-height:1.4;color:#666;margin-top:5pt;padding-top:4pt;border-top:1px solid #eee">
+          <strong>How to read this structure.</strong> The capital partner funds 100% of cash equity and owns ${h.fmtPct(investorOwn, 1)} of the deal LLC. The sponsor contributes operational execution and signs personally on the bridge loan. Distributions are pro-rata - meaning ${h.fmtPct(investorOwn, 1)} of every dollar of cash flow and sale proceeds goes to the capital partner. There is no promote or preferred return; the alignment is straightforward and the math is symmetrical.
+        </div>
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
+  }
+
+
+  // ── PAGE 5: VALUATION · REFINANCE · 10-YEAR CASH FLOW ─────────
+  function _page5(deal, R, inputs, market, h, pageNum, totalPages) {
+    const noi = R.stabilized_noi || 0;
+    const exitCap = inputs.exit_cap || 0;
+    const arv = R.stabilized_arv || 0;
+    const tpc = R.total_project_cost || 0;
+    const valueCreation = arv - tpc;
+    const valueCreationPct = tpc > 0 ? valueCreation / tpc : 0;
+    const refiLTV = inputs.target_refi_ltv || 0.7;
+    const refiLoan = R.refi_loan_amount || 0;
+    const refiRate = inputs.refi_rate || 0;
+    const refiAnnualDS = R.refi_annual_ds || 0;
+    const dscr = (refiAnnualDS > 0) ? (noi / refiAnnualDS) : 0;
+    const refiClosingPct = 0.04;
+    const refiClosing = refiLoan * refiClosingPct;
+    const bridgePayoff = R.initial_loan_amt || ((R.acquisition_tranche || 0) + (R.construction_tranche || 0));
+    const netCashOut = refiLoan - bridgePayoff - refiClosing;
+    const initEq = R.initial_investor_equity || 0;
+    const recap = _pctNorm(R.capital_recaptured_pct) || 0;
+    const dist = Array.isArray(R.distribution) ? R.distribution : [];
+    const holdYears = inputs.target_hold_years || 10;
+    const refiMonth = inputs.target_refi_months || 7;
+
+    const cfRows = [];
+    for (let y = 0; y <= Math.min(holdYears, dist.length - 1); y++) {
+      const v = dist[y] || 0;
+      let note = '';
+      if (y === 0) note = 'Initial equity contribution at closing';
+      else if (y === 1) note = `Includes refinance proceeds (month ${refiMonth}) plus first-year operating cash flow`;
+      else if (y === holdYears) note = 'Final-year operating cash flow plus net proceeds from sale';
+      else note = 'Operating cash flow distribution';
+      cfRows.push({ year: y, value: v, note: note });
+    }
+    const totalDist = cfRows.reduce((s, r) => r.year === 0 ? s : s + (r.value || 0), 0);
+
+    return `
+      <div class="print-page print-page-compact">
+        ${_header(h, 'Valuation · Refinance · Cash Flow')}
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Stabilized Valuation</div>
+        <table class="print-table pb-avoid" style="margin-bottom:6pt;font-size:8.5pt">
+          <tbody>
+            <tr>
+              <td style="width:55%">Stabilized net operating income (NOI)</td>
+              <td class="num">${h.fmtMoney(noi)}</td>
+            </tr>
+            <tr>
+              <td>Exit cap rate <span style="color:#888;font-size:8pt">- market yield used to value the property</span></td>
+              <td class="num">${h.fmtPct(exitCap, 2)}</td>
+            </tr>
+            <tr class="totals">
+              <td>Stabilized after-repair value (ARV = NOI / exit cap)</td>
+              <td class="num">${h.fmtMoney(arv)}</td>
+            </tr>
+            <tr>
+              <td>Total project cost (purchase + renovations + costs)</td>
+              <td class="num">${h.fmtMoney(tpc)}</td>
+            </tr>
+            <tr>
+              <td>Value creation (ARV minus project cost)</td>
+              <td class="num" style="color:${valueCreation >= 0 ? '#1f7a3c' : '#a00'};font-weight:600">${h.fmtMoney(valueCreation)} (${h.fmtPct(valueCreationPct, 1)})</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Refinance Mechanics</div>
+        <table class="print-table pb-avoid" style="margin-bottom:6pt;font-size:8.5pt">
+          <thead>
+            <tr><th>Step</th><th class="num">Amount</th><th>Explanation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>New refinance loan</td>
+              <td class="num" style="color:#1f7a3c">+${h.fmtMoney(refiLoan)}</td>
+              <td style="font-size:8pt;color:#555">Long-term agency loan at ${h.fmtPct(refiRate, 2)} interest, sized at ${h.fmtPct(refiLTV)} of stabilized value</td>
+            </tr>
+            <tr>
+              <td>Less: payoff of bridge loan</td>
+              <td class="num" style="color:#a00">(${h.fmtMoney(bridgePayoff)})</td>
+              <td style="font-size:8pt;color:#555">Original bridge debt retired in full</td>
+            </tr>
+            <tr>
+              <td>Less: refinance closing costs (~${h.fmtPct(refiClosingPct)})</td>
+              <td class="num" style="color:#a00">(${h.fmtMoney(refiClosing)})</td>
+              <td style="font-size:8pt;color:#555">Lender fees, title insurance, appraisal, legal</td>
+            </tr>
+            <tr class="totals">
+              <td>Net cash returned to investors</td>
+              <td class="num">${h.fmtMoney(netCashOut)}</td>
+              <td style="font-size:8pt;color:#555">Approximately ${h.fmtPct(recap, 0)} of the ${h.fmtMoney(initEq)} initial equity</td>
+            </tr>
+            <tr>
+              <td>Debt service coverage ratio (DSCR) at refinance</td>
+              <td class="num">${dscr.toFixed(2)}x</td>
+              <td style="font-size:8pt;color:#555">NOI divided by annual loan payment; agency lenders typically require at least 1.20x</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>${holdYears}-Year Investor Cash Flow</div>
+        <table class="print-table pb-avoid" style="margin-bottom:4pt;font-size:8.5pt">
+          <thead>
+            <tr><th>Year</th><th class="num">Distribution</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            ${cfRows.map(r => `
+              <tr>
+                <td>Y${r.year}</td>
+                <td class="num" style="color:${r.value < 0 ? '#a00' : (r.value > 0 ? '#1f7a3c' : '#555')};font-weight:${r.value !== 0 ? '600' : '400'}">${r.value < 0 ? '(' + h.fmtMoney(Math.abs(r.value)) + ')' : h.fmtMoney(r.value)}</td>
+                <td style="font-size:8pt;color:#555">${_esc(r.note)}</td>
+              </tr>
+            `).join('')}
+            <tr class="totals">
+              <td>Total positive distributions</td>
+              <td class="num">${h.fmtMoney(totalDist)}</td>
+              <td style="font-size:8pt;color:#555">Sum of distributions Y1 through Y${holdYears}, on ${h.fmtMoney(initEq)} invested</td>
+            </tr>
+          </tbody>
+        </table>
+
+        ${_footer(pageNum, totalPages)}
+      </div>`;
+  }
+
+
+  // ── PAGE 6: THE PLAN · CAPITAL TIMELINE · GLOSSARY ────────────
+  function _page6(deal, R, inputs, market, h, pageNum, totalPages) {
     const units = R.total_unit_count || 0;
     const purchase = inputs.purchase_price || 0;
     const capex = inputs.capex_budget || 0;
@@ -243,41 +717,16 @@
     const recapDollars = initEq * recap;
     const refiMonth = inputs.target_refi_months || 7;
     const holdYears = inputs.target_hold_years || 10;
-    const cityState = [(inputs.city || ''), (inputs.state || '')].filter(Boolean).join(', ');
-    const arv = R.stabilized_arv || 0;
     const dispValue = (R.net_sale_proceeds != null) ? R.net_sale_proceeds : 0;
 
-    // 5-step business plan walkthrough. Plain-language, third-person,
-    // specific to this deal's numbers.
     const steps = [
-      {
-        n: 1,
-        title: 'Acquire',
-        body: `Purchase the ${units}-unit property at ${h.fmtMoney(purchase)} using a bridge loan combined with investor equity. Bridge loans are short-term loans used during the renovation phase, paid off when the property is refinanced into permanent debt.`
-      },
-      {
-        n: 2,
-        title: 'Renovate',
-        body: `Execute the ${h.fmtMoney(capex)} renovation budget over approximately ${refiMonth} months. Renovations bring the property up to institutional quality, allowing the rent roll to reach full market rates.`
-      },
-      {
-        n: 3,
-        title: 'Stabilize',
-        body: `Lease the renovated units at market rents. Once occupancy and rental income stabilize, the property generates approximately ${h.fmtMoney(noi)} in annual NOI.`
-      },
-      {
-        n: 4,
-        title: 'Refinance',
-        body: `Refinance the property with a long-term agency loan of approximately ${h.fmtMoney(refi)}, retiring the bridge loan and returning approximately ${h.fmtMoneyK(recapDollars)} (${h.fmtPct(recap, 0)}) of the initial investment to investors. Ownership stake is retained.`
-      },
-      {
-        n: 5,
-        title: 'Hold and dispose',
-        body: `Operate the stabilized property for the remainder of the ${holdYears}-year hold, generating annual cash distributions to investors. At the end of the hold, the property is sold and the remaining equity, plus appreciation, is returned to investors.`
-      }
+      { n: 1, title: 'Acquire', body: `Purchase the ${units}-unit property at ${h.fmtMoney(purchase)} using a bridge loan combined with investor equity.` },
+      { n: 2, title: 'Renovate', body: `Execute the ${h.fmtMoney(capex)} renovation budget over approximately ${refiMonth} months, bringing the property up to institutional quality.` },
+      { n: 3, title: 'Stabilize', body: `Lease the renovated units at market rents. Once occupancy and rental income stabilize, the property generates approximately ${h.fmtMoney(noi)} in annual NOI.` },
+      { n: 4, title: 'Refinance', body: `Refinance with a long-term agency loan of approximately ${h.fmtMoney(refi)}, retiring the bridge loan and returning approximately ${h.fmtMoneyK(recapDollars)} (${h.fmtPct(recap, 0)}) of the initial investment to investors.` },
+      { n: 5, title: 'Hold and dispose', body: `Operate the stabilized property for the remainder of the ${holdYears}-year hold, generating annual cash distributions. At the end of the hold, the property is sold and the remaining equity, plus appreciation, is returned to investors.` }
     ];
 
-    // Capital timeline - what happens to investor capital and when
     const timeline = [
       { phase: 'Month 0 (closing)', event: 'Investor equity contributed', amount: '(' + h.fmtMoneyK(initEq) + ')', tone: 'out' },
       { phase: `Month ${refiMonth} (refinance)`, event: 'Capital returned at refinance', amount: '+' + h.fmtMoneyK(recapDollars), tone: 'in' },
@@ -285,7 +734,6 @@
       { phase: `Year ${holdYears} (sale)`, event: 'Net sale proceeds returned', amount: '+' + h.fmtMoneyK(dispValue), tone: 'in' }
     ];
 
-    // Glossary - 10 terms, one tight sentence each. Alphabetical.
     const glossary = [
       { term: 'Bridge loan', def: 'Short-term financing used during the renovation phase, paid off when the property is refinanced into permanent debt.' },
       { term: 'Cap rate', def: 'A property\'s annual net operating income divided by its value, used as a benchmark for valuation. A higher cap rate means a higher yield relative to price.' },
@@ -347,154 +795,8 @@
   }
 
 
-  // ── PAGE 3: THE NUMBERS · CASH FLOW · SENSITIVITY ─────────────
-  function _page3(deal, R, inputs, market, h, pageNum, totalPages) {
-    const initEq = R.initial_investor_equity || 0;
-    const dist = Array.isArray(R.distribution) ? R.distribution : [];
-    const holdYears = inputs.target_hold_years || 10;
-    const em = R.equity_multiple;
-    const irr = R.investor_irr;
-    const totalDistributed = dist.reduce((s, d, i) => i === 0 ? 0 : s + (d || 0), 0);
-
-    // Cash flow table - same data as the BRRRR Package distributions
-    // table, but trimmed to just the year/distribution columns and
-    // notes column with plainer notes (no engine-disposition-fix talk)
-    const cfRows = [];
-    for (let y = 0; y <= Math.min(holdYears, dist.length - 1); y++) {
-      const v = dist[y] || 0;
-      let note = '';
-      if (y === 0) note = 'Initial investment';
-      else if (y === 1) note = 'Refinance proceeds plus first-year operating cash flow';
-      else if (y === holdYears) note = 'Final-year operating cash flow plus net sale proceeds';
-      else note = 'Operating cash flow distribution';
-      cfRows.push({ year: y, value: v, note: note });
-    }
-
-    // Supporting photos - 3 across in a tight row
-    const hero = _heroPhoto();
-    const supporting = _supportingPhotos(hero);
-
-    // Pull base sensitivity values for a tighter 3x3 "what if" view.
-    // Same closed-form approximation logic as BRRRR Package but trimmed
-    // to just 3 scenarios users can intuit (base, downside, upside).
-    const baseEC = inputs.exit_cap || 0.07;
-    const baseRG = inputs.rent_growth_pct || 0.05;
-    const baseSCP = inputs.sale_cost_pct || 0.07;
-    const remLoan = R.remaining_loan_balance || 0;
-    const baseNOI = R.stabilized_noi || 0;
-    const baseVac = inputs.vacancy_pct || 0;
-    const baseGpr = R.gpr_annual || 0;
-    const baseExpRatio = (R.egi > 0) ? (R.total_operating_expenses / R.egi) : 0;
-    const sumOpDist = (function () {
-      let s = 0;
-      for (let i = 2; i <= Math.min(9, dist.length - 1); i++) s += dist[i] || 0;
-      return s;
-    })();
-    const y1 = dist[1] || 0;
-
-    function _scenarioEM(ec, rg) {
-      const gpr10 = baseGpr * Math.pow(1 + rg, holdYears - 1);
-      const egi10 = gpr10 * (1 - baseVac);
-      const opex10 = egi10 * baseExpRatio;
-      const noi10 = egi10 - opex10;
-      const dispVal = ec > 0 ? noi10 / ec : 0;
-      const netSale = dispVal * (1 - baseSCP) - remLoan;
-      const y10Op = (dist[holdYears] || 0) - ((dist[holdYears] - (R.net_sale_proceeds || 0)) > 0 ? 0 : 0); // approximation: use stabilized last-year op CF
-      const y10Approx = noi10 * 0.4; // rough operating CF estimate at Y10 (NOI minus refi DS rough)
-      const sumPositive = y1 + sumOpDist + Math.max(0, netSale) + Math.max(0, y10Approx);
-      return initEq > 0 ? sumPositive / initEq : 0;
-    }
-
-    const baseEM = (em != null && isFinite(em)) ? em : _scenarioEM(baseEC, baseRG);
-    const downsideEM = _scenarioEM(baseEC + 0.005, Math.max(0, baseRG - 0.01));
-    const upsideEM = _scenarioEM(Math.max(0.04, baseEC - 0.005), baseRG + 0.01);
-
-    return `
-      <div class="print-page print-page-compact">
-        ${_header(h, 'The Numbers')}
-
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Annual Investor Cash Flow</div>
-        <table class="print-table pb-avoid" style="margin-bottom:8pt;font-size:8.5pt">
-          <thead>
-            <tr><th>Year</th><th class="num">Distribution</th><th>Notes</th></tr>
-          </thead>
-          <tbody>
-            ${cfRows.map(r => `
-              <tr>
-                <td>Y${r.year}</td>
-                <td class="num" style="color:${r.value < 0 ? '#a00' : (r.value > 0 ? '#1f7a3c' : '#555')};font-weight:${r.value !== 0 ? '600' : '400'}">${r.value < 0 ? '(' + h.fmtMoney(Math.abs(r.value)) + ')' : h.fmtMoney(r.value)}</td>
-                <td style="font-size:8.5pt;color:#555">${_esc(r.note)}</td>
-              </tr>
-            `).join('')}
-            <tr class="totals">
-              <td>Total return</td>
-              <td class="num">${h.fmtMoney(totalDistributed)}</td>
-              <td style="font-size:8.5pt;color:#555">Sum of all distributions Y1 through Y${holdYears}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Return Summary</div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6pt;margin-bottom:8pt">
-          <div style="border:1px solid #e6e6e6;border-radius:4pt;padding:6pt;text-align:center">
-            <div style="font-size:7.5pt;letter-spacing:0.04em;text-transform:uppercase;color:#777;margin-bottom:2pt">Annualized return (IRR)</div>
-            <div style="font-size:14pt;font-weight:700;color:#0a0a0b">${h.fmtPct(irr, 1)}</div>
-            <div style="font-size:7.5pt;color:#666;margin-top:1pt">Return per year, compounded</div>
-          </div>
-          <div style="border:1px solid #e6e6e6;border-radius:4pt;padding:6pt;text-align:center">
-            <div style="font-size:7.5pt;letter-spacing:0.04em;text-transform:uppercase;color:#777;margin-bottom:2pt">Equity multiple</div>
-            <div style="font-size:14pt;font-weight:700;color:#0a0a0b">${(em != null && isFinite(em)) ? em.toFixed(2) + 'x' : '-'}</div>
-            <div style="font-size:7.5pt;color:#666;margin-top:1pt">Total returned per dollar invested</div>
-          </div>
-          <div style="border:1px solid #e6e6e6;border-radius:4pt;padding:6pt;text-align:center">
-            <div style="font-size:7.5pt;letter-spacing:0.04em;text-transform:uppercase;color:#777;margin-bottom:2pt">Total distributions</div>
-            <div style="font-size:14pt;font-weight:700;color:#0a0a0b">${h.fmtMoneyK(totalDistributed)}</div>
-            <div style="font-size:7.5pt;color:#666;margin-top:1pt">On ${h.fmtMoneyK(initEq)} invested</div>
-          </div>
-        </div>
-
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>What If the Market Moves</div>
-        <table class="print-table pb-avoid" style="margin-bottom:6pt;font-size:8.5pt">
-          <thead>
-            <tr><th>Scenario</th><th>Description</th><th class="num">Equity Multiple</th></tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Downside</strong></td>
-              <td style="font-size:8.5pt;color:#555">Rent growth 1pp lower than projected; property sells at 50bp higher cap rate.</td>
-              <td class="num">${downsideEM.toFixed(2)}x</td>
-            </tr>
-            <tr class="totals">
-              <td><strong>Base case</strong></td>
-              <td style="font-size:8.5pt;color:#555">Underwriting assumptions are met. ${h.fmtPct(baseRG)} annual rent growth, ${h.fmtPct(baseEC, 2)} exit cap rate.</td>
-              <td class="num">${baseEM.toFixed(2)}x</td>
-            </tr>
-            <tr>
-              <td><strong>Upside</strong></td>
-              <td style="font-size:8.5pt;color:#555">Rent growth 1pp higher than projected; property sells at 50bp lower cap rate.</td>
-              <td class="num">${upsideEM.toFixed(2)}x</td>
-            </tr>
-          </tbody>
-          <caption style="font-size:7.5pt;color:#777;margin-top:3pt;text-align:left">Sensitivity uses a simplified projection. A full 25-cell sensitivity grid is available in the BRRRR Package on request.</caption>
-        </table>
-
-        ${_footer(pageNum, totalPages)}
-      </div>`;
-  }
-
-  function _photoTypeLabel(t) {
-    const map = {
-      exterior: 'Exterior', interior: 'Interior', kitchen: 'Kitchen',
-      bathroom: 'Bathroom', living_room: 'Living Room',
-      bedroom: 'Bedroom', common_area: 'Common Area', other: 'Other'
-    };
-    return map[t] || 'Photo';
-  }
-
-
-  // ── PAGE 4: RISKS · SPONSOR · DISCLAIMERS ─────────────────────
-  function _page4(deal, R, inputs, market, h, pageNum, totalPages) {
-    // Top 3 risks with plain-language translation + cushion
+  // ── PAGE 7: RISKS · SENSITIVITY · FAQ · SPONSOR · DISCLAIMERS ─
+  function _page7(deal, R, inputs, market, h, pageNum, totalPages) {
     let risks = [];
     if (typeof assembleRisks === 'function') {
       risks = assembleRisks().filter(r => !r.resolved);
@@ -503,57 +805,127 @@
     risks.sort((a, b) => (sevOrder[a.severity || 'medium'] || 1) - (sevOrder[b.severity || 'medium'] || 1));
     const topRisks = risks.slice(0, 3);
 
-    // Sponsor block
+    const baseEC = inputs.exit_cap || 0.07;
+    const baseRG = inputs.rent_growth_pct || 0.05;
+    const baseSCP = inputs.sale_cost_pct || 0.07;
+    const remLoan = R.remaining_loan_balance || 0;
+    const baseVac = inputs.vacancy_pct || 0;
+    const baseGpr = R.gpr_annual || 0;
+    const baseExpRatio = (R.egi > 0) ? (R.total_operating_expenses / R.egi) : 0;
+    const dist = Array.isArray(R.distribution) ? R.distribution : [];
+    const holdYears = inputs.target_hold_years || 10;
+    const initEq = R.initial_investor_equity || 0;
+    const em = R.equity_multiple;
+    const y1 = dist[1] || 0;
+    const sumOpDist = (function () {
+      let s = 0;
+      for (let i = 2; i <= Math.min(holdYears - 1, dist.length - 1); i++) s += dist[i] || 0;
+      return s;
+    })();
+
+    function _scenarioEM(ec, rg) {
+      const gpr10 = baseGpr * Math.pow(1 + rg, holdYears - 1);
+      const egi10 = gpr10 * (1 - baseVac);
+      const opex10 = egi10 * baseExpRatio;
+      const noi10 = egi10 - opex10;
+      const dispVal = ec > 0 ? noi10 / ec : 0;
+      const netSale = dispVal * (1 - baseSCP) - remLoan;
+      const y10Approx = noi10 * 0.4;
+      const sumPositive = y1 + sumOpDist + Math.max(0, netSale) + Math.max(0, y10Approx);
+      return initEq > 0 ? sumPositive / initEq : 0;
+    }
+
+    const baseEM = (em != null && isFinite(em)) ? em : _scenarioEM(baseEC, baseRG);
+    const downsideEM = _scenarioEM(baseEC + 0.005, Math.max(0, baseRG - 0.01));
+    const upsideEM = _scenarioEM(Math.max(0.04, baseEC - 0.005), baseRG + 0.01);
+
     const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
     const contact = (co && co.contact_info) ? co.contact_info : {};
     const sponsorName = (co && co.name) || 'ASJP';
-    const sponsorSub = co && co.subtitle ? co.subtitle : '';
+
+    const refiMonth = inputs.target_refi_months || 7;
+    const recapPct = _pctNorm(R.capital_recaptured_pct) || 0;
+    const faqs = [
+      {
+        q: 'What if it takes longer than ' + refiMonth + ' months to renovate and stabilize?',
+        a: `The bridge loan can be extended if needed, typically at a higher rate. A 3-6 month delay would increase carrying costs but is built into the sponsor's contingency planning. A longer delay would push the refinance and reduce the IRR, but does not put the principal at risk as long as the property stabilizes at the projected rents.`
+      },
+      {
+        q: 'What if I need my money back sooner than the ' + holdYears + '-year hold?',
+        a: `LP interests in this deal are illiquid by nature. There is no required buyback mechanism. The sponsor can attempt to find a secondary buyer for the LP interest if requested, but cannot guarantee timing or pricing. Most of the initial investment is returned at refinance (month ${refiMonth}); the remaining equity is locked through disposition.`
+      },
+      {
+        q: 'When do I receive my first distribution?',
+        a: `The first material distribution arrives at refinance, around month ${refiMonth}, when approximately ${h.fmtPct(recapPct, 0)} of the initial investment is returned. Smaller operating cash flow distributions continue annually thereafter, with the final distribution including the sale proceeds at year ${holdYears}.`
+      },
+      {
+        q: 'What is the worst-case scenario?',
+        a: `The principal risk is failure to refinance at the projected terms, which would extend the bridge loan and reduce returns. In a downside scenario where rent growth disappoints and the exit cap softens, the deal still generates a positive return for investors but at a lower equity multiple (see the sensitivity table above). Catastrophic loss of capital would require both a failed refinance and a forced sale below total project cost.`
+      }
+    ];
 
     return `
       <div class="print-page print-page-compact">
-        ${_header(h, 'Risks · Sponsor · Disclaimers')}
+        ${_header(h, 'Risks · FAQ · Sponsor')}
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Key Risks</div>
         ${topRisks.length === 0 ? `
-          <div style="font-size:9pt;color:#555;line-height:1.5;margin-bottom:10pt;padding:8pt;border-left:3pt solid #1f7a3c;background:#f5faf6">
+          <div style="font-size:8.5pt;color:#555;line-height:1.45;margin-bottom:8pt;padding:6pt 8pt;border-left:3pt solid #1f7a3c;background:#f5faf6">
             No risks have been flagged by the underwriting engine or market analysis modules against the assumptions in this report. The standard disclaimers below still apply, and prospective investors should conduct their own independent diligence.
           </div>
         ` : `
-          <div style="display:flex;flex-direction:column;gap:6pt;margin-bottom:10pt">
+          <div style="display:flex;flex-direction:column;gap:3pt;margin-bottom:8pt">
             ${topRisks.map(r => {
               const sev = (r.severity || 'medium').toLowerCase();
               const sevColor = sev === 'high' ? '#c0392b' : (sev === 'medium' ? '#b8860b' : '#666');
               const sevBg = sev === 'high' ? '#fdf3f1' : (sev === 'medium' ? '#fdf9ee' : '#f7f7f7');
               return `
-                <div style="border-left:3pt solid ${sevColor};padding:6pt 10pt;background:${sevBg}">
-                  <div style="font-size:9pt;font-weight:700;color:${sevColor};letter-spacing:0.04em;text-transform:uppercase;margin-bottom:2pt">${_esc(sev)} severity</div>
-                  <div style="font-size:10pt;font-weight:600;color:#0a0a0b;margin-bottom:3pt">${_esc(r.title || 'Risk')}</div>
-                  <div style="font-size:9pt;color:#444;line-height:1.5">${_esc(_truncate(r.detail || '', 220))}</div>
-                  ${r.mitigation ? `<div style="font-size:8.5pt;color:#555;line-height:1.45;margin-top:4pt;padding-top:4pt;border-top:1px dashed #ddd"><strong>Mitigation.</strong> ${_esc(r.mitigation)}</div>` : ''}
+                <div style="border-left:3pt solid ${sevColor};padding:3pt 8pt;background:${sevBg}">
+                  <div style="font-size:7.5pt;font-weight:700;color:${sevColor};letter-spacing:0.04em;text-transform:uppercase">${_esc(sev)} severity</div>
+                  <div style="font-size:9pt;font-weight:600;color:#0a0a0b">${_esc(r.title || 'Risk')}</div>
+                  <div style="font-size:8pt;color:#444;line-height:1.4">${_esc(_truncate(r.detail || '', 180))}</div>
+                  ${r.mitigation ? `<div style="font-size:8pt;color:#555;line-height:1.4;margin-top:2pt;padding-top:2pt;border-top:1px dashed #ddd"><strong>Mitigation.</strong> ${_esc(r.mitigation)}</div>` : ''}
                 </div>`;
             }).join('')}
           </div>
         `}
 
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>What If the Market Moves</div>
+        <table class="print-table pb-avoid" style="margin-bottom:8pt;font-size:8.5pt">
+          <thead><tr><th>Scenario</th><th>Description</th><th class="num">Equity Multiple</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Downside</strong></td><td style="font-size:8pt;color:#555">Rent growth 1pp lower than projected; property sells at 50bp higher cap rate.</td><td class="num">${downsideEM.toFixed(2)}x</td></tr>
+            <tr class="totals"><td><strong>Base case</strong></td><td style="font-size:8pt;color:#555">Underwriting assumptions are met. ${h.fmtPct(baseRG)} annual rent growth, ${h.fmtPct(baseEC, 2)} exit cap rate.</td><td class="num">${baseEM.toFixed(2)}x</td></tr>
+            <tr><td><strong>Upside</strong></td><td style="font-size:8pt;color:#555">Rent growth 1pp higher than projected; property sells at 50bp lower cap rate.</td><td class="num">${upsideEM.toFixed(2)}x</td></tr>
+          </tbody>
+        </table>
+
+        <div class="print-section pb-avoid"><span class="ps-accent"></span>Frequently Asked Questions</div>
+        <div class="iov-faq pb-avoid" style="display:flex;flex-direction:column;gap:4pt;margin-bottom:8pt">
+          ${faqs.map(f => `
+            <div>
+              <div style="font-size:8.5pt;font-weight:700;color:#0a0a0b;margin-bottom:1pt">${_esc(f.q)}</div>
+              <div style="font-size:8pt;line-height:1.4;color:#555">${_esc(f.a)}</div>
+            </div>
+          `).join('')}
+        </div>
+
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Sponsor</div>
-        <div class="iov-sponsor pb-avoid" style="margin-bottom:14pt;padding:8pt 0;border-bottom:1px solid #eee">
-          <div style="font-size:13pt;font-weight:700;color:#0a0a0b;margin-bottom:2pt">${_esc(sponsorName)}</div>
-          ${sponsorSub ? `<div style="font-size:9pt;color:#666;margin-bottom:6pt">${_esc(sponsorSub)}</div>` : ''}
-          <div style="font-size:9pt;color:#333;line-height:1.6">
-            ${contact.email ? `<span style="margin-right:14pt"><strong style="color:#777;font-size:8pt;letter-spacing:0.04em;text-transform:uppercase">Email</strong> ${_esc(contact.email)}</span>` : ''}
-            ${contact.phone ? `<span style="margin-right:14pt"><strong style="color:#777;font-size:8pt;letter-spacing:0.04em;text-transform:uppercase">Phone</strong> ${_esc(contact.phone)}</span>` : ''}
-            ${contact.website ? `<span style="margin-right:14pt"><strong style="color:#777;font-size:8pt;letter-spacing:0.04em;text-transform:uppercase">Web</strong> ${_esc(contact.website)}</span>` : ''}
-            ${contact.address ? `<span style="margin-right:14pt"><strong style="color:#777;font-size:8pt;letter-spacing:0.04em;text-transform:uppercase">Office</strong> ${_esc(contact.address)}</span>` : ''}
+        <div class="iov-sponsor pb-avoid" style="margin-bottom:6pt;padding-bottom:5pt;border-bottom:1px solid #eee">
+          <div style="font-size:11pt;font-weight:700;color:#0a0a0b;margin-bottom:1pt">${_esc(sponsorName)}</div>
+          <div style="font-size:8.5pt;color:#333;line-height:1.5">
+            ${contact.email ? `<span style="margin-right:12pt"><strong style="color:#777;font-size:7.5pt;letter-spacing:0.04em;text-transform:uppercase">Email</strong> ${_esc(contact.email)}</span>` : ''}
+            ${contact.phone ? `<span style="margin-right:12pt"><strong style="color:#777;font-size:7.5pt;letter-spacing:0.04em;text-transform:uppercase">Phone</strong> ${_esc(contact.phone)}</span>` : ''}
+            ${contact.website ? `<span style="margin-right:12pt"><strong style="color:#777;font-size:7.5pt;letter-spacing:0.04em;text-transform:uppercase">Web</strong> ${_esc(contact.website)}</span>` : ''}
           </div>
         </div>
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Disclaimers</div>
-        <div style="font-size:8pt;line-height:1.45;color:#555">
-          <p style="margin:0 0 6pt 0"><strong>No offer.</strong> This document is informational only and is not an offer to sell or a solicitation of an offer to buy any securities. Any offer or solicitation will be made solely through a confidential Private Placement Memorandum and related subscription documents furnished to qualified prospective investors.</p>
-          <p style="margin:0 0 6pt 0"><strong>Projections, not guarantees.</strong> Projections of returns (IRR, equity multiple, capital recapture, cash distributions, sale proceeds) are based on assumptions believed reasonable as of the date of this document. Actual results may differ materially due to changes in market conditions, interest rates, construction costs, lease-up timing, and other factors outside the sponsor's control.</p>
-          <p style="margin:0 0 6pt 0"><strong>Past performance.</strong> Past performance is not a guarantee of future results.</p>
-          <p style="margin:0 0 6pt 0"><strong>Risk and independent diligence.</strong> Real estate investments involve substantial risk, including the possible loss of all invested capital. Prospective investors must conduct their own independent investigation and consult their own legal, tax, and financial advisors before making any investment decision.</p>
-          <p style="margin:0 0 0 0"><strong>Confidentiality.</strong> This document is confidential and furnished solely to the named recipient for evaluation of a potential investment. The recipient agrees to maintain confidentiality and not to disclose or distribute without the sponsor's prior written consent.</p>
+        <div style="font-size:7.5pt;line-height:1.4;color:#555">
+          <p style="margin:0 0 3pt 0"><strong>No offer.</strong> This document is informational only and is not an offer to sell or a solicitation of an offer to buy any securities. Any offer will be made solely through a confidential Private Placement Memorandum.</p>
+          <p style="margin:0 0 3pt 0"><strong>Projections, not guarantees.</strong> Projections of returns are based on assumptions believed reasonable as of the date of this document. Actual results may differ materially.</p>
+          <p style="margin:0 0 3pt 0"><strong>Risk and independent diligence.</strong> Real estate investments involve substantial risk, including the possible loss of all invested capital. Prospective investors must conduct their own independent investigation and consult their own legal, tax, and financial advisors.</p>
+          <p style="margin:0"><strong>Confidentiality.</strong> This document is confidential and furnished solely to the named recipient for evaluation of a potential investment.</p>
         </div>
 
         ${_footer(pageNum, totalPages)}
@@ -564,12 +936,15 @@
   // ── MAIN ENTRY ────────────────────────────────────────────────
   function renderReport_investment_overview(deal, R, inputs, market, helpers) {
     const h = helpers || {};
-    const totalPages = 4;
+    const totalPages = 7;
     const pages = [
       _page1(deal, R, inputs, market, h, 1, totalPages),
       _page2(deal, R, inputs, market, h, 2, totalPages),
       _page3(deal, R, inputs, market, h, 3, totalPages),
-      _page4(deal, R, inputs, market, h, 4, totalPages)
+      _page4(deal, R, inputs, market, h, 4, totalPages),
+      _page5(deal, R, inputs, market, h, 5, totalPages),
+      _page6(deal, R, inputs, market, h, 6, totalPages),
+      _page7(deal, R, inputs, market, h, 7, totalPages)
     ];
     return pages.join('\n');
   }
