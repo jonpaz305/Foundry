@@ -978,16 +978,27 @@ function runM6_3() {
 
   check(g, 'renders without throwing', typeof html === 'string' && html.length > 0 ? 1 : 0, 1);
 
-  // Page count: 10 pages baseline (no sponsor extras on ASJP default,
-  // plus Path A Model Assumptions + Notices and Disclaimers pages)
+  // Page count: 7 pages baseline (Milestone 1 trim - equity-partner variant):
+  //   1. Cover (now with embedded Top Risks)
+  //   2. Sources & Uses + Capital Stack + Ownership
+  //   3. Income & Operating Expenses
+  //   4. Stabilized Valuation + Refi
+  //   5. 10-Year Cash Flow
+  //   6. Returns + Disposition + Sensitivity (3x3)
+  //   7. Market Strength
+  //   8. Methodology & Disclosures (combined, replaces 2 separate pages)
+  // Standalone Risk Register page removed (risks moved to Cover).
   const pageCount = (html.match(/class="print-page print-page-compact"/g) || []).length;
-  check(g, 'page count: 10 pages (8 content + model assumptions + disclaimers)', pageCount, 10);
+  check(g, 'page count: 8 pages (Milestone 1 trim, no sponsor)', pageCount, 8);
 
   // Page 1 elements
   check(g, 'P1: BRRRR Underwriting Package eyebrow', html.includes('BRRRR Underwriting Package') ? 1 : 0, 1);
   check(g, 'P1: 6 KPI tiles present', (html.match(/pk-tile-lbl/g) || []).length >= 6 ? 1 : 0, 1);
   check(g, 'P1: DRAFT tag on narrative', html.includes('bp-draft-tag') && html.includes('DRAFT') ? 1 : 0, 1);
   check(g, 'P1: highlights section', html.includes('bp-highlights') ? 1 : 0, 1);
+  // Milestone 1: Top Risks now on Cover
+  check(g, 'P1: Top Risks section on Cover (Milestone 1)',
+    html.includes('Top Risks') ? 1 : 0, 1);
 
   // Page 2 elements
   check(g, 'P2: Sources & Uses tables present', (html.match(/Sources<\/th>/g) || []).length >= 1 ? 1 : 0, 1);
@@ -1008,13 +1019,27 @@ function runM6_3() {
   check(g, 'P5: Y1 caption disambiguates bridge carry from stabilized CF (Layer 2 Fix 3)',
     html.includes('Stabilized Annual Cash Flow') && html.includes('bridge-rate carry') ? 1 : 0, 1);
 
-  // Page 6 sensitivity grid
-  check(g, 'P6: sensitivity grid (5x5 = 25 cells)',
-    (html.match(/bp-sens-(good|warn|bad)/g) || []).length >= 25 ? 1 : 0, 1);
+  // Page 6 sensitivity grid - compressed to 3x3 (9 cells) for Milestone 1
+  check(g, 'P6: sensitivity grid (3x3 = 9 cells, Milestone 1 trim)',
+    (html.match(/bp-sens-(good|warn|bad)/g) || []).length >= 9 ? 1 : 0, 1);
 
-  // Page 8 market - no fetch in regression, so should show empty fallback
-  check(g, 'P8: market empty fallback (no data fetched)',
+  // Page 7 market - no fetch in regression, so should show empty fallback
+  check(g, 'P7: market empty fallback (no data fetched)',
     html.includes('Market analysis was not run') ? 1 : 0, 1);
+
+  // Page 8 combined methodology + disclosures
+  check(g, 'P8: Methodology & Disclosures combined page (Milestone 1)',
+    html.includes('Methodology & Disclosures') || html.includes('Methodology &amp; Disclosures') ? 1 : 0, 1);
+  check(g, 'P8: Underwriting Methodology section header present',
+    html.includes('Underwriting Methodology') ? 1 : 0, 1);
+  check(g, 'P8: Notices & Disclaimers section header present',
+    html.includes('Notices &amp; Disclaimers') || html.includes('Notices & Disclaimers') ? 1 : 0, 1);
+  check(g, 'P8: No Offer disclaimer present',
+    html.includes('No Offer') ? 1 : 0, 1);
+  check(g, 'P8: Forward-Looking Statements disclaimer present',
+    html.includes('Forward-Looking Statements') ? 1 : 0, 1);
+  check(g, 'P8: Confidentiality disclaimer present',
+    html.includes('Confidentiality') ? 1 : 0, 1);
 
   // M0.3: Equity Required Breakdown section
   check(g, 'M0.3 P2: Equity Required Breakdown section present',
@@ -1026,21 +1051,9 @@ function runM6_3() {
   check(g, 'M0.3 P2: Total Equity Required row present',
     html.includes('Total Equity Required at Closing') ? 1 : 0, 1);
 
-  // M0.3: Closing Cost Detail expanded to 8 rows
-  check(g, 'M0.3 P2: CCD shows Title / Escrow baseline',
-    html.includes('Title / Escrow / Recording (Baseline)') ? 1 : 0, 1);
-  check(g, 'M0.3 P2: CCD shows Insurance row',
-    html.includes('Insurance (First-Year Premium)') ? 1 : 0, 1);
-  check(g, 'M0.3 P2: CCD shows Appraisal row',
-    html.includes('>Appraisal<') ? 1 : 0, 1);
-  check(g, 'M0.3 P2: CCD shows Origination Fee row',
-    html.includes('>Origination Fee<') ? 1 : 0, 1);
-  check(g, 'M0.3 P2: CCD shows Lender Points row',
-    html.includes('>Lender Points<') ? 1 : 0, 1);
-  check(g, 'M0.3 P2: CCD shows Broker Points row',
-    html.includes('>Broker Points<') ? 1 : 0, 1);
-  check(g, 'M0.3 P2: CCD shows Lender Flat Fees row',
-    html.includes('Lender Flat Fees') ? 1 : 0, 1);
+  // Milestone 1: closing cost detail compressed to single S&U line on P2
+  check(g, 'M0.3 P2: Total Closing Costs single line shown (Milestone 1)',
+    html.includes('Total Closing Costs') && html.includes('itemized detail available on request') ? 1 : 0, 1);
 
   // M0.3: Uses table relabeled
   check(g, 'M0.3 P2: Uses table shows Sponsor Mobilization (not GC Contingency)',
@@ -1397,7 +1410,7 @@ function runM6_9() {
   check(g, 'BRRRR: no representation or warranty language present',
     brrrrHtml.includes('No representation or warranty') ? 1 : 0, 1);
   check(g, 'BRRRR: confidentiality restriction present',
-    brrrrHtml.includes('confidential and is furnished solely') ? 1 : 0, 1);
+    brrrrHtml.includes('confidential and furnished solely') || brrrrHtml.includes('confidential and is furnished solely') ? 1 : 0, 1);
   check(g, 'BRRRR: version stamp suppressed (no inline render)',
     brrrrHtml.indexOf('Disclaimer version:') < 0 ? 1 : 0, 1);
   check(g, 'BRRRR: no F&F liquidity paragraph (BRRRR not single-asset short-hold)',
@@ -1495,37 +1508,29 @@ function runM6_10() {
   vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/lender-package.js'), 'utf8'), ctx, { filename: 'reports/lender-package.js' });
   vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/valor-pbv-package.js'), 'utf8'), ctx, { filename: 'reports/valor-pbv-package.js' });
 
-  // ── BRRRR Package -- Model Assumptions disclosure
+  // ── BRRRR Package -- Milestone 1 compact Methodology & Disclosures
+  // (Full Model Assumptions page intentionally removed for equity-partner
+  // variant. Internal Memo and Lender Package retain the full page.)
   loadBRRRR();
   const brrrrHtml = vm.runInContext(`renderReport_brrrr_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
-  check(g, 'BRRRR: Model Assumptions section header present',
-    brrrrHtml.includes('Model Assumptions and Methodology') ? 1 : 0, 1);
-  check(g, 'BRRRR: Valuation Methodology section present',
-    brrrrHtml.includes('Valuation Methodology') ? 1 : 0, 1);
-  check(g, 'BRRRR: Revenue and Disposition Assumptions present',
-    brrrrHtml.includes('Revenue and Disposition Assumptions') ? 1 : 0, 1);
-  check(g, 'BRRRR: Operating Expense Assumptions present',
-    brrrrHtml.includes('Operating Expense Assumptions') ? 1 : 0, 1);
-  check(g, 'BRRRR: Capital Structure Assumptions present',
-    brrrrHtml.includes('Capital Structure Assumptions') ? 1 : 0, 1);
-  check(g, 'BRRRR: Investment Return Assumptions present',
-    brrrrHtml.includes('Investment Return Assumptions') ? 1 : 0, 1);
-  check(g, 'BRRRR: Methodological Disclosures section present',
-    brrrrHtml.includes('Methodological Disclosures') ? 1 : 0, 1);
-  check(g, 'BRRRR: tax basis mode disclosed',
-    brrrrHtml.includes('Tax basis mode') ? 1 : 0, 1);
-  check(g, 'BRRRR: tax basis footnote present',
-    brrrrHtml.includes('Tax basis treatment:') ? 1 : 0, 1);
-  check(g, 'BRRRR: exit cap labeled as sponsor input',
-    brrrrHtml.includes('Exit cap') && brrrrHtml.includes('sponsor input') ? 1 : 0, 1);
-  check(g, 'BRRRR: bridge DS method disclosed (month-by-month)',
-    brrrrHtml.includes('Month-by-month draw accrual') ? 1 : 0, 1);
-  check(g, 'BRRRR: equity multiple method disclosed',
-    brrrrHtml.includes('Equity Multiple method') && brrrrHtml.includes('Institutional') ? 1 : 0, 1);
-  check(g, 'BRRRR: engine version stamp present (dynamic semver from engine.js)',
-    brrrrHtml.includes('Engine version') && brrrrHtml.includes('1.2.0') ? 1 : 0, 1);
-  check(g, 'BRRRR: closing cost decomposition present (8 components)',
-    brrrrHtml.includes('Origination fee') && brrrrHtml.includes('Lender points') ? 1 : 0, 1);
+  check(g, 'BRRRR: Methodology & Disclosures compact page header present',
+    brrrrHtml.includes('Methodology & Disclosures') || brrrrHtml.includes('Methodology &amp; Disclosures') ? 1 : 0, 1);
+  check(g, 'BRRRR: Underwriting Methodology section present',
+    brrrrHtml.includes('Underwriting Methodology') ? 1 : 0, 1);
+  check(g, 'BRRRR: Notices & Disclaimers section header present',
+    brrrrHtml.includes('Notices &amp; Disclaimers') || brrrrHtml.includes('Notices & Disclaimers') ? 1 : 0, 1);
+  check(g, 'BRRRR: methodology references engine version stamp',
+    brrrrHtml.includes('Engine version 1.2.0') ? 1 : 0, 1);
+  check(g, 'BRRRR: methodology mentions tax basis treatment',
+    brrrrHtml.includes('tax district') || brrrrHtml.includes('property taxes computed') ? 1 : 0, 1);
+  check(g, 'BRRRR: methodology mentions IRR convention',
+    brrrrHtml.includes('Newton-Raphson') || brrrrHtml.includes('IRR computed') ? 1 : 0, 1);
+  check(g, 'BRRRR: methodology mentions equity multiple convention',
+    brrrrHtml.includes('Equity multiple') || brrrrHtml.includes('equity multiple') ? 1 : 0, 1);
+  // Closing cost detail compressed to S&U single line on P2; itemization
+  // still available on request per the methodology footnote.
+  check(g, 'BRRRR: closing cost shown as single line with "available on request" caveat',
+    brrrrHtml.includes('itemized detail available on request') ? 1 : 0, 1);
 
   // ── F&F Package -- Model Assumptions
   loadFF();
