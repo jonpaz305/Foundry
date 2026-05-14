@@ -69,7 +69,15 @@
 
   // ── HEADER + FOOTER ───────────────────────────────────────────
   function _header(h, pageLabel) {
-    const co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
+    // Defensive logo resolution. See brrrr-package.js _header for rationale.
+    let co = (typeof CP === 'object' && CP && CP.active) ? CP.active : null;
+    if (co && !co.logo_base64 && typeof CP === 'object' && CP && Array.isArray(CP.list)) {
+      const withLogo = CP.list.find(c => c && c.logo_base64);
+      if (withLogo) co = withLogo;
+    }
+    if (!co && typeof CP === 'object' && CP && Array.isArray(CP.list) && CP.list.length) {
+      co = CP.list.find(c => c && c.logo_base64) || CP.list[0];
+    }
     const coName = co && co.name ? co.name : 'ASJP';
     const coSub = co && co.subtitle ? co.subtitle : '';
     const coLogo = co && co.logo_base64 ? co.logo_base64 : null;
