@@ -294,7 +294,7 @@ function renderDealSetupForm() {
             <input type="number" step="0.0001" value="${i.exit_cap ?? 0.0895}" oninput="onInputChange('exit_cap', this.value)"
                    ${(i.arv_source && i.arv_source !== 'income_approach') ? 'disabled style="opacity:0.55"' : ''}/>
             <div class="hint">${(i.arv_source && i.arv_source !== 'income_approach')
-              ? 'Disabled: ARV source override is active. Change ARV source on the Capital tab to re-enable.'
+              ? `Derived from manual ARV (NOI / ARV). ${i.exit_cap_user_target != null ? `Underwriting target was ${(i.exit_cap_user_target * 100).toFixed(2)}%. ` : ''}Change ARV source on the Capital tab to re-enable manual entry.`
               : 'Stabilized ARV = NOI / exit cap.'}</div></div>
         </div>
       ` : `

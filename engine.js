@@ -570,6 +570,38 @@ function computeBRRRR() {
   // surfaces on the Capital page and Model Assumptions.
   const implied_cap_rate = stabilized_arv > 0 ? stabilized_noi / stabilized_arv : null;
 
+  // ── EXIT-CAP SYNC WHEN ARV IS OVERRIDDEN ────────────────────
+  // When the user sets a non-default ARV source (manual_override or
+  // comp_derived), the income-approach cap (inputs.exit_cap) no longer
+  // reflects the cap rate this property is being valued at. The implied
+  // cap (NOI / ARV) is the correct rate, and it needs to propagate to
+  // every consumer of inputs.exit_cap site-wide: the Deal Setup UI's
+  // disabled "Exit Cap (Refi Valuation)" field, sensitivity scenarios
+  // in reports that perturb around inputs.exit_cap, and any future
+  // feature that reads the field.
+  //
+  // To preserve audit trail and recoverability, the user's originally-
+  // typed underwriting target is stashed in inputs.exit_cap_user_target
+  // on first override. When the user reverts arv_source back to
+  // income_approach, the original value is restored from the stash and
+  // the stash is cleared.
+  if (arv_source !== 'income_approach' && implied_cap_rate != null && implied_cap_rate > 0) {
+    // Stash the user's typed value the first time we override, so it
+    // survives an arv_source revert. Only stash if not already stashed
+    // (we don't want to overwrite the original with a derived value if
+    // the engine reruns).
+    if (i.exit_cap_user_target == null && i.exit_cap != null) {
+      i.exit_cap_user_target = i.exit_cap;
+    }
+    i.exit_cap = implied_cap_rate;
+  } else if (arv_source === 'income_approach' && i.exit_cap_user_target != null) {
+    // User reverted to income-approach: restore their original cap
+    // and clear the stash. Only do this if the current exit_cap looks
+    // like a derived value (i.e. nothing else has touched it since).
+    i.exit_cap = i.exit_cap_user_target;
+    delete i.exit_cap_user_target;
+  }
+
   const arv_per_unit = totalUnits > 0 ? stabilized_arv / totalUnits : 0;
 
 
@@ -801,6 +833,7 @@ function computeBRRRR() {
     stabilized_arv_income_approach, arv_source_resolved: arv_source,
     arv_override_brrrr_resolved: arv_override_in,
     implied_cap_rate,
+    exit_cap_user_target: (i.exit_cap_user_target != null ? i.exit_cap_user_target : null),
 
     // Refinance
     refi_loan_amount, refi_monthly_ds, refi_annual_ds,
