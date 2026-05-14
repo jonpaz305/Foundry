@@ -61,6 +61,28 @@
     return t || 'Multifamily';
   }
 
+  // ── PER-DOOR FORMATTER ────────────────────────────────────────
+  // Formats a dollar value with a per-unit suffix for institutional
+  // reports. Example: _withPerDoor(550000, 10, h) -> "$550,000 | $55,000/door"
+  // When units is 0 or value is null, returns just the dollar value
+  // without the per-door suffix (avoids "$0/door" or "$NaN/door" noise).
+  function _withPerDoor(value, units, h) {
+    const main = h && typeof h.fmtMoney === 'function'
+      ? h.fmtMoney(value)
+      : (value == null || !isFinite(value) ? '-' : '$' + Math.round(Number(value)).toLocaleString());
+    if (!units || units <= 0 || value == null || !isFinite(value) || value === 0) return main;
+    const pd = Math.round(Number(value) / units);
+    return main + ' <span style="color:#5f5f5f;font-weight:400;font-size:0.85em;margin-left:6px">| $' + pd.toLocaleString() + '/door</span>';
+  }
+
+  // Compact variant for KPI tile subtitle slots (no separator pipe, just
+  // the per-door figure on its own line - so it doesn't compete with the
+  // headline value in the tile).
+  function _perDoorOnly(value, units) {
+    if (!units || units <= 0 || value == null || !isFinite(value) || value === 0) return '';
+    return '$' + Math.round(Number(value) / units).toLocaleString() + '/door';
+  }
+
 
   // ── HEADER + FOOTER (shared across pages) ─────────────────────
   function _header(h, pageLabel) {
@@ -105,10 +127,13 @@
     const yieldOnCost = (R.stabilized_noi > 0 && R.total_project_cost > 0)
       ? R.stabilized_noi / R.total_project_cost : null;
 
+    const _units = R.total_unit_count || 0;
+    const _pd = (v) => _perDoorOnly(v, _units);
+
     const tiles = [
       { lbl: 'Refi DSCR',         val: h.fmtX(R.dscr, 2),                  sub: 'Stabilized NOI / Refi DS',
         tone: _toneAbove(R.dscr, 1.05, 1.20) },
-      { lbl: 'Stabilized ARV',    val: h.fmtMoneyK(R.stabilized_arv),      sub: 'NOI / Exit Cap',
+      { lbl: 'Stabilized ARV',    val: h.fmtMoneyK(R.stabilized_arv),      sub: 'NOI / Exit Cap', pdSub: _pd(R.stabilized_arv),
         tone: 'neutral' },
       { lbl: 'Yield on Cost',     val: h.fmtPct(yieldOnCost),              sub: 'Stabilized NOI / TPC',
         tone: _toneAbove(yieldOnCost, 0.07, 0.09) },
@@ -138,7 +163,7 @@
             <div class="pk-tile pb-avoid pk-tone-${t.tone}">
               <div class="pk-tile-lbl">${_esc(t.lbl)}</div>
               <div class="pk-tile-val">${_toneGlyph(t.tone)}${_esc(t.val)}</div>
-              <div class="pk-tile-sub">${_esc(t.sub)}</div>
+              <div class="pk-tile-sub">${_esc(t.sub)}${t.pdSub ? ' · ' + _esc(t.pdSub) : ''}</div>
             </div>`).join('')}
         </div>
 
@@ -235,6 +260,9 @@
 
   // ── PAGE 2: SOURCES & USES + CAPITAL STACK + CLOSING COSTS ────
   function _page2(deal, R, inputs, market, h, pageNum, totalPages) {
+    const _units = R.total_unit_count || 0;
+    const _pd = (v) => _perDoorOnly(v, _units);
+
     const initialLoan = R.initial_loan_amt || 0;
     // M0.2: surface the two bridge tranches separately.
     const acqTranche = R.acquisition_tranche || 0;
@@ -289,27 +317,27 @@
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Sources & Uses</div>
         <div class="bp-su-grid">
           <table class="print-table pb-avoid">
-            <thead><tr><th>Sources</th><th class="num">Amount</th><th class="num">%</th></tr></thead>
+            <thead><tr><th>Sources</th><th class="num">Amount</th><th class="num">$/Door</th><th class="num">%</th></tr></thead>
             <tbody>
-              <tr><td>Senior Debt: Acquisition Tranche</td><td class="num">${h.fmtMoney(acqTranche)}</td><td class="num">${h.fmtPct(acqTranche / Math.max(1, totalSources))}</td></tr>
-              <tr><td>Senior Debt: Construction Tranche</td><td class="num">${h.fmtMoney(conTranche)}</td><td class="num">${h.fmtPct(conTranche / Math.max(1, totalSources))}</td></tr>
-              <tr><td style="padding-left:1.5em">Total Bridge</td><td class="num">${h.fmtMoney(initialLoan)}</td><td class="num">${h.fmtPct(debtPct)}</td></tr>
-              <tr><td>Sponsor Equity</td><td class="num">${h.fmtMoney(sponsorEquity)}</td><td class="num">${h.fmtPct(sponsorEquity / Math.max(1, totalSources))}</td></tr>
-              <tr><td>LP Equity</td><td class="num">${h.fmtMoney(lpEquity)}</td><td class="num">${h.fmtPct(lpEquity / Math.max(1, totalSources))}</td></tr>
-              <tr class="totals"><td>Total Sources</td><td class="num">${h.fmtMoney(totalSources)}</td><td class="num">100.0%</td></tr>
+              <tr><td>Senior Debt: Acquisition Tranche</td><td class="num">${h.fmtMoney(acqTranche)}</td><td class="num">${_pd(acqTranche)}</td><td class="num">${h.fmtPct(acqTranche / Math.max(1, totalSources))}</td></tr>
+              <tr><td>Senior Debt: Construction Tranche</td><td class="num">${h.fmtMoney(conTranche)}</td><td class="num">${_pd(conTranche)}</td><td class="num">${h.fmtPct(conTranche / Math.max(1, totalSources))}</td></tr>
+              <tr><td style="padding-left:1.5em">Total Bridge</td><td class="num">${h.fmtMoney(initialLoan)}</td><td class="num">${_pd(initialLoan)}</td><td class="num">${h.fmtPct(debtPct)}</td></tr>
+              <tr><td>Sponsor Equity</td><td class="num">${h.fmtMoney(sponsorEquity)}</td><td class="num">${_pd(sponsorEquity)}</td><td class="num">${h.fmtPct(sponsorEquity / Math.max(1, totalSources))}</td></tr>
+              <tr><td>LP Equity</td><td class="num">${h.fmtMoney(lpEquity)}</td><td class="num">${_pd(lpEquity)}</td><td class="num">${h.fmtPct(lpEquity / Math.max(1, totalSources))}</td></tr>
+              <tr class="totals"><td>Total Sources</td><td class="num">${h.fmtMoney(totalSources)}</td><td class="num">${_pd(totalSources)}</td><td class="num">100.0%</td></tr>
             </tbody>
           </table>
 
           <table class="print-table pb-avoid">
-            <thead><tr><th>Uses</th><th class="num">Amount</th><th class="num">%</th></tr></thead>
+            <thead><tr><th>Uses</th><th class="num">Amount</th><th class="num">$/Door</th><th class="num">%</th></tr></thead>
             <tbody>
-              <tr><td>Purchase Price</td><td class="num">${h.fmtMoney(purchase)}</td><td class="num">${h.fmtPct(purchase / Math.max(1, totalUses))}</td></tr>
-              <tr><td>Capex Budget</td><td class="num">${h.fmtMoney(capex)}</td><td class="num">${h.fmtPct(capex / Math.max(1, totalUses))}</td></tr>
-              <tr><td>Closing Costs</td><td class="num">${h.fmtMoney(closing)}</td><td class="num">${h.fmtPct(closing / Math.max(1, totalUses))}</td></tr>
-              <tr><td>Consulting</td><td class="num">${h.fmtMoney(consulting)}</td><td class="num">${h.fmtPct(consulting / Math.max(1, totalUses))}</td></tr>
-              <tr><td>Carry (DS pre-refi)</td><td class="num">${h.fmtMoney(carry)}</td><td class="num">${h.fmtPct(carry / Math.max(1, totalUses))}</td></tr>
-              <tr><td>Sponsor Mobilization</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, totalUses))}</td></tr>
-              <tr class="totals"><td>Total Uses</td><td class="num">${h.fmtMoney(totalUses)}</td><td class="num">100.0%</td></tr>
+              <tr><td>Purchase Price</td><td class="num">${h.fmtMoney(purchase)}</td><td class="num">${_pd(purchase)}</td><td class="num">${h.fmtPct(purchase / Math.max(1, totalUses))}</td></tr>
+              <tr><td>Capex Budget</td><td class="num">${h.fmtMoney(capex)}</td><td class="num">${_pd(capex)}</td><td class="num">${h.fmtPct(capex / Math.max(1, totalUses))}</td></tr>
+              <tr><td>Closing Costs</td><td class="num">${h.fmtMoney(closing)}</td><td class="num">${_pd(closing)}</td><td class="num">${h.fmtPct(closing / Math.max(1, totalUses))}</td></tr>
+              <tr><td>Consulting</td><td class="num">${h.fmtMoney(consulting)}</td><td class="num">${_pd(consulting)}</td><td class="num">${h.fmtPct(consulting / Math.max(1, totalUses))}</td></tr>
+              <tr><td>Carry (DS pre-refi)</td><td class="num">${h.fmtMoney(carry)}</td><td class="num">${_pd(carry)}</td><td class="num">${h.fmtPct(carry / Math.max(1, totalUses))}</td></tr>
+              <tr><td>Sponsor Mobilization</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${_pd(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, totalUses))}</td></tr>
+              <tr class="totals"><td>Total Uses</td><td class="num">${h.fmtMoney(totalUses)}</td><td class="num">${_pd(totalUses)}</td><td class="num">100.0%</td></tr>
             </tbody>
           </table>
         </div>
@@ -350,15 +378,15 @@
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Equity Required Breakdown</div>
         <table class="print-table pb-avoid">
-          <thead><tr><th>Component</th><th class="num">Amount</th><th class="num">% of Equity</th></tr></thead>
+          <thead><tr><th>Component</th><th class="num">Amount</th><th class="num">$/Door</th><th class="num">% of Equity</th></tr></thead>
           <tbody>
-            <tr><td>Mortgage down payment (acquisition)</td><td class="num">${h.fmtMoney(eqAcqDown)}</td><td class="num">${h.fmtPct(eqAcqDown / Math.max(1, eqTotal))}</td></tr>
-            <tr><td>Sponsor capex above lender funding</td><td class="num">${h.fmtMoney(eqCapexGap)}</td><td class="num">${h.fmtPct(eqCapexGap / Math.max(1, eqTotal))}</td></tr>
-            <tr><td>Closing costs (full detail below)</td><td class="num">${h.fmtMoney(eqClosing)}</td><td class="num">${h.fmtPct(eqClosing / Math.max(1, eqTotal))}</td></tr>
-            <tr><td>Consulting / project fee</td><td class="num">${h.fmtMoney(eqConsulting)}</td><td class="num">${h.fmtPct(eqConsulting / Math.max(1, eqTotal))}</td></tr>
-            <tr><td>Bridge debt service through refi</td><td class="num">${h.fmtMoney(eqCarry)}</td><td class="num">${h.fmtPct(eqCarry / Math.max(1, eqTotal))}</td></tr>
-            <tr><td>Sponsor mobilization${eqMobIfEq > 0 ? '' : ' (excluded - reimbursed via draws)'}</td><td class="num">${h.fmtMoney(eqMobIfEq)}</td><td class="num">${h.fmtPct(eqMobIfEq / Math.max(1, eqTotal))}</td></tr>
-            <tr class="totals"><td>Total Equity Required at Closing</td><td class="num">${h.fmtMoney(eqTotal)}</td><td class="num">100.0%</td></tr>
+            <tr><td>Mortgage down payment (acquisition)</td><td class="num">${h.fmtMoney(eqAcqDown)}</td><td class="num">${_pd(eqAcqDown)}</td><td class="num">${h.fmtPct(eqAcqDown / Math.max(1, eqTotal))}</td></tr>
+            <tr><td>Sponsor capex above lender funding</td><td class="num">${h.fmtMoney(eqCapexGap)}</td><td class="num">${_pd(eqCapexGap)}</td><td class="num">${h.fmtPct(eqCapexGap / Math.max(1, eqTotal))}</td></tr>
+            <tr><td>Closing costs (full detail below)</td><td class="num">${h.fmtMoney(eqClosing)}</td><td class="num">${_pd(eqClosing)}</td><td class="num">${h.fmtPct(eqClosing / Math.max(1, eqTotal))}</td></tr>
+            <tr><td>Consulting / project fee</td><td class="num">${h.fmtMoney(eqConsulting)}</td><td class="num">${_pd(eqConsulting)}</td><td class="num">${h.fmtPct(eqConsulting / Math.max(1, eqTotal))}</td></tr>
+            <tr><td>Bridge debt service through refi</td><td class="num">${h.fmtMoney(eqCarry)}</td><td class="num">${_pd(eqCarry)}</td><td class="num">${h.fmtPct(eqCarry / Math.max(1, eqTotal))}</td></tr>
+            <tr><td>Sponsor mobilization${eqMobIfEq > 0 ? '' : ' (excluded - reimbursed via draws)'}</td><td class="num">${h.fmtMoney(eqMobIfEq)}</td><td class="num">${_pd(eqMobIfEq)}</td><td class="num">${h.fmtPct(eqMobIfEq / Math.max(1, eqTotal))}</td></tr>
+            <tr class="totals"><td>Total Equity Required at Closing</td><td class="num">${h.fmtMoney(eqTotal)}</td><td class="num">${_pd(eqTotal)}</td><td class="num">100.0%</td></tr>
           </tbody>
         </table>
 
@@ -483,6 +511,10 @@
 
   // ── PAGE 4: STABILIZED VALUATION + REFI MECHANICS ─────────────
   function _page4(deal, R, inputs, market, h, pageNum, totalPages) {
+    const _units = R.total_unit_count || 0;
+    const _pd = (v) => _perDoorOnly(v, _units);
+    const _pdInline = (v) => _withPerDoor(v, _units, h);
+
     const refi_ltv = (R.refi_loan_amount > 0 && R.stabilized_arv > 0)
       ? R.refi_loan_amount / R.stabilized_arv : null;
 
@@ -492,14 +524,13 @@
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Stabilized Valuation</div>
         <table class="print-table pb-avoid">
-          <thead><tr><th>Component</th><th class="num">Value</th></tr></thead>
+          <thead><tr><th>Component</th><th class="num">Value</th><th class="num">$/Door</th></tr></thead>
           <tbody>
-            <tr><td>Stabilized NOI</td><td class="num">${h.fmtMoney(R.stabilized_noi)}</td></tr>
-            <tr><td>Exit Cap Rate</td><td class="num">${h.fmtPct(inputs.exit_cap, 2)}</td></tr>
-            <tr class="totals"><td>Stabilized ARV (NOI / Exit Cap)</td><td class="num">${h.fmtMoney(R.stabilized_arv)}</td></tr>
-            <tr><td>ARV per Unit</td><td class="num">${h.fmtMoney(R.arv_per_unit)}</td></tr>
-            <tr><td>Total Project Cost</td><td class="num">${h.fmtMoney(R.total_project_cost)}</td></tr>
-            <tr class="totals"><td>Value Creation (ARV − TPC)</td><td class="num">${h.fmtMoney(R.value_creation)} (${h.fmtPct(_pctNorm(R.value_creation_pct))})</td></tr>
+            <tr><td>Stabilized NOI</td><td class="num">${h.fmtMoney(R.stabilized_noi)}</td><td class="num">${_pd(R.stabilized_noi)}</td></tr>
+            <tr><td>Exit Cap Rate</td><td class="num">${h.fmtPct(inputs.exit_cap, 2)}</td><td class="num"></td></tr>
+            <tr class="totals"><td>Stabilized ARV (NOI / Exit Cap)</td><td class="num">${h.fmtMoney(R.stabilized_arv)}</td><td class="num">${_pd(R.stabilized_arv)}</td></tr>
+            <tr><td>Total Project Cost</td><td class="num">${h.fmtMoney(R.total_project_cost)}</td><td class="num">${_pd(R.total_project_cost)}</td></tr>
+            <tr class="totals"><td>Value Creation (ARV − TPC)</td><td class="num">${h.fmtMoney(R.value_creation)} (${h.fmtPct(_pctNorm(R.value_creation_pct))})</td><td class="num">${_pd(R.value_creation)}</td></tr>
           </tbody>
         </table>
 
@@ -521,16 +552,16 @@
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Refi Proceeds Waterfall</div>
         <table class="print-table pb-avoid">
-          <thead><tr><th>Step</th><th class="num">Amount</th></tr></thead>
+          <thead><tr><th>Step</th><th class="num">Amount</th><th class="num">$/Door</th></tr></thead>
           <tbody>
-            <tr><td>New Refi Loan</td><td class="num">${h.fmtMoney(R.refi_loan_amount)}</td></tr>
-            <tr><td>Less: Payoff of Initial Loan</td><td class="num">(${h.fmtMoney(R.payoff_existing_debt || R.initial_loan_amt)})</td></tr>
-            <tr><td>Less: Refi Closing Costs (${h.fmtPct(inputs.refi_closing_cost_pct || 0, 1)})</td><td class="num">(${h.fmtMoney(R.refi_closing_costs)})</td></tr>
-            <tr class="totals"><td>Net Cash Out</td><td class="num">${h.fmtMoney(R.net_cash_out)}</td></tr>
-            <tr><td>Initial Investor Equity</td><td class="num">${h.fmtMoney(R.initial_investor_equity)}</td></tr>
-            <tr><td>Capital Returned at Refi</td><td class="num">${h.fmtMoney(R.capital_returned_at_refi)}</td></tr>
-            <tr><td>Capital Recapture %</td><td class="num">${h.fmtPct(_pctNorm(R.capital_recaptured_pct))}</td></tr>
-            <tr><td>Excess Distribution (if any)</td><td class="num">${h.fmtMoney(R.excess_refi_proceeds)}</td></tr>
+            <tr><td>New Refi Loan</td><td class="num">${h.fmtMoney(R.refi_loan_amount)}</td><td class="num">${_pd(R.refi_loan_amount)}</td></tr>
+            <tr><td>Less: Payoff of Initial Loan</td><td class="num">(${h.fmtMoney(R.payoff_existing_debt || R.initial_loan_amt)})</td><td class="num">${_pd(R.payoff_existing_debt || R.initial_loan_amt)}</td></tr>
+            <tr><td>Less: Refi Closing Costs (${h.fmtPct(inputs.refi_closing_cost_pct || 0, 1)})</td><td class="num">(${h.fmtMoney(R.refi_closing_costs)})</td><td class="num">${_pd(R.refi_closing_costs)}</td></tr>
+            <tr class="totals"><td>Net Cash Out</td><td class="num">${h.fmtMoney(R.net_cash_out)}</td><td class="num">${_pd(R.net_cash_out)}</td></tr>
+            <tr><td>Initial Investor Equity</td><td class="num">${h.fmtMoney(R.initial_investor_equity)}</td><td class="num">${_pd(R.initial_investor_equity)}</td></tr>
+            <tr><td>Capital Returned at Refi</td><td class="num">${h.fmtMoney(R.capital_returned_at_refi)}</td><td class="num">${_pd(R.capital_returned_at_refi)}</td></tr>
+            <tr><td>Capital Recapture %</td><td class="num">${h.fmtPct(_pctNorm(R.capital_recaptured_pct))}</td><td class="num"></td></tr>
+            <tr><td>Excess Distribution (if any)</td><td class="num">${h.fmtMoney(R.excess_refi_proceeds)}</td><td class="num">${_pd(R.excess_refi_proceeds)}</td></tr>
           </tbody>
         </table>
 
@@ -630,6 +661,9 @@
 
   // ── PAGE 6: RETURNS + DISPOSITION + SENSITIVITY ───────────────
   function _page6(deal, R, inputs, market, h, pageNum, totalPages) {
+    const _units = R.total_unit_count || 0;
+    const _pd = (v) => _perDoorOnly(v, _units);
+
     // Sensitivity grid: exit cap × rent growth → equity multiple.
     // We can't call recompute() recursively (it would mutate R) but we
     // can build a closed-form approximation: ARV scales linearly with NOI
@@ -651,14 +685,14 @@
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Disposition Mechanics (Year ${inputs.target_hold_years || 10})</div>
         <table class="print-table pb-avoid">
-          <thead><tr><th>Step</th><th class="num">Amount</th></tr></thead>
+          <thead><tr><th>Step</th><th class="num">Amount</th><th class="num">$/Door</th></tr></thead>
           <tbody>
-            <tr><td>Year-${inputs.target_hold_years || 10} NOI (grown at ${h.fmtPct(inputs.rent_growth_pct, 1)})</td><td class="num">${h.fmtMoney(R.stabilized_noi * Math.pow(1 + (inputs.rent_growth_pct || 0), (inputs.target_hold_years || 10) - 1))}</td></tr>
-            <tr><td>Exit Cap</td><td class="num">${h.fmtPct(inputs.exit_cap, 2)}</td></tr>
-            <tr class="totals"><td>Disposition Value</td><td class="num">${h.fmtMoney(R.disposition_value)}</td></tr>
-            <tr><td>Less: Sale Cost (${h.fmtPct(inputs.sale_cost_pct)})</td><td class="num">(${h.fmtMoney(R.sale_cost)})</td></tr>
-            <tr><td>Less: Remaining Loan Balance</td><td class="num">(${h.fmtMoney(R.remaining_loan_balance)})</td></tr>
-            <tr class="totals"><td>Net Sale Proceeds</td><td class="num">${h.fmtMoney(R.net_sale_proceeds)}</td></tr>
+            <tr><td>Year-${inputs.target_hold_years || 10} NOI (grown at ${h.fmtPct(inputs.rent_growth_pct, 1)})</td><td class="num">${h.fmtMoney(R.stabilized_noi * Math.pow(1 + (inputs.rent_growth_pct || 0), (inputs.target_hold_years || 10) - 1))}</td><td class="num">${_pd(R.stabilized_noi * Math.pow(1 + (inputs.rent_growth_pct || 0), (inputs.target_hold_years || 10) - 1))}</td></tr>
+            <tr><td>Exit Cap</td><td class="num">${h.fmtPct(inputs.exit_cap, 2)}</td><td class="num"></td></tr>
+            <tr class="totals"><td>Disposition Value</td><td class="num">${h.fmtMoney(R.disposition_value)}</td><td class="num">${_pd(R.disposition_value)}</td></tr>
+            <tr><td>Less: Sale Cost (${h.fmtPct(inputs.sale_cost_pct)})</td><td class="num">(${h.fmtMoney(R.sale_cost)})</td><td class="num">${_pd(R.sale_cost)}</td></tr>
+            <tr><td>Less: Remaining Loan Balance</td><td class="num">(${h.fmtMoney(R.remaining_loan_balance)})</td><td class="num">${_pd(R.remaining_loan_balance)}</td></tr>
+            <tr class="totals"><td>Net Sale Proceeds</td><td class="num">${h.fmtMoney(R.net_sale_proceeds)}</td><td class="num">${_pd(R.net_sale_proceeds)}</td></tr>
           </tbody>
         </table>
 
