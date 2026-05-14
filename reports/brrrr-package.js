@@ -514,6 +514,14 @@
         </table>
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Operating Expenses</div>
+        ${(R.taxes === 0 || R.taxes == null) ? `
+          <div class="print-callout pb-avoid" style="border-left-color:#c0392b">
+            <div class="pc-title" style="color:#c0392b">⚠ Property taxes computed to $0</div>
+            ${!(inputs.tax_district || '').trim()
+              ? 'No tax district is set for this deal. Property taxes have been excluded from the operating expense build, which materially overstates NOI, ARV, refi sizing, and investor returns. Set the tax district on the Deal Setup page before circulating this report externally.'
+              : 'The tax district "' + _esc(inputs.tax_district) + '" was not found in the Cuyahoga rate table. Property taxes have been excluded from the operating expense build. Verify the district spelling against the autocomplete on the Deal Setup page before circulating this report externally.'}
+          </div>
+        ` : ''}
         <table class="print-table pb-avoid">
           <thead><tr><th>Line Item</th><th>Basis</th><th class="num">Amount</th><th class="num">$/Unit</th><th class="num">% of EGI</th></tr></thead>
           <tbody>
