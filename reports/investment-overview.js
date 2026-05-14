@@ -555,8 +555,8 @@
           This page shows where the money for the deal comes from (sources) and where it goes (uses), the capital stack at closing, and the ownership structure between the capital partner and the sponsor.
         </div>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Uses of Capital</div>
-        <table class="print-table pb-avoid" style="margin-bottom:6pt;font-size:8.5pt">
+        <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Uses of Capital</div>
+        <table class="print-table" style="margin-bottom:6pt;font-size:8.5pt">
           <thead>
             <tr><th>Use</th><th class="num">Amount</th><th class="num">% of Total</th><th style="width:40%">Notes</th></tr>
           </thead>
@@ -578,8 +578,8 @@
           </tbody>
         </table>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Sources of Capital</div>
-        <table class="print-table pb-avoid" style="margin-bottom:6pt;font-size:8.5pt">
+        <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Sources of Capital</div>
+        <table class="print-table" style="margin-bottom:6pt;font-size:8.5pt">
           <thead>
             <tr><th>Source</th><th class="num">Amount</th><th class="num">% of Total</th><th style="width:40%">Notes</th></tr>
           </thead>
@@ -607,8 +607,8 @@
           <div style="background:#C9A84C;padding:6pt;flex:${eqPct};text-align:center">Investor equity ${h.fmtPct(eqPct, 1)}</div>
         </div>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Ownership and Distribution Structure</div>
-        <table class="print-table pb-avoid" style="margin-bottom:5pt;font-size:8.5pt">
+        <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Ownership and Distribution Structure</div>
+        <table class="print-table" style="margin-bottom:5pt;font-size:8.5pt">
           <tbody>
             <tr>
               <td style="width:38%">Deal entity</td>
@@ -638,12 +638,13 @@
               <td>Promote / waterfall / preferred return</td>
               <td>None - straight pro-rata distributions throughout the life of the deal</td>
             </tr>
+            <tr>
+              <td colspan="2" style="font-size:7.5pt;line-height:1.4;color:#666;background:#fafafa;padding-top:5pt;padding-bottom:5pt">
+                <strong>How to read this structure.</strong> The capital partner funds 100% of cash equity and owns ${h.fmtPct(investorOwn, 1)} of the deal LLC. The sponsor contributes operational execution and signs personally on the bridge loan. Distributions are pro-rata - ${h.fmtPct(investorOwn, 1)} of every dollar of cash flow and sale proceeds goes to the capital partner. There is no promote or preferred return; the math is symmetrical.
+              </td>
+            </tr>
           </tbody>
         </table>
-
-        <div style="font-size:7.5pt;line-height:1.4;color:#666;margin-top:4pt;padding-top:3pt;border-top:1px solid #eee">
-          <strong>How to read this structure.</strong> The capital partner funds 100% of cash equity and owns ${h.fmtPct(investorOwn, 1)} of the deal LLC. The sponsor contributes operational execution and signs personally on the bridge loan. Distributions are pro-rata - ${h.fmtPct(investorOwn, 1)} of every dollar of cash flow and sale proceeds goes to the capital partner. There is no promote or preferred return; the math is symmetrical.
-        </div>
 
         ${_footer(pageNum, totalPages)}
       </div>`;
@@ -695,8 +696,8 @@
           This page shows how the stabilized property is valued, how the refinance returns the bulk of investor capital, and what the investor cash flow looks like year by year through the full ${holdYears}-year hold.
         </div>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Stabilized Valuation</div>
-        <table class="print-table pb-avoid" style="margin-bottom:6pt;font-size:8.5pt">
+        <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Stabilized Valuation</div>
+        <table class="print-table" style="margin-bottom:6pt;font-size:8.5pt">
           <tbody>
             <tr>
               <td style="width:55%">Stabilized net operating income (NOI)</td>
@@ -721,8 +722,8 @@
           </tbody>
         </table>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Refinance Mechanics</div>
-        <table class="print-table pb-avoid" style="margin-bottom:6pt;font-size:8.5pt">
+        <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Refinance Mechanics</div>
+        <table class="print-table" style="margin-bottom:6pt;font-size:8.5pt">
           <thead>
             <tr><th>Step</th><th class="num">Amount</th><th>Explanation</th></tr>
           </thead>
@@ -755,8 +756,8 @@
           </tbody>
         </table>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>${holdYears}-Year Investor Cash Flow</div>
-        <table class="print-table pb-avoid" style="margin-bottom:4pt;font-size:8.5pt">
+        <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>${holdYears}-Year Investor Cash Flow</div>
+        <table class="print-table" style="margin-bottom:4pt;font-size:8.5pt">
           <thead>
             <tr><th>Year</th><th class="num">Distribution</th><th>Notes</th></tr>
           </thead>
@@ -878,8 +879,8 @@
           </div>
         `}
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>What If the Market Moves</div>
-        <table class="print-table pb-avoid" style="margin-bottom:6pt;font-size:8.5pt">
+        <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>What If the Market Moves</div>
+        <table class="print-table" style="margin-bottom:6pt;font-size:8.5pt">
           <thead><tr><th>Scenario</th><th>Description</th><th class="num">Equity Multiple</th></tr></thead>
           <tbody>
             <tr><td><strong>Downside</strong></td><td style="font-size:8pt;color:#555">Rent growth 1pp lower than projected; property sells at 50bp higher cap rate.</td><td class="num">${downsideEM.toFixed(2)}x</td></tr>
@@ -888,10 +889,10 @@
           </tbody>
         </table>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Frequently Asked Questions</div>
-        <div class="iov-faq pb-avoid" style="display:flex;flex-direction:column;gap:3pt;margin-bottom:6pt">
+        <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Frequently Asked Questions</div>
+        <div class="iov-faq" style="display:flex;flex-direction:column;gap:3pt;margin-bottom:6pt">
           ${faqs.map(f => `
-            <div>
+            <div class="pb-avoid">
               <div style="font-size:8.5pt;font-weight:700;color:#0a0a0b;margin-bottom:1pt">${_esc(f.q)}</div>
               <div style="font-size:8pt;line-height:1.4;color:#555">${_esc(f.a)}</div>
             </div>
@@ -908,8 +909,8 @@
           </div>
         </div>
 
-        <div class="print-section pb-avoid"><span class="ps-accent"></span>Disclaimers</div>
-        <div style="font-size:7.5pt;line-height:1.4;color:#555">
+        <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Disclaimers</div>
+        <div class="pb-avoid" style="font-size:7.5pt;line-height:1.4;color:#555">
           <p style="margin:0 0 3pt 0"><strong>No offer.</strong> This document is informational only and is not an offer to sell or a solicitation of an offer to buy any securities. Any offer will be made solely through a confidential Private Placement Memorandum.</p>
           <p style="margin:0 0 3pt 0"><strong>Projections, not guarantees.</strong> Projections of returns are based on assumptions believed reasonable as of the date of this document. Actual results may differ materially.</p>
           <p style="margin:0 0 3pt 0"><strong>Risk and independent diligence.</strong> Real estate investments involve substantial risk, including the possible loss of all invested capital. Prospective investors must conduct their own independent investigation and consult their own legal, tax, and financial advisors.</p>
