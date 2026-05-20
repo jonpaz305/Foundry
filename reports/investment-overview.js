@@ -527,15 +527,33 @@
     const consulting = R.consulting_fee || inputs.consulting_fee || 0;
     const carry = R.debt_service_pre_refi || 0;
     const mobilization = inputs.sponsor_mobilization || 0;
+    const gcContingency = inputs.gc_contingency || 0;
     const acqTranche = R.acquisition_tranche || 0;
     const conTranche = R.construction_tranche || 0;
     const totalBridge = R.initial_loan_amt || (acqTranche + conTranche);
     const initEq = R.initial_investor_equity || 0;
-    const totalSources = totalBridge + initEq;
+    const initialLtv = inputs.initial_loan_ltv || 0;
+    const initialLtcCapex = inputs.initial_loan_ltc_capex || 0;
+
+    // Equity-required breakdown (from engine, sums to initEq)
+    const eqDownPmt = R.equity_acq_down_payment || 0;
+    const eqCapexGap = R.equity_capex_gap || 0;
+    const eqClosing = R.equity_closing_costs || 0;
+    const eqConsulting = R.equity_consulting || 0;
+    const eqBridgeCarry = R.equity_bridge_carry || 0;
+    const eqGcContingency = R.equity_gc_contingency_if_equity || 0;
+
+    // GC contingency treatment: if treat_mob_as_equity is on, GC contingency
+    // is funded by equity at closing. Otherwise it's a held-back reserve that
+    // sits outside the closing capital stack (covered by future draws or sponsor).
+    const gcHeldBack = gcContingency > 0 && eqGcContingency === 0;
+
+    const totalSources = totalBridge + initEq + (gcHeldBack ? gcContingency : 0);
     const investorOwn = inputs.investor_ownership != null ? inputs.investor_ownership : 0.5;
     const sponsorOwn = 1 - investorOwn;
-    const bridgePct = totalSources > 0 ? totalBridge / totalSources : 0;
-    const eqPct = totalSources > 0 ? initEq / totalSources : 0;
+    const stackTotal = totalBridge + initEq;  // capital stack at closing excludes held-back contingency
+    const bridgePct = stackTotal > 0 ? totalBridge / stackTotal : 0;
+    const eqPct = stackTotal > 0 ? initEq / stackTotal : 0;
 
     const useRows = [
       { label: 'Purchase price', amt: purchase, note: 'Cost to acquire the property' },
@@ -543,13 +561,35 @@
       { label: 'Closing costs', amt: closing, note: 'Title, insurance, lender fees, transfer tax' },
       { label: 'Consulting / project fee', amt: consulting, note: 'Sponsor project management fee' },
       { label: 'Bridge debt service through refinance', amt: carry, note: 'Loan interest paid during renovation period' },
+      { label: 'GC contingency reserve', amt: gcContingency, note: gcHeldBack ? 'Held back from closing; funded as needed from cost overruns reserve' : 'Cost overrun reserve, funded at closing' },
       { label: 'Sponsor mobilization (capex float)', amt: mobilization, note: 'Working capital for contractor payments; reimbursed via lender draws' }
     ].filter(r => r.amt > 0);
 
+    // Build source rows. Notes now carry LTV/LTC context. If GC contingency
+    // is held back, it appears in Sources as a held-back reserve line so
+    // Sources tie to TPC instead of leaving a visible funding gap.
+    const purchaseLtvNote = (initialLtv > 0 && purchase > 0)
+      ? `${h.fmtPct(initialLtv, 0)} loan-to-value of purchase price`
+      : 'Senior debt funding the property purchase';
+    const capexLtcNote = (initialLtcCapex > 0 && capex > 0)
+      ? `${h.fmtPct(initialLtcCapex, 0)} loan-to-cost of renovation budget, released in draws`
+      : 'Senior debt funding the renovation, released in draws';
+
     const srcRows = [
-      { label: 'Bridge loan: acquisition portion', amt: acqTranche, note: 'Senior debt funding the property purchase' },
-      { label: 'Bridge loan: renovation portion', amt: conTranche, note: 'Senior debt funding the renovation, released in draws' },
-      { label: 'Investor equity at closing', amt: initEq, note: 'Cash contributed by the equity partner' }
+      { label: 'Bridge loan: acquisition tranche', amt: acqTranche, note: purchaseLtvNote },
+      { label: 'Bridge loan: construction tranche', amt: conTranche, note: capexLtcNote },
+      { label: 'Investor equity at closing', amt: initEq, note: 'Cash contributed by the equity partner at closing', isEquity: true },
+      gcHeldBack ? { label: 'GC contingency (held back, not at closing)', amt: gcContingency, note: 'Reserve held back from the closing capital stack; drawn only if cost overruns occur', isHeldBack: true } : null
+    ].filter(r => r && r.amt > 0);
+
+    // Equity breakdown rows shown as indented sub-rows under "Investor equity at closing"
+    const equityBreakdown = [
+      { label: 'Acquisition down payment', amt: eqDownPmt },
+      { label: 'Capex equity gap (above lender LTC)', amt: eqCapexGap },
+      { label: 'Closing costs', amt: eqClosing },
+      { label: 'Consulting / project fee', amt: eqConsulting },
+      { label: 'Bridge debt service through refinance', amt: eqBridgeCarry },
+      { label: 'GC contingency (funded at closing)', amt: eqGcContingency }
     ].filter(r => r.amt > 0);
 
     return `
@@ -582,22 +622,36 @@
         <div class="print-section pb-avoid" style="break-after:avoid"><span class="ps-accent"></span>Sources of Capital</div>
         <table class="print-table" style="margin-bottom:5pt;font-size:8.5pt">
           <thead>
-            <tr><th>Source</th><th class="num">Amount</th><th class="num">% of Total</th><th style="width:40%">Notes</th></tr>
+            <tr><th>Source</th><th class="num">Amount</th><th class="num">% of TPC</th><th style="width:40%">Notes</th></tr>
           </thead>
           <tbody>
-            ${srcRows.map(r => `
-              <tr>
-                <td>${_esc(r.label)}</td>
-                <td class="num">${h.fmtMoney(r.amt)}</td>
-                <td class="num">${totalSources > 0 ? h.fmtPct(r.amt / totalSources, 1) : '-'}</td>
-                <td style="font-size:8pt;color:#555">${_esc(r.note)}</td>
-              </tr>
-            `).join('')}
+            ${srcRows.map(r => {
+              const mainRow = `
+                <tr>
+                  <td>${_esc(r.label)}</td>
+                  <td class="num">${h.fmtMoney(r.amt)}</td>
+                  <td class="num">${tpc > 0 ? h.fmtPct(r.amt / tpc, 1) : '-'}</td>
+                  <td style="font-size:8pt;color:#555">${_esc(r.note)}</td>
+                </tr>
+              `;
+              if (r.isEquity && equityBreakdown.length > 0) {
+                const subRows = equityBreakdown.map(eb => `
+                  <tr>
+                    <td style="padding-left:18pt;font-size:8pt;color:#555">${_esc(eb.label)}</td>
+                    <td class="num" style="font-size:8pt;color:#555">${h.fmtMoney(eb.amt)}</td>
+                    <td class="num" style="font-size:8pt;color:#555">${tpc > 0 ? h.fmtPct(eb.amt / tpc, 1) : '-'}</td>
+                    <td></td>
+                  </tr>
+                `).join('');
+                return mainRow + subRows;
+              }
+              return mainRow;
+            }).join('')}
             <tr class="totals">
               <td>Total sources</td>
               <td class="num">${h.fmtMoney(totalSources)}</td>
-              <td class="num">100.0%</td>
-              <td></td>
+              <td class="num">${tpc > 0 ? h.fmtPct(totalSources / tpc, 1) : '-'}</td>
+              <td style="font-size:8pt;color:#555">${Math.abs(totalSources - tpc) < 1 ? 'Reconciled to total project cost' : `Variance of ${h.fmtMoney(totalSources - tpc)} vs. TPC`}</td>
             </tr>
           </tbody>
         </table>
