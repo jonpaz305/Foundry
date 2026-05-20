@@ -524,9 +524,8 @@
     const purchase = inputs.purchase_price || 0;
     const capex = inputs.capex_budget || 0;
     const closing = R.closing_costs || 0;
-    const consulting = R.consulting_fee || inputs.consulting_fee || 0;
+    const consulting = R.consulting || 0;
     const carry = R.debt_service_pre_refi || 0;
-    const mobilization = inputs.sponsor_mobilization || 0;
     const gcContingency = inputs.gc_contingency || 0;
     const acqTranche = R.acquisition_tranche || 0;
     const conTranche = R.construction_tranche || 0;
@@ -535,12 +534,8 @@
     const initialLtv = inputs.initial_loan_ltv || 0;
     const initialLtcCapex = inputs.initial_loan_ltc_capex || 0;
 
-    // Equity-required breakdown (from engine, sums to initEq)
-    const eqDownPmt = R.equity_acq_down_payment || 0;
-    const eqCapexGap = R.equity_capex_gap || 0;
-    const eqClosing = R.equity_closing_costs || 0;
-    const eqConsulting = R.equity_consulting || 0;
-    const eqBridgeCarry = R.equity_bridge_carry || 0;
+    // GC contingency funded-at-closing check (used to decide whether
+    // contingency is a held-back reserve or part of equity at closing)
     const eqGcContingency = R.equity_gc_contingency_if_equity || 0;
 
     // GC contingency treatment: if treat_mob_as_equity is on, GC contingency
@@ -578,19 +573,9 @@
     const srcRows = [
       { label: 'Bridge loan: acquisition tranche', amt: acqTranche, note: purchaseLtvNote },
       { label: 'Bridge loan: construction tranche', amt: conTranche, note: capexLtcNote },
-      { label: 'Investor equity at closing', amt: initEq, note: 'Cash contributed by the equity partner at closing', isEquity: true },
-      gcHeldBack ? { label: 'GC contingency (held back, not at closing)', amt: gcContingency, note: 'Reserve held back from the closing capital stack; drawn only if cost overruns occur', isHeldBack: true } : null
+      { label: 'Investor equity at closing', amt: initEq, note: 'Cash contributed by the equity partner at closing' },
+      gcHeldBack ? { label: 'GC contingency (held back, not at closing)', amt: gcContingency, note: 'Reserve held back from the closing capital stack; drawn only if cost overruns occur' } : null
     ].filter(r => r && r.amt > 0);
-
-    // Equity breakdown rows shown as indented sub-rows under "Investor equity at closing"
-    const equityBreakdown = [
-      { label: 'Acquisition down payment', amt: eqDownPmt },
-      { label: 'Capex equity gap (above lender LTC)', amt: eqCapexGap },
-      { label: 'Closing costs', amt: eqClosing },
-      { label: 'Consulting / project fee', amt: eqConsulting },
-      { label: 'Bridge debt service through refinance', amt: eqBridgeCarry },
-      { label: 'GC contingency (funded at closing)', amt: eqGcContingency }
-    ].filter(r => r.amt > 0);
 
     return `
       <div class="print-page print-page-compact iov-tight">
@@ -625,28 +610,14 @@
             <tr><th>Source</th><th class="num">Amount</th><th class="num">% of TPC</th><th style="width:40%">Notes</th></tr>
           </thead>
           <tbody>
-            ${srcRows.map(r => {
-              const mainRow = `
-                <tr>
-                  <td>${_esc(r.label)}</td>
-                  <td class="num">${h.fmtMoney(r.amt)}</td>
-                  <td class="num">${tpc > 0 ? h.fmtPct(r.amt / tpc, 1) : '-'}</td>
-                  <td style="font-size:8pt;color:#555">${_esc(r.note)}</td>
-                </tr>
-              `;
-              if (r.isEquity && equityBreakdown.length > 0) {
-                const subRows = equityBreakdown.map(eb => `
-                  <tr>
-                    <td style="padding-left:18pt;font-size:8pt;color:#555">${_esc(eb.label)}</td>
-                    <td class="num" style="font-size:8pt;color:#555">${h.fmtMoney(eb.amt)}</td>
-                    <td class="num" style="font-size:8pt;color:#555">${tpc > 0 ? h.fmtPct(eb.amt / tpc, 1) : '-'}</td>
-                    <td></td>
-                  </tr>
-                `).join('');
-                return mainRow + subRows;
-              }
-              return mainRow;
-            }).join('')}
+            ${srcRows.map(r => `
+              <tr>
+                <td>${_esc(r.label)}</td>
+                <td class="num">${h.fmtMoney(r.amt)}</td>
+                <td class="num">${tpc > 0 ? h.fmtPct(r.amt / tpc, 1) : '-'}</td>
+                <td style="font-size:8pt;color:#555">${_esc(r.note)}</td>
+              </tr>
+            `).join('')}
             <tr class="totals">
               <td>Total sources</td>
               <td class="num">${h.fmtMoney(totalSources)}</td>
