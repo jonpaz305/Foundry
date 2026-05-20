@@ -533,6 +533,7 @@
     const initEq = R.initial_investor_equity || 0;
     const initialLtv = inputs.initial_loan_ltv || 0;
     const initialLtcCapex = inputs.initial_loan_ltc_capex || 0;
+    const mobilization = inputs.sponsor_mobilization || 0;
 
     // GC contingency funded-at-closing check (used to decide whether
     // contingency is a held-back reserve or part of equity at closing)
