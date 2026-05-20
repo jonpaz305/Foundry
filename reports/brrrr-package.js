@@ -358,6 +358,14 @@
     const eqMobIfEq    = R.equity_gc_contingency_if_equity || 0;
     const eqTotal      = R.equity_required_breakdown_total || 0;
 
+    // GC contingency treatment: held-back reserve when not funded at closing
+    // via equity. In that case, surface it as a separate Source row so Sources
+    // tie to Total Uses (which always includes contingency). Otherwise it's
+    // already embedded in investor equity and no extra row is needed.
+    const gcHeldBack = contingency > 0 && eqMobIfEq === 0;
+    const heldBackAmt = gcHeldBack ? contingency : 0;
+    const totalSourcesWithHeldBack = totalSources + heldBackAmt;
+
     // Capital Stack segment widths. Three segments: acquisition tranche,
     // construction tranche, and investor equity. No GP/LP split at the
     // closing-day stack level - that is a returns-split question handled
@@ -376,11 +384,12 @@
           <table class="print-table pb-avoid">
             <thead><tr><th>Sources</th><th class="num">Amount</th><th class="num">$/Door</th><th class="num">%</th></tr></thead>
             <tbody>
-              <tr><td>Senior Debt: Acquisition Tranche</td><td class="num">${h.fmtMoney(acqTranche)}</td><td class="num">${_pd(acqTranche)}</td><td class="num">${h.fmtPct(acqTranche / Math.max(1, totalSources))}</td></tr>
-              <tr><td>Senior Debt: Construction Tranche</td><td class="num">${h.fmtMoney(conTranche)}</td><td class="num">${_pd(conTranche)}</td><td class="num">${h.fmtPct(conTranche / Math.max(1, totalSources))}</td></tr>
-              <tr><td style="padding-left:1.5em">Total Bridge</td><td class="num">${h.fmtMoney(initialLoan)}</td><td class="num">${_pd(initialLoan)}</td><td class="num">${h.fmtPct(debtPct)}</td></tr>
-              <tr><td>Investor Equity</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${_pd(investorEquity)}</td><td class="num">${h.fmtPct(investorEquity / Math.max(1, totalSources))}</td></tr>
-              <tr class="totals"><td>Total Sources</td><td class="num">${h.fmtMoney(totalSources)}</td><td class="num">${_pd(totalSources)}</td><td class="num">100.0%</td></tr>
+              <tr><td>Senior Debt: Acquisition Tranche</td><td class="num">${h.fmtMoney(acqTranche)}</td><td class="num">${_pd(acqTranche)}</td><td class="num">${h.fmtPct(acqTranche / Math.max(1, totalSourcesWithHeldBack))}</td></tr>
+              <tr><td>Senior Debt: Construction Tranche</td><td class="num">${h.fmtMoney(conTranche)}</td><td class="num">${_pd(conTranche)}</td><td class="num">${h.fmtPct(conTranche / Math.max(1, totalSourcesWithHeldBack))}</td></tr>
+              <tr><td style="padding-left:1.5em">Total Bridge</td><td class="num">${h.fmtMoney(initialLoan)}</td><td class="num">${_pd(initialLoan)}</td><td class="num">${h.fmtPct(initialLoan / Math.max(1, totalSourcesWithHeldBack))}</td></tr>
+              <tr><td>Investor Equity</td><td class="num">${h.fmtMoney(investorEquity)}</td><td class="num">${_pd(investorEquity)}</td><td class="num">${h.fmtPct(investorEquity / Math.max(1, totalSourcesWithHeldBack))}</td></tr>
+              ${gcHeldBack ? `<tr><td>GC Contingency (held back, not at closing)</td><td class="num">${h.fmtMoney(heldBackAmt)}</td><td class="num">${_pd(heldBackAmt)}</td><td class="num">${h.fmtPct(heldBackAmt / Math.max(1, totalSourcesWithHeldBack))}</td></tr>` : ''}
+              <tr class="totals"><td>Total Sources</td><td class="num">${h.fmtMoney(totalSourcesWithHeldBack)}</td><td class="num">${_pd(totalSourcesWithHeldBack)}</td><td class="num">100.0%</td></tr>
             </tbody>
           </table>
 
@@ -392,16 +401,15 @@
               <tr><td>Closing Costs</td><td class="num">${h.fmtMoney(closing)}</td><td class="num">${_pd(closing)}</td><td class="num">${h.fmtPct(closing / Math.max(1, totalUses))}</td></tr>
               <tr><td>Consulting</td><td class="num">${h.fmtMoney(consulting)}</td><td class="num">${_pd(consulting)}</td><td class="num">${h.fmtPct(consulting / Math.max(1, totalUses))}</td></tr>
               <tr><td>Carry (DS pre-refi)</td><td class="num">${h.fmtMoney(carry)}</td><td class="num">${_pd(carry)}</td><td class="num">${h.fmtPct(carry / Math.max(1, totalUses))}</td></tr>
-              <tr><td>Sponsor Mobilization</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${_pd(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, totalUses))}</td></tr>
+              <tr><td>GC Contingency Reserve</td><td class="num">${h.fmtMoney(contingency)}</td><td class="num">${_pd(contingency)}</td><td class="num">${h.fmtPct(contingency / Math.max(1, totalUses))}</td></tr>
               <tr class="totals"><td>Total Uses</td><td class="num">${h.fmtMoney(totalUses)}</td><td class="num">${_pd(totalUses)}</td><td class="num">100.0%</td></tr>
             </tbody>
           </table>
         </div>
 
         <div class="bp-capex-note pb-avoid" style="font-size:9pt;color:var(--print-muted);margin-top:6pt;line-height:1.4">
-          Sponsor mobilization (capex float): <strong>${h.fmtMoney(contingency)}</strong>.
+          GC contingency reserve: <strong>${h.fmtMoney(contingency)}</strong>${gcHeldBack ? ' (held back from closing; drawn only if cost overruns occur during renovation)' : ' (funded at closing through investor equity)'}.
           Construction tranche funds ${h.fmtPct(inputs.initial_loan_ltc_capex)} of capex via draws over a ${capexDur}-month execution window.
-          Mobilization covers GC payment cycles before lender reimbursement and is recouped before refi.
         </div>
 
         <div class="print-section pb-avoid"><span class="ps-accent"></span>Capital Structure</div>
@@ -436,7 +444,7 @@
             <tr><td>Closing costs (full detail below)</td><td class="num">${h.fmtMoney(eqClosing)}</td><td class="num">${_pd(eqClosing)}</td><td class="num">${h.fmtPct(eqClosing / Math.max(1, eqTotal))}</td></tr>
             <tr><td>Consulting / project fee</td><td class="num">${h.fmtMoney(eqConsulting)}</td><td class="num">${_pd(eqConsulting)}</td><td class="num">${h.fmtPct(eqConsulting / Math.max(1, eqTotal))}</td></tr>
             <tr><td>Bridge debt service through refi</td><td class="num">${h.fmtMoney(eqCarry)}</td><td class="num">${_pd(eqCarry)}</td><td class="num">${h.fmtPct(eqCarry / Math.max(1, eqTotal))}</td></tr>
-            <tr><td>Mobilization float${eqMobIfEq > 0 ? '' : ' (excluded - reimbursed via draws)'}</td><td class="num">${h.fmtMoney(eqMobIfEq)}</td><td class="num">${_pd(eqMobIfEq)}</td><td class="num">${h.fmtPct(eqMobIfEq / Math.max(1, eqTotal))}</td></tr>
+            <tr><td>GC Contingency${eqMobIfEq > 0 ? ' (funded at closing)' : ' (held back, not at closing)'}</td><td class="num">${h.fmtMoney(eqMobIfEq)}</td><td class="num">${_pd(eqMobIfEq)}</td><td class="num">${h.fmtPct(eqMobIfEq / Math.max(1, eqTotal))}</td></tr>
             <tr class="totals"><td>Total Equity Required at Closing</td><td class="num">${h.fmtMoney(eqTotal)}</td><td class="num">${_pd(eqTotal)}</td><td class="num">100.0%</td></tr>
           </tbody>
         </table>
