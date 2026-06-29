@@ -283,6 +283,13 @@ function computeBRRRR() {
   const initial_rate   = _num(i.initial_rate);
   const initial_ITyp   = i.initial_interest_type || 'IO';
 
+  // All-cash toggles. When set, the corresponding bridge tranche is
+  // zeroed; the LTV/LTC inputs are preserved but ignored. The equity
+  // decomposition (equity_acq_down_payment / equity_capex_gap) absorbs
+  // the gap automatically, so no further downstream change is needed.
+  const cash_purchase  = !!i.cash_purchase;
+  const cash_capex     = !!i.cash_capex;
+
   // M0.2: Capex execution window (months). Used to model month-by-month
   // construction tranche draw accrual. Default 6 months. Manually
   // overridable via the Capital panel.
@@ -352,8 +359,8 @@ function computeBRRRR() {
   // is mathematically identical to the prior single-line computation.
   // The change is surfacing the two tranches separately and modeling
   // their carry month-by-month rather than at a flat balance.
-  const acquisition_tranche = purchase_price * initial_ltv;
-  const construction_tranche = capex_budget * initial_ltc_capex;
+  const acquisition_tranche = cash_purchase ? 0 : purchase_price * initial_ltv;
+  const construction_tranche = cash_capex ? 0 : capex_budget * initial_ltc_capex;
   const initial_loan_amt = acquisition_tranche + construction_tranche;
 
 
@@ -812,6 +819,8 @@ function computeBRRRR() {
     debt_service_pre_refi,
     // M0.2: two-tranche bridge surfaced fields
     acquisition_tranche, construction_tranche,
+    // All-cash toggles (for report labeling and S&U narrative)
+    cash_purchase, cash_capex,
     capex_duration_months_resolved: capex_duration_months,
     construction_carry_schedule,
 
@@ -957,6 +966,12 @@ function computeFF() {
   const initial_rate   = i.initial_rate != null ? _num(i.initial_rate) : 0.127;
   const initial_ITyp   = i.initial_interest_type || 'IO';
 
+  // All-cash toggles. cash_purchase drops the acquisition debt term;
+  // cash_capex drops the capex term (F&F funds capex 100% via draws by
+  // default, so the full capex amount becomes equity when cash).
+  const cash_purchase  = !!i.cash_purchase;
+  const cash_capex     = !!i.cash_capex;
+
   const sale_cost_pct  = i.sale_cost_pct != null ? _num(i.sale_cost_pct) : 0.07;
   const lp_split       = i.lp_gp_split_ff != null ? _num(i.lp_gp_split_ff) : 0.5;
 
@@ -967,7 +982,10 @@ function computeFF() {
   // ── INITIAL LOAN AMOUNT ─────────────────────────────────────
   // Spreadsheet F&F: B18 × 0.9 + B21 (purchase × LTV + capex_full)
   // The capex is funded 100% via draws, regardless of any "LTC" input.
-  const initial_loan_amt = purchase_price * initial_ltv + capex_budget;
+  // Cash toggles zero the corresponding term.
+  const acq_debt_term = cash_purchase ? 0 : purchase_price * initial_ltv;
+  const capex_debt_term = cash_capex ? 0 : capex_budget;
+  const initial_loan_amt = acq_debt_term + capex_debt_term;
 
 
   // ── CLOSING COSTS (M0.3 decomposition) ──────────────────────
@@ -1111,7 +1129,16 @@ function computeFF() {
   // assuming reno is funded via draws on the loan).
   const investor_equity_institutional = total_project_cost - initial_loan_amt;
 
-  const investor_equity = equity_method === 'institutional'
+  // When either cash toggle is active, the spreadsheet method is invalid:
+  // its 7% proxy is a financed-down-payment heuristic that understates
+  // equity on a cash purchase, and it omits capex entirely (assumes
+  // draw-funded) so cash capex would be invisible. Force institutional.
+  // The input is not mutated; only the effective method is overridden.
+  const cash_active = cash_purchase || cash_capex;
+  const equity_method_forced_cash = cash_active && equity_method !== 'institutional';
+  const equity_method_effective = cash_active ? 'institutional' : equity_method;
+
+  const investor_equity = equity_method_effective === 'institutional'
     ? investor_equity_institutional
     : investor_equity_spreadsheet;
 
@@ -1176,6 +1203,9 @@ function computeFF() {
     investor_equity,
     investor_equity_spreadsheet,
     investor_equity_institutional,
+    // All-cash toggles + forced-method disclosure (for report footnote)
+    cash_purchase, cash_capex,
+    equity_method_effective, equity_method_forced_cash,
     gross_proceeds, net_investor_proceeds,
     investor_roi, annualized_return, annualized_irr,
     value_creation, value_creation_pct

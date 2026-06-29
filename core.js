@@ -78,6 +78,8 @@ function makeDefaultInputs() {
     capex_budget:            0,
     gc_contingency:          0,
     treat_mob_as_equity:     false,
+    cash_purchase:           false,
+    cash_capex:              false,
     consulting_fees_override: null,
     consulting_fees_user_locked: false,  // A-smart: false = auto-recompute from 3% of (purchase+capex); true = user has overridden, freeze the value
 
@@ -1039,7 +1041,7 @@ function onInputChange(field, value) {
       const n = Number(value);
       inputs[field] = isFinite(n) ? n : null;
     }
-  } else if (field === 'treat_mob_as_equity') {
+  } else if (field === 'treat_mob_as_equity' || field === 'cash_purchase' || field === 'cash_capex') {
     inputs[field] = !!value;
   } else {
     inputs[field] = value;

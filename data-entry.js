@@ -980,18 +980,28 @@ function renderCapitalBlock() {
       </div>
 
       <div class="ssub">Initial Debt (Acquisition + Rehab Phase)</div>
+      <div class="g2" style="margin-bottom:1rem">
+        <label class="field-cb">
+          <input type="checkbox" ${i.cash_purchase ? 'checked' : ''} onchange="onInputChange('cash_purchase', this.checked)"/>
+          All-cash purchase (no acquisition debt)
+        </label>
+        <label class="field-cb">
+          <input type="checkbox" ${i.cash_capex ? 'checked' : ''} onchange="onInputChange('cash_capex', this.checked)"/>
+          All-cash capex (no construction draws)
+        </label>
+      </div>
       <div class="g3" style="margin-bottom:1rem">
         <div class="field"><label>LTV on purchase</label>
-          <input type="number" step="0.01" class="num" value="${i.initial_loan_ltv ?? (mode === 'brrrr' ? 0.93 : 0.90)}" oninput="onInputChange('initial_loan_ltv', this.value)"/>
-          <div class="hint">Default ${mode === 'brrrr' ? '0.93 (93%) for BRRRR HML' : '0.90 (90%) for F&F HML'}.</div></div>
+          <input type="number" step="0.01" class="num" ${i.cash_purchase ? 'disabled style="opacity:.45"' : ''} value="${i.initial_loan_ltv ?? (mode === 'brrrr' ? 0.93 : 0.90)}" oninput="onInputChange('initial_loan_ltv', this.value)"/>
+          <div class="hint">${i.cash_purchase ? 'Cash purchase: acquisition debt set to $0. Toggle off to restore.' : 'Default ' + (mode === 'brrrr' ? '0.93 (93%) for BRRRR HML' : '0.90 (90%) for F&F HML') + '.'}</div></div>
         ${mode === 'brrrr' ? `
         <div class="field"><label>LTC on capex</label>
-          <input type="number" step="0.01" class="num" value="${i.initial_loan_ltc_capex ?? 1.00}" oninput="onInputChange('initial_loan_ltc_capex', this.value)"/>
-          <div class="hint">Default 1.00 (100% capex funded via draws).</div></div>
+          <input type="number" step="0.01" class="num" ${i.cash_capex ? 'disabled style="opacity:.45"' : ''} value="${i.initial_loan_ltc_capex ?? 1.00}" oninput="onInputChange('initial_loan_ltc_capex', this.value)"/>
+          <div class="hint">${i.cash_capex ? 'Cash capex: construction tranche set to $0. Toggle off to restore.' : 'Default 1.00 (100% capex funded via draws).'}</div></div>
         ` : `
         <div class="field"><label>Capex funding</label>
-          <div style="padding:8px 11px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);border-radius:var(--r-sm);font-size:12px">100% via lender draws</div>
-          <div class="hint">F&F template assumes full capex funding by HML.</div></div>
+          <div style="padding:8px 11px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);border-radius:var(--r-sm);font-size:12px">${i.cash_capex ? 'All-cash (no draws)' : '100% via lender draws'}</div>
+          <div class="hint">${i.cash_capex ? 'Cash capex: full capex amount is funded as equity.' : 'F&F template assumes full capex funding by HML.'}</div></div>
         `}
         <div class="field"><label>Interest rate</label>
           <input type="number" step="0.001" class="num" value="${i.initial_rate ?? 0.127}" oninput="onInputChange('initial_rate', this.value)"/></div>
@@ -1096,11 +1106,16 @@ function renderCapitalBlock() {
       </div>
       <div class="g2">
         <div class="field"><label>Investor equity method</label>
+          ${(i.cash_purchase || i.cash_capex) ? `
+          <div style="padding:8px 11px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);border-radius:var(--r-sm);font-size:12px">Institutional (forced: cash deal)</div>
+          <div class="hint">Spreadsheet method is invalid for a cash deal: its 7% proxy assumes a financed purchase and omits cash capex. Institutional is forced while a cash toggle is active.</div>
+          ` : `
           <select onchange="onInputChange('equity_method_ff', this.value)">
             <option value="spreadsheet"     ${(i.equity_method_ff || 'spreadsheet') === 'spreadsheet' ? 'selected' : ''}>Spreadsheet parity (purchase × 7% + closing + consulting + DS)</option>
             <option value="institutional"   ${i.equity_method_ff === 'institutional' ? 'selected' : ''}>Institutional (TPC − initial loan)</option>
           </select>
           <div class="hint">Spreadsheet method hardcodes 7% down regardless of LTV. Institutional method counts actual cash outlay.</div>
+          `}
         </div>
         <div></div>
       </div>
