@@ -23,6 +23,24 @@ the change.
 
 ---
 
+## 1.3.0 -- 2026-07-01
+
+**All-cash toggles (input schema, new fields).** Adds two boolean inputs, `cash_purchase` and `cash_capex`, to both BRRRR and Fix-and-Flip modes. When a toggle is set, the corresponding bridge tranche is zeroed: `cash_purchase` drops the acquisition debt term and `cash_capex` drops the construction-draw term. The LTV and LTC inputs are preserved but ignored while a toggle is on, and the equity decomposition (`equity_acq_down_payment` / `equity_capex_gap`) absorbs the gap, so the required investor equity scales up to cover what debt no longer funds. Under an all-cash structure the institutional equity method is forced regardless of the selected method, with a disclosure surfaced on the report (`equity_method_forced_cash`, `equity_method_effective`) because the spreadsheet method's leverage proxy is not meaningful without debt.
+
+**Output impact:** deals with both toggles off (the default) produce outputs identical to 1.2.0 for every existing field, so this is a clean MINOR bump. Only deals that opt into a cash structure see changed capital stack, equity requirement, and leverage-dependent returns.
+
+**Report freshness fix (no engine math change).** Fixes generated reports rendering last-saved values instead of the user's current numbers. Input edits persist through a 700ms debounced autosave, but the print tab hydrates by re-fetching the deal from Supabase by ID rather than inheriting the editing tab's in-memory state. A report generated inside the debounce window (the common case) therefore rendered stale numbers, while the dashboard and locked snapshots (which read live in-memory state) were correct. `openPrintTab` now opens the print tab synchronously, flushes all pending autosaves via a new `flushAutosaves()` helper in `core.js`, waits for the database writes to commit, and only then navigates the tab to the print route. If the flush fails, the report is not generated rather than rendering unverified numbers. This does not touch any engine formula; the regression baseline is unchanged.
+
+**Numeric input coercion hardening (no output change).** `closing_cost_transfer_addon` and `total_units_ff` are now coerced to numbers in `onInputChange` instead of being stored as raw strings. Both were already read through `_num()` in the engine, so the stored-as-string state produced no incorrect output, but the state is now type-correct at the source.
+
+**ARV override tax reassessment (engine math - CHANGES OUTPUT).** Fixes property taxes being frozen on the income-approach ARV when the ARV was overridden. Previously, when `arv_source` was `manual_override` or `comp_derived` and `tax_basis_mode` was `stabilized_arv` (the default), the tax solve ran on the income-approach ARV and was never re-run after the override replaced it. Raising a manual ARV therefore left taxes, NOI, DSCR, debt yield, and expense ratio unchanged - internally inconsistent with the ARV the deal reported. Taxes are now reassessed on the ARV actually in use, and NOI and every NOI-derived aggregate are recomputed from it.
+
+OUTPUT IMPACT: BRRRR deals with `tax_basis_mode = stabilized_arv` AND a non-income ARV source now produce different (correct) taxes, NOI, DSCR, debt yield, expense ratio, and implied cap. Marking the ARV above the income-approach value raises the assessed value, so taxes rise and NOI/coverage fall. Deals on `tax_basis_mode = purchase_price`, and any deal using the income-approach ARV, are unchanged. The 428/428 regression baseline is unchanged (no baseline deal exercised the broken path). Because outputs of some existing deals change, this may warrant a MAJOR version bump per the semver discipline above - pending decision.
+
+**Engine invariants guardrail (`regression-invariants.js`, new).** Adds an accounting-identity test that fuzzes input combinations and asserts the engine's outputs are internally consistent (`NOI = EGI - OPEX`, `taxes = assessed_base * rate`, `implied_cap = NOI / ARV`, `refi_loan = ARV * refi_ltv`, `dscr = NOI / refi_ds`, and more). The old engine failed the tax identity on 54 of 756 checks; the fixed engine passes all 756. Run on every engine change so decoupling bugs fail the build instead of shipping.
+
+---
+
 ## 1.2.0 -- 2026-05-13
 
 **Cuyahoga tax rate selection fix (engine math).** Corrects a silent string-comparison bug in `lookupCuyahogaTaxRate` that caused all Cuyahoga 5+ unit commercial multifamily deals to be assessed at the residential tax rate (~62% understatement of taxes).

@@ -520,9 +520,14 @@ function computeBRRRR() {
     }
   }
 
-  const total_operating_expenses = pm_dollars + maint_turnover + taxes + insurance + utilities + reserves;
-  const expense_ratio = egi > 0 ? total_operating_expenses / egi : 0;
-  const noi_margin = egi > 0 ? stabilized_noi / egi : 0;
+  // These NOI-derived aggregates are declared with `let` because when the
+  // ARV is overridden below and taxes are assessed on the stabilized ARV,
+  // taxes and NOI are re-solved on the ARV actually in use, and these must
+  // be recomputed to stay consistent. See the reassessment block after the
+  // ARV source resolution.
+  let total_operating_expenses = pm_dollars + maint_turnover + taxes + insurance + utilities + reserves;
+  let expense_ratio = egi > 0 ? total_operating_expenses / egi : 0;
+  let noi_margin = egi > 0 ? stabilized_noi / egi : 0;
 
 
   // ── ARV SOURCE RESOLUTION (Path C) ──────────────────────────
@@ -534,13 +539,16 @@ function computeBRRRR() {
   // The income-approach value remains available for the reports' Model
   // Assumptions disclosure and for the comp variance check.
   //
-  // CRITICAL: the tax solve above used the income-approach ARV. Even if
-  // the user picks a different ARV source, taxes are still assessed
-  // against the income-approach ARV (which is the institutional standard:
-  // the assessor reassesses based on market valuation, not sponsor
-  // judgment). NOI, OPEX, and taxes are therefore unchanged. Only the
-  // ARV consumed by refi sizing, value creation, and disposition is
-  // re-resolved here.
+  // The tax solve above used the income-approach ARV. When the user
+  // overrides the ARV (manual_override or comp_derived) AND taxes are
+  // assessed on the stabilized ARV (tax_basis_mode != 'purchase_price'),
+  // the taxes must be re-solved on the ARV actually in use so that NOI
+  // and every NOI-derived metric (DSCR, debt yield, cash flow, implied
+  // cap, expense ratio) stay consistent with the ARV the deal reports.
+  // The reassessment happens immediately after the source resolution
+  // below. The income-approach ARV is preserved as
+  // stabilized_arv_income_approach for the Model Assumptions disclosure
+  // and the comp variance check.
   const stabilized_arv_income_approach = stabilized_arv;
   const arv_source = i.arv_source || 'income_approach';
   const arv_override_in = _num(i.arv_override_brrrr);
@@ -570,6 +578,27 @@ function computeBRRRR() {
     stabilized_arv = _arv_comp_derived;
   }
   // else: keep stabilized_arv = stabilized_arv_income_approach (default).
+
+  // Tax reassessment on the ARV in use. When the ARV was overridden away
+  // from the income-approach value AND taxes are assessed on the
+  // stabilized ARV (not on purchase price), re-solve taxes on the ARV the
+  // deal actually reports, then recompute NOI and its dependent
+  // aggregates. Without this, raising a manual ARV would leave taxes,
+  // NOI, DSCR, and debt yield frozen on the income-approach value -
+  // producing figures that are internally inconsistent with the ARV on
+  // the page. For tax_basis_mode 'purchase_price' taxes are independent
+  // of ARV, so nothing changes. income_approach source leaves the ARV
+  // unchanged, so the guard below is a no-op for it.
+  if (tax_basis_mode !== 'purchase_price'
+      && tax_rate != null
+      && stabilized_arv !== stabilized_arv_income_approach) {
+    const opex_ex_taxes = pm_dollars + maint_turnover + insurance + utilities + reserves;
+    taxes = stabilized_arv * tax_rate;
+    stabilized_noi = egi - opex_ex_taxes - taxes;
+    total_operating_expenses = pm_dollars + maint_turnover + taxes + insurance + utilities + reserves;
+    expense_ratio = egi > 0 ? total_operating_expenses / egi : 0;
+    noi_margin = egi > 0 ? stabilized_noi / egi : 0;
+  }
 
   // Implied cap rate at the ARV in use. When source is income_approach,
   // this equals exit_cap (input). When source is comp_derived or
