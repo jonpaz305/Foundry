@@ -953,6 +953,31 @@ function _clearAllAutosaveTimers() {
   autosaveTimers = {};
 }
 
+// Immediately flush any pending debounced autosaves and wait for every
+// write to land in the database. Report generation (openPrintTab) opens
+// a new tab that re-fetches the deal from Supabase by ID, so it only
+// ever sees committed state - never this tab's in-memory edits. Calling
+// this before navigating the print tab guarantees the generated report
+// reflects the user's current numbers rather than the last debounced
+// save (the 700ms autosave window is why reports "sometimes" updated
+// and mostly did not).
+//
+// We clear the debounce timers first so they cannot double-fire, then
+// re-commit every persistable section from current in-memory state and
+// await all of them. Re-committing a clean section is harmless - it
+// just re-persists identical data. Committing every section (rather
+// than only those with a pending timer) also closes the narrow window
+// where a debounce has already fired but its async write has not yet
+// completed.
+async function flushAutosaves() {
+  if (!currentDeal) return;
+  Object.keys(autosaveTimers).forEach(k => clearTimeout(autosaveTimers[k]));
+  autosaveTimers = {};
+  const sections = ['inputs', 'unit_mix', 'comps', 'market_analysis',
+                    'overrides', 'risks', 'header', 'company'];
+  await Promise.all(sections.map(s => commitSection(s)));
+}
+
 async function commitSection(section) {
   if (!currentDeal) return;
   const patch = { updated_at: new Date().toISOString() };
@@ -1033,7 +1058,8 @@ function onInputChange(field, value) {
     'lender_flat_fees','closing_cost_insurance','closing_cost_appraisal',
     'initial_loan_ltv','initial_loan_ltc_capex','initial_rate','refi_rate',
     'refi_closing_cost_pct','investor_ownership','lp_gp_split_ff',
-    'capex_duration_months'
+    'capex_duration_months',
+    'closing_cost_transfer_addon','total_units_ff'
   ]);
   if (numericFields.has(field)) {
     if (value === '' || value == null) inputs[field] = null;

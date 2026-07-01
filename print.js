@@ -348,7 +348,20 @@ function _printErrorShell(msg) {
 // ── PUBLIC: triggered from the Reports page in shell-ui.js ─────
 // Opens a new tab to the print route, which the new tab's core.js
 // will detect on boot and dispatch through startPrintMode().
-function openPrintTab(reportType) {
+//
+// The print tab hydrates by re-fetching the deal from Supabase by ID
+// (see startPrintMode in this file) - it does NOT inherit this tab's
+// in-memory edits. Input edits are persisted through a 700ms debounced
+// autosave, so a report generated within that window (or before the
+// async write lands) would render the last-SAVED values, not what the
+// user just typed. To guarantee the report is 100% current, we flush
+// all pending writes and wait for them to commit before the print tab
+// reads the database.
+//
+// The tab is opened synchronously (empty URL) so the browser keeps it
+// inside the click gesture and does not popup-block it; we only point
+// it at the print route AFTER the flush resolves.
+async function openPrintTab(reportType) {
   if (!currentDeal || !currentDeal.id) {
     alert('Open a deal first.');
     return;
@@ -358,5 +371,28 @@ function openPrintTab(reportType) {
     return;
   }
   const url = window.location.pathname + '#/print/' + reportType + '/' + currentDeal.id;
-  window.open(url, '_blank');
+
+  // Open synchronously to preserve the user gesture (an awaited
+  // window.open would be blocked by popup blockers).
+  const win = window.open('', '_blank');
+
+  try {
+    if (typeof flushAutosaves === 'function') await flushAutosaves();
+  } catch (e) {
+    console.error('[Foundry] flush before print failed:', e);
+    // Do not render a report we cannot guarantee is current.
+    if (win && !win.closed) win.close();
+    alert('Could not save the latest changes before generating the report. '
+        + 'Check your connection and try again so the report reflects your current numbers.');
+    return;
+  }
+
+  if (win && !win.closed) {
+    win.location.href = url;
+  } else {
+    // Popup was blocked or the tab was closed. Fall back to same-tab
+    // navigation so the user still gets a current report. The flush has
+    // already committed, so this is safe.
+    window.location.href = url;
+  }
 }

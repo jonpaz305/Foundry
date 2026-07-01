@@ -939,7 +939,7 @@ function runM6_2() {
   check(g, 'BRRRR snapshot: contingency risk surfaced in Top Risks', brrrrHtml.includes('Contingency') ? 1 : 0, 1);
   // Layer 2 Fix 1: engine version stamp must appear on Deal Snapshot footer
   check(g, 'BRRRR snapshot: engine version stamp present (Layer 2 Fix 1)',
-    brrrrHtml.includes('Engine 1.2.0') ? 1 : 0, 1);
+    brrrrHtml.includes('Engine 1.3.0') ? 1 : 0, 1);
   // Layer 2 Fix 3: cash flow label disambiguated from BRRRR Package Y1
   check(g, 'BRRRR snapshot: cash flow label disambiguated to "Stabilized" (Layer 2 Fix 3)',
     brrrrHtml.includes('Stabilized Annual Cash Flow') ? 1 : 0, 1);
@@ -1061,9 +1061,10 @@ function runM6_3() {
   check(g, 'M0.3 P2: Total Closing Costs single line shown (Milestone 1)',
     html.includes('Total Closing Costs') && html.includes('itemized detail available on request') ? 1 : 0, 1);
 
-  // M0.3: Uses table relabeled
-  check(g, 'M0.3 P2: Uses table shows Sponsor Mobilization (not GC Contingency)',
-    html.includes('>Sponsor Mobilization<') && !html.includes('>GC Contingency<') ? 1 : 0, 1);
+  // M0.3 + Layer 2 audit: Uses table now labels the row "GC Contingency Reserve"
+  // (was "Sponsor Mobilization" -- label-data mismatch fixed in Layer 2 batch).
+  check(g, 'M0.3 P2: Uses table shows GC Contingency Reserve (not Sponsor Mobilization)',
+    html.includes('>GC Contingency Reserve<') && !html.includes('>Sponsor Mobilization<') ? 1 : 0, 1);
 
   // ── M2: Property Photos page ─────────────────────────────────
   // With DEAL_PHOTOS empty, photo page should be suppressed entirely.
@@ -1212,7 +1213,7 @@ function runM6_5() {
   check(g, 'BRRRR memo: stabilized NOI in facts ($127,274)', brrrrHtml.includes('$127,274') ? 1 : 0, 1);
   // Layer 2 Fix 1: engine version stamp must appear on Internal Memo footer
   check(g, 'BRRRR memo: engine version stamp present (Layer 2 Fix 1)',
-    brrrrHtml.includes('Engine 1.2.0') ? 1 : 0, 1);
+    brrrrHtml.includes('Engine 1.3.0') ? 1 : 0, 1);
 
   // ── F&F (clean 2455 deal)
   loadFF();
@@ -1587,7 +1588,7 @@ function runM6_10() {
   check(g, 'BRRRR: Notices & Disclaimers section header present',
     brrrrHtml.includes('Notices &amp; Disclaimers') || brrrrHtml.includes('Notices & Disclaimers') ? 1 : 0, 1);
   check(g, 'BRRRR: methodology references engine version stamp',
-    brrrrHtml.includes('Engine version 1.2.0') ? 1 : 0, 1);
+    brrrrHtml.includes('Engine version 1.3.0') ? 1 : 0, 1);
   check(g, 'BRRRR: methodology mentions tax basis treatment',
     brrrrHtml.includes('tax district') || brrrrHtml.includes('property taxes computed') ? 1 : 0, 1);
   check(g, 'BRRRR: methodology mentions IRR convention',
@@ -1678,8 +1679,9 @@ function runM3InvestmentOverview() {
   loadBRRRR();
   const html = vm.runInContext('renderReport_investment_overview(currentDeal, R, inputs, marketAnalysis, ' + HELPERS_SRC_IO + ');', ctx);
 
-  // Page count: exactly 6 pages (v3: reordered for pedagogical flow)
-  const pageCount = (html.match(/class="print-page print-page-compact"/g) || []).length;
+  // Page count: exactly 6 pages (v3: reordered for pedagogical flow).
+  // Regex permits additional classes (e.g. iov-tight) on the wrapper.
+  const pageCount = (html.match(/class="print-page print-page-compact[^"]*"/g) || []).length;
   check(g, 'M3: page count is exactly 6', pageCount, 6);
 
   // Page 1 (HOOK): Cover with eyebrow, opening narrative, key metrics
@@ -1821,8 +1823,8 @@ function runM8() {
     typeof v === 'string' && v.length > 0 ? 1 : 0, 1);
   check(g, 'FOUNDRY_ENGINE_VERSION matches MAJOR.MINOR.PATCH semver',
     /^\d+\.\d+\.\d+$/.test(v) ? 1 : 0, 1);
-  check(g, 'FOUNDRY_ENGINE_VERSION is 1.2.0 (Path C)',
-    v === '1.2.0' ? 1 : 0, 1);
+  check(g, 'FOUNDRY_ENGINE_VERSION is 1.3.0 (Path C)',
+    v === '1.3.0' ? 1 : 0, 1);
 
   // ── Engine version date is set
   const d = vm.runInContext(`typeof FOUNDRY_ENGINE_VERSION_DATE === 'string' ? FOUNDRY_ENGINE_VERSION_DATE : ''`, ctx);
@@ -1832,7 +1834,7 @@ function runM8() {
   // ── model-assumptions reads the live constant via _engineVersionStamp
   const stamp = vm.runInContext(`typeof _engineVersionStamp === 'function' ? _engineVersionStamp() : ''`, ctx);
   check(g, '_engineVersionStamp() returns dynamic value from engine.js',
-    stamp.includes('1.2.0') && stamp.includes(d) ? 1 : 0, 1);
+    stamp.includes('1.3.0') && stamp.includes(d) ? 1 : 0, 1);
 
   // ── Engine version flows into rendered Model Assumptions block
   loadBRRRR();
@@ -1848,9 +1850,9 @@ function runM8() {
   vm.runInContext(fs.readFileSync(path.join(__dirname, 'reports/brrrr-package.js'), 'utf8'), ctx, { filename: 'reports/brrrr-package.js' });
   const brrrrHtml = vm.runInContext(`renderReport_brrrr_package(currentDeal, R, inputs, marketAnalysis, ${HELPERS_SRC});`, ctx);
   check(g, 'BRRRR Model Assumptions block contains live engine version',
-    brrrrHtml.includes('1.2.0') ? 1 : 0, 1);
+    brrrrHtml.includes('1.3.0') ? 1 : 0, 1);
   check(g, 'BRRRR Model Assumptions block contains engine version date',
-    brrrrHtml.includes('(2026-05-13)') ? 1 : 0, 1);
+    brrrrHtml.includes('(2026-07-01)') ? 1 : 0, 1);
 
   // ── _engineVersionStamp returns 'unversioned' string when called in
   // a context without FOUNDRY_ENGINE_VERSION. We can't reassign the

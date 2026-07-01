@@ -38,8 +38,8 @@
 // changes. This constant is read by model-assumptions.js (for the
 // Engine version line on every external report) and by core.js
 // (for snapshot record stamping in foundry_report_snapshots).
-const FOUNDRY_ENGINE_VERSION = '1.2.0';
-const FOUNDRY_ENGINE_VERSION_DATE = '2026-05-13';
+const FOUNDRY_ENGINE_VERSION = '1.3.0';
+const FOUNDRY_ENGINE_VERSION_DATE = '2026-07-01';
 
 
 // ── CUYAHOGA TAX RATES (residential / commercial as % of market) ──
