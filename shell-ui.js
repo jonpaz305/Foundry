@@ -20,24 +20,82 @@ function renderDealList() {
     return;
   }
 
-  wrap.innerHTML = deals.map(d => {
+  // Owner filter (principal only). When the principal can see more than
+  // one owner's deals, show a compact filter so they can scope the list
+  // to all users (default) or a subset. Analysts see only their own deals,
+  // so no filter is rendered for them.
+  const ownerFilterHtml = _renderDealOwnerFilter();
+
+  // Apply the active owner filter.
+  const shown = (typeof _dealPassesOwnerFilter === 'function')
+    ? deals.filter(_dealPassesOwnerFilter)
+    : deals;
+
+  const rows = shown.map(d => {
     const active = currentDeal && currentDeal.id === d.id;
     const modeTag = d.deal_mode === 'fix_and_flip'
       ? '<span class="dm-tag">F&amp;F</span>'
       : '<span class="dm-tag">BRRRR</span>';
     const meta = [d.city, d.state].filter(Boolean).join(', ');
     const safeName = (d.name || 'Untitled').replace(/'/g, String.fromCharCode(39));
+    // Owner attribution: only meaningful when the principal is viewing
+    // other people's deals. Analysts see only their own list.
+    const showOwner = (typeof isPrincipal !== 'undefined' && isPrincipal);
+    const ownerLbl = showOwner && typeof dealOwnerLabel === 'function'
+      ? `<div class="di-owner">${escapeHtml(dealOwnerLabel(d.user_id))}</div>`
+      : '';
+    // Delete only your own deals. The database also blocks cross-user
+    // deletes, so this is defense in depth on the UI side.
+    const owned = currentUser && d.user_id === currentUser.id;
+    const delBtn = owned
+      ? `<button class="deal-item-del" onclick="confirmDeleteDeal('${d.id}','${escapeHtml(safeName)}')" title="Delete deal">🗑</button>`
+      : '';
     return `
       <div class="deal-item${active ? ' active' : ''}">
         <div class="deal-item-row">
           <div class="deal-item-body" onclick="loadDeal('${d.id}')" style="cursor:pointer">
             <div class="di-name">${escapeHtml(d.name || 'Untitled')} ${modeTag}</div>
             ${meta ? `<div class="di-meta">${escapeHtml(meta)}</div>` : ''}
+            ${ownerLbl}
           </div>
-          <button class="deal-item-del" onclick="confirmDeleteDeal('${d.id}','${escapeHtml(safeName)}')" title="Delete deal">🗑</button>
+          ${delBtn}
         </div>
       </div>`;
   }).join('');
+
+  wrap.innerHTML = ownerFilterHtml + (rows || `
+      <div style="padding:14px 12px;font-size:11px;color:var(--text3);text-align:center">
+        No deals match the current filter.
+      </div>`);
+}
+
+// Renders the principal owner filter: an "All" toggle plus one checkbox
+// per distinct owner in the loaded deal set. Returns '' for analysts or
+// when only one owner is present (nothing to filter).
+function _renderDealOwnerFilter() {
+  if (typeof isPrincipal === 'undefined' || !isPrincipal) return '';
+  const owners = [];
+  const seen = {};
+  deals.forEach(d => { if (!seen[d.user_id]) { seen[d.user_id] = 1; owners.push(d.user_id); } });
+  if (owners.length < 2) return '';
+  const allActive = (typeof dealOwnerFilter === 'undefined' || dealOwnerFilter === null);
+  const items = owners.map(uid => {
+    const checked = allActive || (dealOwnerFilter && dealOwnerFilter.has(uid));
+    const lbl = typeof dealOwnerLabel === 'function' ? dealOwnerLabel(uid) : uid;
+    return `
+      <label class="owner-filter-item">
+        <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleDealOwnerFilter('${uid}')"/>
+        <span>${escapeHtml(lbl)}</span>
+      </label>`;
+  }).join('');
+  return `
+    <div class="owner-filter">
+      <div class="owner-filter-head">
+        <span>Underwriters</span>
+        <button class="owner-filter-all${allActive ? ' active' : ''}" onclick="setDealOwnerFilterAll()">All</button>
+      </div>
+      ${items}
+    </div>`;
 }
 
 

@@ -17,6 +17,14 @@ let currentUser = null;
 let currentDeal = null;
 let deals = [];
 
+// Team visibility (principal read-through). profilesById maps a user_id
+// to { email, display_name, role }. isPrincipal drives whether the deal
+// list shows other users' deals plus the owner filter. dealOwnerFilter
+// is null (= show all owners) or a Set of user_ids to include.
+let profilesById = {};
+let isPrincipal = false;
+let dealOwnerFilter = null;
+
 
 // ── CANONICAL DEAL STATE ───────────────────────────────────────
 let inputs = makeDefaultInputs();
@@ -300,12 +308,114 @@ async function changePassword() {
 async function initApp() {
   $('auth-screen').style.display = 'none';
   $('app-screen').style.display  = 'block';
+  await upsertOwnProfile();   // ensure this user is listed for attribution
+  await loadProfiles();       // sets profilesById + isPrincipal
   await loadCompanies();
   await loadDeals();
   if ($('tb-user-email')) $('tb-user-email').textContent = currentUser.email || '';
   renderDealList();
   renderCompanyPicker();
   updateDashboard();
+}
+
+// ── TEAM PROFILES (principal read-through) ────────────────────
+// Every user upserts their own profile row on sign-in so their name is
+// available to label the deals they underwrote. Role is never written
+// here - it defaults to 'analyst' on first insert and is promoted to
+// 'principal' manually in Supabase - so this upsert cannot escalate
+// privileges.
+async function upsertOwnProfile() {
+  if (!currentUser) return;
+  const email = currentUser.email || '';
+  const display_name = _displayNameFromUser(currentUser);
+  try {
+    const { error } = await sb
+      .from('foundry_profiles')
+      .upsert({ user_id: currentUser.id, email, display_name, updated_at: new Date().toISOString() },
+              { onConflict: 'user_id' });
+    if (error) throw error;
+  } catch (e) {
+    // Non-fatal: the app still works, deals just fall back to showing the
+    // owner's raw id/email if a profile is missing.
+    console.warn('[Foundry] profile upsert failed:', e);
+  }
+}
+
+function _displayNameFromUser(u) {
+  if (!u) return '';
+  const m = u.user_metadata || {};
+  if (m.full_name) return m.full_name;
+  if (m.name) return m.name;
+  const email = u.email || '';
+  if (email) return email.split('@')[0];
+  return 'Unknown';
+}
+
+async function loadProfiles() {
+  profilesById = {};
+  isPrincipal = false;
+  try {
+    const { data, error } = await sb.from('foundry_profiles').select('*');
+    if (error) throw error;
+    (data || []).forEach(p => { profilesById[p.user_id] = p; });
+    const me = profilesById[currentUser.id];
+    isPrincipal = !!(me && me.role === 'principal');
+  } catch (e) {
+    console.warn('[Foundry] load profiles failed:', e);
+  }
+}
+
+// Display label for a deal's owner. Falls back gracefully when a profile
+// row is missing.
+function dealOwnerLabel(userId) {
+  if (userId === currentUser.id) return 'You';
+  const p = profilesById[userId];
+  if (p && p.display_name) return p.display_name;
+  if (p && p.email) return p.email.split('@')[0];
+  return 'Unknown';
+}
+
+// ── OWNER FILTER (principal only) ─────────────────────────────
+// dealOwnerFilter is null (all) or a Set of user_ids to include.
+function toggleDealOwnerFilter(userId) {
+  if (dealOwnerFilter === null) {
+    // Was "all": start a fresh set containing every owner, then remove
+    // the one just unchecked.
+    dealOwnerFilter = new Set(deals.map(d => d.user_id));
+  }
+  if (dealOwnerFilter.has(userId)) dealOwnerFilter.delete(userId);
+  else dealOwnerFilter.add(userId);
+  // If every owner is selected again, collapse back to null (= all).
+  const allOwners = new Set(deals.map(d => d.user_id));
+  if (dealOwnerFilter.size === allOwners.size) dealOwnerFilter = null;
+  renderDealList();
+}
+
+function setDealOwnerFilterAll() {
+  dealOwnerFilter = null;
+  renderDealList();
+}
+
+// True when the deal passes the current owner filter.
+function _dealPassesOwnerFilter(d) {
+  return dealOwnerFilter === null || dealOwnerFilter.has(d.user_id);
+}
+
+// Banner shown when the open deal belongs to another user, so an editor
+// always knows they are working inside someone else's model. Writes are
+// still permitted (editable model) but attributed via last_edited_by.
+function updateOwnerBanner() {
+  const el = $('owner-banner');
+  if (!el) return;
+  if (currentDeal && currentUser && currentDeal.user_id !== currentUser.id) {
+    const who = dealOwnerLabel(currentDeal.user_id);
+    el.innerHTML = 'You are editing <strong>' + escapeHtml(who) + "</strong>'s deal. "
+      + 'Changes you save are recorded under your name.';
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+    el.innerHTML = '';
+  }
 }
 
 
@@ -696,7 +806,12 @@ async function loadDeal(id) {
     inputs.tax_district = (inputs.city || '').trim();
     // Persist the backfill so it survives the next load and so the
     // engine consistently reads the corrected value going forward.
-    autosave('inputs');
+    // Only auto-persist on a deal you own: opening someone else's deal
+    // must not silently write to it. The in-memory value is still applied
+    // so the viewer sees correct taxes; it is saved if the owner edits.
+    if (currentDeal && currentUser && currentDeal.user_id === currentUser.id) {
+      autosave('inputs');
+    }
   }
 
   // M1: Restore the deal's company assignment. Each deal has a
@@ -711,12 +826,14 @@ async function loadDeal(id) {
       localStorage.setItem('foundry_active_company', dealCompany.id);
       applyTopbarLogo();
     }
-  } else if (CP.active && CP.active.id) {
+  } else if (CP.active && CP.active.id
+             && currentDeal && currentUser && currentDeal.user_id === currentUser.id) {
     // Backfill: deal has no company_id but user has an active company
     // profile. Auto-link the deal so reports pick up the active company's
     // logo and branding. Persists to Supabase via autosave('company').
     // This catches legacy deals created before the user uploaded a logo
     // or before company_id was being saved properly.
+    // Owner-only: never re-brand another user's deal just by opening it.
     d.company_id = CP.active.id;
     currentDeal.company_id = CP.active.id;
     autosave('company');
@@ -736,6 +853,7 @@ async function loadDeal(id) {
   if (typeof renderOperatingBlock === 'function') renderOperatingBlock();
   if (typeof recompute === 'function') recompute();
   updateDashboard();
+  updateOwnerBanner();
   // Pass 4: load snapshots for this deal so the Snapshots page is
   // immediately populated when the user navigates to it.
   loadSnapshotsForCurrentDeal();
@@ -980,7 +1098,10 @@ async function flushAutosaves() {
 
 async function commitSection(section) {
   if (!currentDeal) return;
-  const patch = { updated_at: new Date().toISOString() };
+  // last_edited_by records who saved this version. The owner (user_id) is
+  // never changed here, so a principal editing another user's deal stays
+  // attributable without taking ownership.
+  const patch = { updated_at: new Date().toISOString(), last_edited_by: currentUser.id };
 
   if (section === 'inputs') {
     patch.inputs     = Object.assign({}, inputs);

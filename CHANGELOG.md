@@ -39,6 +39,8 @@ OUTPUT IMPACT: BRRRR deals with `tax_basis_mode = stabilized_arv` AND a non-inco
 
 **Engine invariants guardrail (`regression-invariants.js`, new).** Adds an accounting-identity test that fuzzes input combinations and asserts the engine's outputs are internally consistent (`NOI = EGI - OPEX`, `taxes = assessed_base * rate`, `implied_cap = NOI / ARV`, `refi_loan = ARV * refi_ltv`, `dscr = NOI / refi_ds`, and more). The old engine failed the tax identity on 54 of 756 checks; the fixed engine passes all 756. Run on every engine change so decoupling bugs fail the build instead of shipping.
 
+**Team visibility with principal read-through (new; requires SQL migration).** Adds cross-user deal visibility for a principal role. A new `foundry_profiles` table maps each user to a display name and role (`principal` or `analyst`), and a `last_edited_by` column on `foundry_deals` attributes each save. Row-level security is rewritten so a principal can see and edit every deal while an analyst still sees and edits only their own (SELECT and UPDATE are `own OR principal`; INSERT and DELETE remain own-only). The sidebar now labels each deal with its underwriter and deal type and, for a principal, offers an "Underwriters" filter to scope the list to all users or a selected subset. A banner marks when you are editing another user's deal, and load-time auto-backfills (tax district, company link) no longer write to deals you do not own. Run `migration-team-visibility.sql` in Supabase and promote your account to `principal` (final step of that file) to enable. No engine math change; 428/428 baseline and invariants unaffected.
+
 ---
 
 ## 1.2.0 -- 2026-05-13
