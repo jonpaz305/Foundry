@@ -20,82 +20,128 @@ function renderDealList() {
     return;
   }
 
-  // Owner filter (principal only). When the principal can see more than
-  // one owner's deals, show a compact filter so they can scope the list
-  // to all users (default) or a subset. Analysts see only their own deals,
-  // so no filter is rendered for them.
-  const ownerFilterHtml = _renderDealOwnerFilter();
-
-  // Apply the active owner filter.
-  const shown = (typeof _dealPassesOwnerFilter === 'function')
-    ? deals.filter(_dealPassesOwnerFilter)
-    : deals;
-
-  const rows = shown.map(d => {
-    const active = currentDeal && currentDeal.id === d.id;
-    const modeTag = d.deal_mode === 'fix_and_flip'
-      ? '<span class="dm-tag">F&amp;F</span>'
-      : '<span class="dm-tag">BRRRR</span>';
-    const meta = [d.city, d.state].filter(Boolean).join(', ');
-    const safeName = (d.name || 'Untitled').replace(/'/g, String.fromCharCode(39));
-    // Owner attribution: only meaningful when the principal is viewing
-    // other people's deals. Analysts see only their own list.
-    const showOwner = (typeof isPrincipal !== 'undefined' && isPrincipal);
-    const ownerLbl = showOwner && typeof dealOwnerLabel === 'function'
-      ? `<div class="di-owner">${escapeHtml(dealOwnerLabel(d.user_id))}</div>`
-      : '';
-    // Delete only your own deals. The database also blocks cross-user
-    // deletes, so this is defense in depth on the UI side.
-    const owned = currentUser && d.user_id === currentUser.id;
-    const delBtn = owned
-      ? `<button class="deal-item-del" onclick="confirmDeleteDeal('${d.id}','${escapeHtml(safeName)}')" title="Delete deal">🗑</button>`
-      : '';
-    return `
-      <div class="deal-item${active ? ' active' : ''}">
-        <div class="deal-item-row">
-          <div class="deal-item-body" onclick="loadDeal('${d.id}')" style="cursor:pointer">
-            <div class="di-name">${escapeHtml(d.name || 'Untitled')} ${modeTag}</div>
-            ${meta ? `<div class="di-meta">${escapeHtml(meta)}</div>` : ''}
-            ${ownerLbl}
-          </div>
-          ${delBtn}
-        </div>
-      </div>`;
-  }).join('');
-
-  wrap.innerHTML = ownerFilterHtml + (rows || `
-      <div style="padding:14px 12px;font-size:11px;color:var(--text3);text-align:center">
-        No deals match the current filter.
-      </div>`);
+  // Collapsible tree: group by underwriter (user), then a sub-group per
+  // deal type within each user. Both levels collapse independently, and
+  // the collapsed/expanded state is remembered across reloads.
+  //
+  // Group order: your own deals first, then other underwriters A-Z.
+  // Within a user: BRRRR before Fix & Flip; empty types are omitted.
+  const groups = _groupDealsByOwner(deals);
+  wrap.innerHTML = groups.map(g => _renderOwnerGroup(g)).join('');
 }
 
-// Renders the principal owner filter: an "All" toggle plus one checkbox
-// per distinct owner in the loaded deal set. Returns '' for analysts or
-// when only one owner is present (nothing to filter).
-function _renderDealOwnerFilter() {
-  if (typeof isPrincipal === 'undefined' || !isPrincipal) return '';
-  const owners = [];
-  const seen = {};
-  deals.forEach(d => { if (!seen[d.user_id]) { seen[d.user_id] = 1; owners.push(d.user_id); } });
-  if (owners.length < 2) return '';
-  const allActive = (typeof dealOwnerFilter === 'undefined' || dealOwnerFilter === null);
-  const items = owners.map(uid => {
-    const checked = allActive || (dealOwnerFilter && dealOwnerFilter.has(uid));
-    const lbl = typeof dealOwnerLabel === 'function' ? dealOwnerLabel(uid) : uid;
-    return `
-      <label class="owner-filter-item">
-        <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleDealOwnerFilter('${uid}')"/>
-        <span>${escapeHtml(lbl)}</span>
-      </label>`;
-  }).join('');
+// Build [{ uid, label, isSelf, types: [{ mode, label, deals:[] }] }]
+function _groupDealsByOwner(list) {
+  const byUser = {};
+  list.forEach(d => { (byUser[d.user_id] = byUser[d.user_id] || []).push(d); });
+  const myId = currentUser ? currentUser.id : null;
+  const labelFor = uid => (typeof dealOwnerLabel === 'function') ? dealOwnerLabel(uid) : uid;
+  const uids = Object.keys(byUser).sort((a, b) => {
+    if (a === myId) return -1;
+    if (b === myId) return 1;
+    return String(labelFor(a)).localeCompare(String(labelFor(b)));
+  });
+  const MODES = [
+    { mode: 'brrrr', label: 'BRRRR' },
+    { mode: 'fix_and_flip', label: 'Fix &amp; Flip' }
+  ];
+  return uids.map(uid => {
+    const dealsForUser = byUser[uid];
+    const types = MODES.map(m => ({
+      mode: m.mode,
+      label: m.label,
+      deals: dealsForUser.filter(d => (d.deal_mode || 'brrrr') === m.mode)
+    })).filter(t => t.deals.length > 0);
+    return { uid, label: labelFor(uid), isSelf: uid === myId, count: dealsForUser.length, types };
+  });
+}
+
+function _renderOwnerGroup(g) {
+  // For a single-owner analyst view, skip the redundant top-level user
+  // header and show the deal-type sub-groups directly.
+  const singleOwner = (typeof isPrincipal === 'undefined' || !isPrincipal);
+  if (singleOwner) {
+    return g.types.map(t => _renderTypeGroup(g.uid, t)).join('');
+  }
+  const key = 'u:' + g.uid;
+  const collapsed = _isSidebarCollapsed(key);
+  const caret = collapsed ? '&#9656;' : '&#9662;';  // triangle right / down
+  const body = collapsed ? '' :
+    `<div class="deal-group-body">${g.types.map(t => _renderTypeGroup(g.uid, t)).join('')}</div>`;
   return `
-    <div class="owner-filter">
-      <div class="owner-filter-head">
-        <span>Underwriters</span>
-        <button class="owner-filter-all${allActive ? ' active' : ''}" onclick="setDealOwnerFilterAll()">All</button>
+    <div class="deal-group">
+      <div class="deal-group-head" onclick="toggleSidebarGroup('${key}')">
+        <span class="dg-caret">${caret}</span>
+        <span class="dg-name">${escapeHtml(g.label)}</span>
+        <span class="dg-count">${g.count}</span>
       </div>
-      ${items}
+      ${body}
     </div>`;
+}
+
+function _renderTypeGroup(uid, t) {
+  const key = 't:' + uid + ':' + t.mode;
+  const collapsed = _isSidebarCollapsed(key);
+  const caret = collapsed ? '&#9656;' : '&#9662;';
+  const rows = collapsed ? '' : t.deals.map(_renderDealRow).join('');
+  return `
+    <div class="deal-subgroup">
+      <div class="deal-subgroup-head" onclick="toggleSidebarGroup('${key}')">
+        <span class="dg-caret">${caret}</span>
+        <span class="dsg-name">${t.label}</span>
+        <span class="dg-count">${t.deals.length}</span>
+      </div>
+      ${collapsed ? '' : `<div class="deal-subgroup-body">${rows}</div>`}
+    </div>`;
+}
+
+function _renderDealRow(d) {
+  const active = currentDeal && currentDeal.id === d.id;
+  const meta = [d.city, d.state].filter(Boolean).join(', ');
+  const safeName = (d.name || 'Untitled').replace(/'/g, String.fromCharCode(39));
+  const owned = currentUser && d.user_id === currentUser.id;
+  const delBtn = owned
+    ? `<button class="deal-item-del" onclick="confirmDeleteDeal('${d.id}','${escapeHtml(safeName)}')" title="Delete deal">🗑</button>`
+    : '';
+  return `
+    <div class="deal-item${active ? ' active' : ''}">
+      <div class="deal-item-row">
+        <div class="deal-item-body" onclick="loadDeal('${d.id}')" style="cursor:pointer">
+          <div class="di-name">${escapeHtml(d.name || 'Untitled')}</div>
+          ${meta ? `<div class="di-meta">${escapeHtml(meta)}</div>` : ''}
+        </div>
+        ${delBtn}
+      </div>
+    </div>`;
+}
+
+// ── Sidebar collapse state (persisted) ────────────────────────
+// A key is present in the set when that group is COLLAPSED. Default
+// (absent) is expanded. Persisted to localStorage so the layout the
+// user arranges survives reloads; falls back to in-memory if storage
+// is unavailable.
+let _sidebarCollapsed = null;
+function _loadSidebarCollapsed() {
+  if (_sidebarCollapsed) return _sidebarCollapsed;
+  _sidebarCollapsed = {};
+  try {
+    const raw = (typeof localStorage !== 'undefined') && localStorage.getItem('foundry_sidebar_collapsed');
+    if (raw) (JSON.parse(raw) || []).forEach(k => { _sidebarCollapsed[k] = 1; });
+  } catch (e) { /* ignore - use in-memory */ }
+  return _sidebarCollapsed;
+}
+function _isSidebarCollapsed(key) {
+  return !!_loadSidebarCollapsed()[key];
+}
+function toggleSidebarGroup(key) {
+  const s = _loadSidebarCollapsed();
+  if (s[key]) delete s[key]; else s[key] = 1;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('foundry_sidebar_collapsed', JSON.stringify(Object.keys(s)));
+    }
+  } catch (e) { /* ignore */ }
+  renderDealList();
 }
 
 

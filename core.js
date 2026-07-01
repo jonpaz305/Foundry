@@ -19,11 +19,10 @@ let deals = [];
 
 // Team visibility (principal read-through). profilesById maps a user_id
 // to { email, display_name, role }. isPrincipal drives whether the deal
-// list shows other users' deals plus the owner filter. dealOwnerFilter
-// is null (= show all owners) or a Set of user_ids to include.
+// list groups by underwriter (principals see everyone; analysts see only
+// their own deals, enforced by row-level security).
 let profilesById = {};
 let isPrincipal = false;
-let dealOwnerFilter = null;
 
 
 // ── CANONICAL DEAL STATE ───────────────────────────────────────
@@ -373,32 +372,6 @@ function dealOwnerLabel(userId) {
   if (p && p.display_name) return p.display_name;
   if (p && p.email) return p.email.split('@')[0];
   return 'Unknown';
-}
-
-// ── OWNER FILTER (principal only) ─────────────────────────────
-// dealOwnerFilter is null (all) or a Set of user_ids to include.
-function toggleDealOwnerFilter(userId) {
-  if (dealOwnerFilter === null) {
-    // Was "all": start a fresh set containing every owner, then remove
-    // the one just unchecked.
-    dealOwnerFilter = new Set(deals.map(d => d.user_id));
-  }
-  if (dealOwnerFilter.has(userId)) dealOwnerFilter.delete(userId);
-  else dealOwnerFilter.add(userId);
-  // If every owner is selected again, collapse back to null (= all).
-  const allOwners = new Set(deals.map(d => d.user_id));
-  if (dealOwnerFilter.size === allOwners.size) dealOwnerFilter = null;
-  renderDealList();
-}
-
-function setDealOwnerFilterAll() {
-  dealOwnerFilter = null;
-  renderDealList();
-}
-
-// True when the deal passes the current owner filter.
-function _dealPassesOwnerFilter(d) {
-  return dealOwnerFilter === null || dealOwnerFilter.has(d.user_id);
 }
 
 // Banner shown when the open deal belongs to another user, so an editor
