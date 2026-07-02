@@ -68,15 +68,32 @@ function _renderOwnerGroup(g) {
   const caret = collapsed ? '&#9656;' : '&#9662;';  // triangle right / down
   const body = collapsed ? '' :
     `<div class="deal-group-body">${g.types.map(t => _renderTypeGroup(g.uid, t)).join('')}</div>`;
+  // Colored dot per underwriter + a distinct accent on your own group so
+  // "mine vs theirs" is unmistakable at a glance.
+  const dot = `<span class="dg-dot" style="background:${g.isSelf ? 'var(--gold-lt)' : _ownerColor(g.uid)}"></span>`;
+  const tag = g.isSelf ? '<span class="dg-you">YOU</span>' : '';
   return `
-    <div class="deal-group">
+    <div class="deal-group${g.isSelf ? ' is-self' : ''}">
       <div class="deal-group-head" onclick="toggleSidebarGroup('${key}')">
         <span class="dg-caret">${caret}</span>
+        ${dot}
         <span class="dg-name">${escapeHtml(g.label)}</span>
+        ${tag}
         <span class="dg-count">${g.count}</span>
       </div>
       ${body}
     </div>`;
+}
+
+// Deterministic color per underwriter (stable across reloads) so each
+// person's group reads as a distinct color. Your own group uses the gold
+// accent instead (handled by the caller).
+function _ownerColor(uid) {
+  const palette = ['#6ea8fe', '#7bd88f', '#e88fd0', '#e0a86e', '#8f9ce8', '#5fc9c1', '#d98f8f', '#b79ce0'];
+  let h = 0;
+  const s = String(uid || '');
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return palette[h % palette.length];
 }
 
 function _renderTypeGroup(uid, t) {
