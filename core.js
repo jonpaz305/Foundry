@@ -364,14 +364,14 @@ async function loadProfiles() {
   }
 }
 
-// Display label for a deal's owner. Falls back gracefully when a profile
-// row is missing.
+// Display label for a deal's owner - the email address. The "YOU" tag on
+// the sidebar group (not this label) is what marks your own deals.
 function dealOwnerLabel(userId) {
-  if (userId === currentUser.id) return 'You';
   const p = profilesById[userId];
+  if (p && p.email) return p.email;
   if (p && p.display_name) return p.display_name;
-  if (p && p.email) return p.email.split('@')[0];
-  return 'Unknown';
+  if (currentUser && userId === currentUser.id && currentUser.email) return currentUser.email;
+  return userId;
 }
 
 // Banner shown when the open deal belongs to another user, so an editor

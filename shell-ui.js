@@ -20,23 +20,41 @@ function renderDealList() {
     return;
   }
 
-  // Collapsible tree: group by underwriter (user), then a sub-group per
-  // deal type within each user. Both levels collapse independently, and
-  // the collapsed/expanded state is remembered across reloads.
-  //
-  // Group order: your own deals first, then other underwriters A-Z.
-  // Within a user: BRRRR before Fix & Flip; empty types are omitted.
-  const groups = _groupDealsByOwner(deals);
-  wrap.innerHTML = groups.map(g => _renderOwnerGroup(g)).join('');
+  // Principal: an "Underwriters" picker controls whose deals appear.
+  // Default = underwriters who have deals are shown, those with none are
+  // hidden; the picker overrides either way and the choice is remembered.
+  // Group by underwriter, then a collapsible sub-group per deal type.
+  // Analysts only ever see their own deals (enforced by row-level security).
+  const pickerHtml = _renderUnderwriterPicker();
+  const groups = _buildOwnerGroups();
+  const groupsHtml = groups.map(g => _renderOwnerGroup(g)).join('');
+  wrap.innerHTML = pickerHtml + (groupsHtml || `
+      <div style="padding:14px 12px;font-size:11px;color:var(--text3);text-align:center;line-height:1.6">
+        No underwriters selected.<br>Use the picker above to choose whose deals to show.
+      </div>`);
 }
 
-// Build [{ uid, label, isSelf, types: [{ mode, label, deals:[] }] }]
-function _groupDealsByOwner(list) {
-  const byUser = {};
-  list.forEach(d => { (byUser[d.user_id] = byUser[d.user_id] || []).push(d); });
+// Build [{ uid, label, isSelf, count, types:[{mode,label,deals[]}] }] for
+// the underwriters that should currently be displayed.
+function _buildOwnerGroups() {
   const myId = currentUser ? currentUser.id : null;
+  const byUser = {};
+  deals.forEach(d => { (byUser[d.user_id] = byUser[d.user_id] || []).push(d); });
+  const principal = (typeof isPrincipal !== 'undefined' && isPrincipal);
+
+  let uids;
+  if (principal) {
+    // Everyone known (from profiles) plus any owner of a visible deal.
+    const set = {};
+    Object.keys(byUser).forEach(u => { set[u] = 1; });
+    if (typeof profilesById === 'object' && profilesById) Object.keys(profilesById).forEach(u => { set[u] = 1; });
+    uids = Object.keys(set).filter(u => _userShown(u, (byUser[u] ? byUser[u].length : 0) > 0));
+  } else {
+    uids = Object.keys(byUser);  // analyst: only their own
+  }
+
   const labelFor = uid => (typeof dealOwnerLabel === 'function') ? dealOwnerLabel(uid) : uid;
-  const uids = Object.keys(byUser).sort((a, b) => {
+  uids.sort((a, b) => {
     if (a === myId) return -1;
     if (b === myId) return 1;
     return String(labelFor(a)).localeCompare(String(labelFor(b)));
@@ -46,7 +64,7 @@ function _groupDealsByOwner(list) {
     { mode: 'fix_and_flip', label: 'Fix &amp; Flip' }
   ];
   return uids.map(uid => {
-    const dealsForUser = byUser[uid];
+    const dealsForUser = byUser[uid] || [];
     const types = MODES.map(m => ({
       mode: m.mode,
       label: m.label,
@@ -54,6 +72,82 @@ function _groupDealsByOwner(list) {
     })).filter(t => t.deals.length > 0);
     return { uid, label: labelFor(uid), isSelf: uid === myId, count: dealsForUser.length, types };
   });
+}
+
+// ── Underwriter picker (principal only) ───────────────────────
+// Lists every known user with a checkbox. Checked = shown in the
+// sidebar. Default: users with deals are checked, users with none are
+// unchecked (so empty accounts stay hidden until you choose to list
+// them). Choices persist across reloads.
+function _renderUnderwriterPicker() {
+  if (typeof isPrincipal === 'undefined' || !isPrincipal) return '';
+  const set = {};
+  deals.forEach(d => { set[d.user_id] = 1; });
+  if (typeof profilesById === 'object' && profilesById) Object.keys(profilesById).forEach(u => { set[u] = 1; });
+  const uids = Object.keys(set);
+  if (uids.length < 2) return '';  // nothing to pick between
+
+  const myId = currentUser ? currentUser.id : null;
+  const dealCount = {};
+  deals.forEach(d => { dealCount[d.user_id] = (dealCount[d.user_id] || 0) + 1; });
+  const labelFor = uid => (typeof dealOwnerLabel === 'function') ? dealOwnerLabel(uid) : uid;
+  uids.sort((a, b) => {
+    if (a === myId) return -1;
+    if (b === myId) return 1;
+    return String(labelFor(a)).localeCompare(String(labelFor(b)));
+  });
+  const shownCount = uids.filter(u => _userShown(u, (dealCount[u] || 0) > 0)).length;
+  const collapsed = _isSidebarCollapsed('picker');
+  const caret = collapsed ? '&#9656;' : '&#9662;';
+  const items = collapsed ? '' : uids.map(uid => {
+    const has = dealCount[uid] || 0;
+    const checked = _userShown(uid, has > 0);
+    const dotColor = uid === myId ? 'var(--gold-lt)' : _ownerColor(uid);
+    return `
+      <label class="uw-pick-item">
+        <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleUserVisible('${uid}')"/>
+        <span class="uw-pick-dot" style="background:${dotColor}"></span>
+        <span class="uw-pick-email">${escapeHtml(labelFor(uid))}</span>
+        <span class="uw-pick-count">${has}</span>
+      </label>`;
+  }).join('');
+  return `
+    <div class="uw-picker">
+      <div class="uw-pick-head" onclick="toggleSidebarGroup('picker')">
+        <span class="dg-caret">${caret}</span>
+        <span class="uw-pick-title">Underwriters</span>
+        <span class="dg-count">${shownCount}/${uids.length}</span>
+      </div>
+      ${collapsed ? '' : `<div class="uw-pick-body">${items}</div>`}
+    </div>`;
+}
+
+// Per-user visibility overrides (principal only). Default is "shown iff
+// the user has deals"; an override flips that for a specific user.
+let _userVisCache = null;
+function _userVisOverride() {
+  if (_userVisCache) return _userVisCache;
+  _userVisCache = {};
+  try {
+    const raw = (typeof localStorage !== 'undefined') && localStorage.getItem('foundry_user_visibility');
+    if (raw) _userVisCache = JSON.parse(raw) || {};
+  } catch (e) { /* in-memory fallback */ }
+  return _userVisCache;
+}
+function _userShown(uid, hasDeals) {
+  const o = _userVisOverride();
+  if (Object.prototype.hasOwnProperty.call(o, uid)) return !!o[uid];
+  return !!hasDeals;  // default: shown only if they have deals
+}
+function toggleUserVisible(uid) {
+  const has = deals.some(d => d.user_id === uid);
+  const o = _userVisOverride();
+  const current = Object.prototype.hasOwnProperty.call(o, uid) ? !!o[uid] : has;
+  o[uid] = !current;
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem('foundry_user_visibility', JSON.stringify(o));
+  } catch (e) { /* ignore */ }
+  renderDealList();
 }
 
 function _renderOwnerGroup(g) {
